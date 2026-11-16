@@ -49,7 +49,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.7 · Password-protected · Supabase-saved paper account · Risk sizing + simulated exit rules")
+st.caption("Version 1.8 · Performance analytics · Password-protected · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -219,7 +219,30 @@ c2.metric("Strong uptrends", int((data["Trend"] == "Strong uptrend").sum()))
 c3.metric("Positive / strong", int(data["Trend"].isin(["Positive", "Strong uptrend"]).sum()))
 c4.metric("Scan updated", stamp)
 
-scanner_tab, paper_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account"])
+
+def build_closed_trade_metrics(journal):
+    """Summarize realized SELL/automatic-exit journal rows; BUY rows are not closed trades."""
+    closed = []
+    for item in journal:
+        action = str(item.get("Action", "")).upper()
+        if action == "SELL" or action.startswith("AUTO "):
+            try:
+                pnl = float(item.get("Realized P/L", 0.0) or 0.0)
+                closed.append({
+                    "Symbol": item.get("Symbol", "—"),
+                    "Action": item.get("Action", "—"),
+                    "Time": item.get("Time", "—"),
+                    "Quantity": float(item.get("Quantity", 0.0) or 0.0),
+                    "Realized P/L": pnl,
+                })
+            except (TypeError, ValueError):
+                continue
+    return closed
+
+def safe_pct(numerator, denominator):
+    return (numerator / denominator * 100.0) if denominator else 0.0
+
+scanner_tab, paper_tab, analytics_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account", "📈 Performance"])
 with scanner_tab:
     st.subheader("Strongest trends")
     display = data[["Symbol", "Signal", "Trend", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
@@ -397,5 +420,103 @@ with paper_tab:
         st.session_state.realized_pnl = 0.00
         save_account()
         st.rerun()
+
+
+with analytics_tab:
+    st.subheader("Paper-trading performance")
+    st.caption("Metrics are calculated from the saved paper-account journal and the latest available DAILY reference prices. They are simulation metrics, not verified live-trading results.")
+
+    positions_now = st.session_state.paper_positions
+    prices_now = dict(zip(data["Symbol"], data["Last"]))
+    open_market_value = sum(
+        float(pos.get("quantity", 0.0)) * float(prices_now.get(sym, pos.get("average_price", 0.0)))
+        for sym, pos in positions_now.items()
+    )
+    open_unrealized = sum(
+        (float(prices_now.get(sym, pos.get("average_price", 0.0))) - float(pos.get("average_price", 0.0)))
+        * float(pos.get("quantity", 0.0))
+        for sym, pos in positions_now.items()
+    )
+    current_equity = float(st.session_state.paper_cash) + open_market_value
+    total_pnl = current_equity - 1000.0
+    total_return = safe_pct(total_pnl, 1000.0)
+
+    closed = build_closed_trade_metrics(st.session_state.paper_journal)
+    closed_pnls = [row["Realized P/L"] for row in closed]
+    wins = [x for x in closed_pnls if x > 0]
+    losses = [x for x in closed_pnls if x < 0]
+    gross_profit = sum(wins)
+    gross_loss_abs = abs(sum(losses))
+    profit_factor = gross_profit / gross_loss_abs if gross_loss_abs > 0 else None
+    win_rate = safe_pct(len(wins), len(closed_pnls))
+    avg_win = sum(wins) / len(wins) if wins else 0.0
+    avg_loss = sum(losses) / len(losses) if losses else 0.0
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Account value", f"${current_equity:,.2f}", f"{total_pnl:+,.2f} vs. $1,000")
+    m2.metric("Total return", f"{total_return:+.2f}%")
+    m3.metric("Realized P/L", f"${float(st.session_state.realized_pnl):+,.2f}")
+    m4.metric("Open unrealized P/L", f"${open_unrealized:+,.2f}")
+
+    st.markdown("#### Closed-trade statistics")
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("Closed trade records", len(closed))
+    s2.metric("Win rate", f"{win_rate:.1f}%" if closed else "—")
+    s3.metric("Average winning record", f"${avg_win:+,.2f}" if wins else "—")
+    s4.metric("Average losing record", f"${avg_loss:+,.2f}" if losses else "—")
+
+    if profit_factor is None:
+        st.metric("Profit factor", "—", help="Not meaningful until there is at least one losing closed-trade record.")
+    else:
+        st.metric("Profit factor", f"{profit_factor:.2f}")
+
+    if closed:
+        st.markdown("#### Closed-trade journal")
+        closed_df = pd.DataFrame(closed)
+        st.dataframe(
+            closed_df.style.format({
+                "Quantity": "{:.4f}",
+                "Realized P/L": "${:+,.2f}",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No positions have been closed yet. Win rate, average win/loss, and profit factor will become meaningful after completed simulated trades.")
+
+    st.markdown("#### Current portfolio allocation")
+    allocation_rows = []
+    if current_equity > 0:
+        for sym, pos in positions_now.items():
+            mark = float(prices_now.get(sym, pos.get("average_price", 0.0)))
+            value = float(pos.get("quantity", 0.0)) * mark
+            allocation_rows.append({
+                "Symbol": sym,
+                "Market value": value,
+                "Portfolio weight": value / current_equity * 100.0,
+                "Unrealized P/L": (mark - float(pos.get("average_price", 0.0))) * float(pos.get("quantity", 0.0)),
+            })
+    if allocation_rows:
+        allocation_df = pd.DataFrame(allocation_rows).sort_values("Market value", ascending=False)
+        st.dataframe(
+            allocation_df.style.format({
+                "Market value": "${:,.2f}",
+                "Portfolio weight": "{:.1f}%",
+                "Unrealized P/L": "${:+,.2f}",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.caption("No open positions.")
+
+    st.markdown("#### What these numbers do—and don't—tell us")
+    st.write(
+        "- Total return compares current account equity with the original $1,000 starting balance.\n"
+        "- Win rate and average win/loss use recorded SELL and automatic-exit journal entries. Partial exits count as separate closed-trade records in this prototype.\n"
+        "- Profit factor compares gross realized gains with gross realized losses. It is unavailable until there is at least one losing closed-trade record.\n"
+        "- Maximum drawdown is not shown yet because the app has not been recording a reliable time series of account-equity snapshots. We should collect that history before calculating it.\n"
+        "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
+    )
 
 st.caption("Prototype limitations: daily data only; no intraday feed, backtesting, news/AI analysis, broker connection, or real order execution. Simulated trades exclude commissions, spread, slippage, and taxes.")

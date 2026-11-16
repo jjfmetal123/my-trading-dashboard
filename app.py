@@ -16,7 +16,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.3 · Rule-based scanner signals · Paper trading only")
+st.caption("Version 1.4 · Rule-based signals + risk sizing · Paper trading only")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -172,21 +172,43 @@ with paper_tab:
     b.metric("Position value", f"${market_value:,.2f}")
     c.metric("Account value", f"${equity:,.2f}", f"${equity-1000:+,.2f} vs. start")
     d.metric("Realized P/L", f'${st.session_state.realized_pnl:+,.2f}')
-    st.markdown("#### Approve a simulated trade")
+    st.markdown("#### Risk planner and simulated trade")
     candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
     default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
     default_index = data["Symbol"].tolist().index(default_symbol)
-    st.caption("The asset selector is prefilled with the highest-ranked current scanner candidate when one exists. This does not place a trade; you must review and approve each simulation.")
+    st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. The risk planner estimates a position size; it does not place a real order or create an automatic stop-loss.")
+    action = st.selectbox("Action", ["Buy", "Sell"])
+    trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
+    selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
+    estimated_price = float(prices[trade_symbol])
+    price_date = str(selected_signal["Price date"])
+    stop_reference = float(selected_signal["Illustrative risk level"])
+    risk_pct = st.select_slider("Maximum planned account risk per buy", options=[0.5, 1.0, 1.5, 2.0], value=1.0, format_func=lambda x: f"{x:.1f}%")
+    risk_budget = max(0.0, equity * risk_pct / 100.0)
+    risk_per_unit = estimated_price - stop_reference
+    cash_limited_qty = st.session_state.paper_cash / estimated_price if estimated_price > 0 else 0.0
+    if risk_per_unit > 0:
+        risk_limited_qty = risk_budget / risk_per_unit
+        suggested_qty = min(risk_limited_qty, cash_limited_qty)
+        planned_loss = suggested_qty * risk_per_unit
+    else:
+        suggested_qty = 0.0
+        planned_loss = 0.0
+    st.caption(f"Scanner status: {selected_signal['Signal']} — {selected_signal['Signal reason']}")
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Daily reference price", f"${estimated_price:,.2f}")
+    r2.metric("Illustrative stop reference", f"${stop_reference:,.2f}")
+    r3.metric("Risk budget", f"${risk_budget:,.2f}")
+    r4.metric("Estimated position size", f"{suggested_qty:.3f}")
+    if risk_per_unit > 0:
+        st.caption(f"Estimated risk per unit: ${risk_per_unit:,.2f} · Planned loss at suggested size: ${planned_loss:,.2f} · Cash available: ${st.session_state.paper_cash:,.2f}")
+    else:
+        st.error("The calculated stop reference is not below the current price. The risk planner cannot size a long buy for this asset.")
+    st.warning("Risk estimate only: the stop reference is based on twice the recent average absolute daily price move. It is NOT an actual stop order. A real or simulated price gap could cause a larger loss. This prototype does not automatically exit positions.")
     with st.form("paper_trade_form"):
-        action = st.selectbox("Action", ["Buy", "Sell"])
-        trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
-        selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
-        st.caption(f"Scanner status: {selected_signal['Signal']} — {selected_signal['Signal reason']}")
-        trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=1.0, step=0.1, format="%.3f")
-        estimated_price = float(prices[trade_symbol])
-        price_date = str(data.loc[data["Symbol"] == trade_symbol, "Price date"].iloc[0])
-        st.caption(f"Daily-bar reference price: ${estimated_price:,.4f} per unit · estimated order value: ${estimated_price*trade_qty:,.2f}")
-        st.caption(f"Market data date: {price_date} · This is not a live quote.")
+        default_qty = max(0.001, round(suggested_qty, 3)) if action == "Buy" else max(0.001, round(min(st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.001), 1.0), 3))
+        trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=float(default_qty), step=0.1, format="%.3f")
+        st.caption(f"Estimated order value: ${estimated_price*trade_qty:,.2f} · Market data date: {price_date} · Not a live quote.")
         acknowledge_price = st.checkbox("I understand this simulated trade uses a historical daily price, not a live quote.")
         confirmed = st.form_submit_button(f"Approve simulated {action.lower()}", type="primary")
     if confirmed and not acknowledge_price:
@@ -196,7 +218,11 @@ with paper_tab:
         cost = price * float(trade_qty)
         current = st.session_state.paper_positions.get(trade_symbol, {"quantity": 0.0, "average_price": 0.0})
         if action == "Buy":
-            if cost > st.session_state.paper_cash + 1e-8:
+            if risk_per_unit <= 0:
+                st.error("Buy blocked: no valid illustrative stop reference is available for this asset.")
+            elif float(trade_qty) > suggested_qty + 1e-6:
+                st.error(f"Buy blocked: quantity exceeds the risk-sized limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
+            elif cost > st.session_state.paper_cash + 1e-8:
                 st.error("Not enough virtual cash for this purchase.")
             else:
                 new_qty = current["quantity"] + float(trade_qty)

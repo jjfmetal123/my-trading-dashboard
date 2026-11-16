@@ -16,7 +16,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.4 · Rule-based signals + risk sizing · Paper trading only")
+st.caption("Version 1.5 · Risk sizing + simulated exit rules · Paper trading only")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -164,6 +164,34 @@ with paper_tab:
     st.subheader("Virtual account")
     st.info("Simulation only. Prices are the latest available DAILY bars from Yahoo Finance—not live or executable quotes. The price date shown below is the date of the market data, not the time this page refreshed. This prototype is session-only and may reset if the app restarts or your session expires; do not use it as a permanent trade record.")
     prices = dict(zip(data["Symbol"], data["Last"]))
+    # Simulated exit monitoring uses the latest available DAILY close only.
+    # It is not intraday monitoring and does not guarantee execution at the stop/target.
+    triggered_exits = []
+    for sym, pos in list(st.session_state.paper_positions.items()):
+        mark = float(prices.get(sym, pos["average_price"]))
+        stop_level = pos.get("stop_price")
+        target_level = pos.get("target_price")
+        exit_reason = None
+        if stop_level is not None and mark <= float(stop_level):
+            exit_reason = "STOP RULE (daily close)"
+        elif target_level is not None and mark >= float(target_level):
+            exit_reason = "TARGET RULE (daily close)"
+        if exit_reason:
+            qty = float(pos["quantity"])
+            proceeds = qty * mark
+            pnl = (mark - float(pos["average_price"])) * qty
+            st.session_state.paper_cash += proceeds
+            st.session_state.realized_pnl += pnl
+            st.session_state.paper_journal.insert(0, {
+                "Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
+                "Action": "AUTO " + exit_reason, "Symbol": sym, "Quantity": qty,
+                "Reference price": mark, "Value": proceeds, "Realized P/L": pnl
+            })
+            st.session_state.paper_positions.pop(sym, None)
+            triggered_exits.append(f"{sym}: {exit_reason} at daily reference price ${mark:,.2f}")
+    if triggered_exits:
+        st.warning("Simulated exit rule triggered: " + " · ".join(triggered_exits) +
+                   ". This is recorded at the available daily reference price, not the exact stop/target price.")
     positions = st.session_state.paper_positions
     market_value = sum(pos["quantity"] * prices.get(sym, pos["average_price"]) for sym, pos in positions.items())
     equity = st.session_state.paper_cash + market_value
@@ -176,7 +204,7 @@ with paper_tab:
     candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
     default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
     default_index = data["Symbol"].tolist().index(default_symbol)
-    st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. The risk planner estimates a position size; it does not place a real order or create an automatic stop-loss.")
+    st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. A buy plan uses the illustrative stop reference and a 2-to-1 reward/risk target. Simulated exit rules are checked only when the app reruns with a new daily price.")
     action = st.selectbox("Action", ["Buy", "Sell"])
     trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
     selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
@@ -186,6 +214,7 @@ with paper_tab:
     risk_pct = st.select_slider("Maximum planned account risk per buy", options=[0.5, 1.0, 1.5, 2.0], value=1.0, format_func=lambda x: f"{x:.1f}%")
     risk_budget = max(0.0, equity * risk_pct / 100.0)
     risk_per_unit = estimated_price - stop_reference
+    target_reference = estimated_price + (2.0 * risk_per_unit) if risk_per_unit > 0 else estimated_price
     cash_limited_qty = st.session_state.paper_cash / estimated_price if estimated_price > 0 else 0.0
     if risk_per_unit > 0:
         risk_limited_qty = risk_budget / risk_per_unit
@@ -195,16 +224,17 @@ with paper_tab:
         suggested_qty = 0.0
         planned_loss = 0.0
     st.caption(f"Scanner status: {selected_signal['Signal']} — {selected_signal['Signal reason']}")
-    r1, r2, r3, r4 = st.columns(4)
+    r1, r2, r3, r4, r5 = st.columns(5)
     r1.metric("Daily reference price", f"${estimated_price:,.2f}")
     r2.metric("Illustrative stop reference", f"${stop_reference:,.2f}")
-    r3.metric("Risk budget", f"${risk_budget:,.2f}")
-    r4.metric("Estimated position size", f"{suggested_qty:.3f}")
+    r3.metric("2R profit target", f"${target_reference:,.2f}")
+    r4.metric("Risk budget", f"${risk_budget:,.2f}")
+    r5.metric("Estimated position size", f"{suggested_qty:.3f}")
     if risk_per_unit > 0:
         st.caption(f"Estimated risk per unit: ${risk_per_unit:,.2f} · Planned loss at suggested size: ${planned_loss:,.2f} · Cash available: ${st.session_state.paper_cash:,.2f}")
     else:
         st.error("The calculated stop reference is not below the current price. The risk planner cannot size a long buy for this asset.")
-    st.warning("Risk estimate only: the stop reference is based on twice the recent average absolute daily price move. It is NOT an actual stop order. A real or simulated price gap could cause a larger loss. This prototype does not automatically exit positions.")
+    st.warning("Simulation limitation: the stop and 2R target are stored as rules and checked only when the app reruns using a new DAILY close. They are not live orders, are not monitored intraday, and exits are recorded at the available daily reference price—not necessarily the stop/target price. Gaps can cause larger losses.")
     with st.form("paper_trade_form"):
         default_qty = max(0.001, round(suggested_qty, 3)) if action == "Buy" else max(0.001, round(min(st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.001), 1.0), 3))
         trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=float(default_qty), step=0.1, format="%.3f")
@@ -220,17 +250,22 @@ with paper_tab:
         if action == "Buy":
             if risk_per_unit <= 0:
                 st.error("Buy blocked: no valid illustrative stop reference is available for this asset.")
+            elif trade_symbol in st.session_state.paper_positions:
+                st.error("Adding to an existing position is disabled in this prototype. Close the existing position first.")
             elif float(trade_qty) > suggested_qty + 1e-6:
                 st.error(f"Buy blocked: quantity exceeds the risk-sized limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
             elif cost > st.session_state.paper_cash + 1e-8:
                 st.error("Not enough virtual cash for this purchase.")
             else:
-                new_qty = current["quantity"] + float(trade_qty)
-                new_avg = ((current["quantity"] * current["average_price"]) + cost) / new_qty
-                st.session_state.paper_positions[trade_symbol] = {"quantity": new_qty, "average_price": new_avg}
+                st.session_state.paper_positions[trade_symbol] = {
+                    "quantity": float(trade_qty),
+                    "average_price": price,
+                    "stop_price": float(stop_reference),
+                    "target_price": float(target_reference)
+                }
                 st.session_state.paper_cash -= cost
                 st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "BUY", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": 0.0})
-                st.success(f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}.")
+                st.success(f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}.")
         else:
             if float(trade_qty) > current["quantity"] + 1e-8:
                 st.error("You cannot sell more units than you hold in the virtual account.")
@@ -254,8 +289,8 @@ with paper_tab:
             mark = prices.get(sym, pos["average_price"])
             value = pos["quantity"] * mark
             unrealized = (mark - pos["average_price"]) * pos["quantity"]
-            position_rows.append({"Symbol": sym, "Quantity": pos["quantity"], "Average cost": pos["average_price"], "Reference price": mark, "Market value": value, "Unrealized P/L": unrealized})
-        st.dataframe(pd.DataFrame(position_rows).style.format({"Quantity": "{:.4f}", "Average cost": "${:,.4f}", "Reference price": "${:,.4f}", "Market value": "${:,.2f}", "Unrealized P/L": "${:+,.2f}"}), use_container_width=True, hide_index=True)
+            position_rows.append({"Symbol": sym, "Quantity": pos["quantity"], "Average cost": pos["average_price"], "Daily reference": mark, "Stop rule": pos.get("stop_price"), "2R target": pos.get("target_price"), "Market value": value, "Unrealized P/L": unrealized})
+        st.dataframe(pd.DataFrame(position_rows).style.format({"Quantity": "{:.4f}", "Average cost": "${:,.4f}", "Daily reference": "${:,.4f}", "Stop rule": "${:,.4f}", "2R target": "${:,.4f}", "Market value": "${:,.2f}", "Unrealized P/L": "${:+,.2f}"}), use_container_width=True, hide_index=True)
     else:
         st.caption("No virtual positions yet. Your full $1,000 is in cash.")
     st.markdown("#### Trade journal")

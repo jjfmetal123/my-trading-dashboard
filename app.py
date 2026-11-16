@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
 
@@ -49,7 +49,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.8 · Performance analytics · Password-protected · Supabase-saved paper account")
+st.caption("Version 1.9 · Account history · Performance analytics · Password-protected · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -142,6 +142,48 @@ def account_payload():
 
 def save_account():
     db.table("paper_account").upsert(account_payload(), on_conflict="account_id").execute()
+
+
+def save_daily_snapshot(prices):
+    """Upsert one end-of-day-style snapshot per app-server calendar date.
+
+    Repeated app runs on the same date update that date's row instead of
+    creating duplicate daily observations. This is not a scheduled process.
+    """
+    positions = st.session_state.paper_positions
+    position_value = sum(
+        float(pos.get("quantity", 0.0)) * float(prices.get(sym, pos.get("average_price", 0.0)))
+        for sym, pos in positions.items()
+    )
+    unrealized = sum(
+        (float(prices.get(sym, pos.get("average_price", 0.0))) - float(pos.get("average_price", 0.0)))
+        * float(pos.get("quantity", 0.0))
+        for sym, pos in positions.items()
+    )
+    cash = float(st.session_state.paper_cash)
+    equity = cash + position_value
+    snapshot_date = date.today().isoformat()
+    payload = {
+        "account_id": ACCOUNT_ID,
+        "snapshot_date": snapshot_date,
+        "cash": round(cash, 2),
+        "position_value": round(position_value, 2),
+        "equity": round(equity, 2),
+        "realized_pnl": round(float(st.session_state.realized_pnl), 2),
+        "unrealized_pnl": round(unrealized, 2),
+        "positions": positions,
+        "updated_at": datetime.now().astimezone().isoformat(),
+    }
+    db.table("paper_account_snapshots").upsert(
+        payload, on_conflict="account_id,snapshot_date"
+    ).execute()
+    return payload
+
+
+def load_snapshot_history():
+    result = (db.table("paper_account_snapshots").select("snapshot_date,equity,cash,position_value,realized_pnl,unrealized_pnl")
+              .eq("account_id", ACCOUNT_ID).order("snapshot_date").execute())
+    return result.data or []
 
 try:
     db = get_supabase_client()
@@ -422,6 +464,17 @@ with paper_tab:
         st.rerun()
 
 
+# Record/update today's snapshot after any simulated trade or daily-close exit
+# has been processed. The database unique key prevents duplicate daily rows.
+snapshot_error = None
+snapshot_history = []
+try:
+    snapshot_prices = dict(zip(data["Symbol"], data["Last"]))
+    save_daily_snapshot(snapshot_prices)
+    snapshot_history = load_snapshot_history()
+except Exception as exc:
+    snapshot_error = exc
+
 with analytics_tab:
     st.subheader("Paper-trading performance")
     st.caption("Metrics are calculated from the saved paper-account journal and the latest available DAILY reference prices. They are simulation metrics, not verified live-trading results.")
@@ -510,13 +563,37 @@ with analytics_tab:
     else:
         st.caption("No open positions.")
 
+    st.markdown("#### Account value history")
+    if snapshot_error is not None:
+        st.warning("Daily history is not available yet. Confirm that the paper_account_snapshots table has been created in Supabase, then refresh the dashboard.")
+        st.caption(f"Technical detail: {snapshot_error}")
+    elif snapshot_history:
+        history_df = pd.DataFrame(snapshot_history)
+        history_df["snapshot_date"] = pd.to_datetime(history_df["snapshot_date"])
+        history_df = history_df.sort_values("snapshot_date").drop_duplicates("snapshot_date", keep="last")
+        history_df = history_df.set_index("snapshot_date")
+        st.line_chart(history_df["equity"].rename("Account value ($)"), use_container_width=True)
+        if len(history_df) >= 2:
+            running_peak = history_df["equity"].cummax()
+            drawdown_pct = (history_df["equity"] / running_peak - 1.0) * 100.0
+            max_drawdown = float(drawdown_pct.min())
+            h1, h2 = st.columns(2)
+            h1.metric("Maximum drawdown", f"{max_drawdown:.2f}%")
+            h2.metric("Recorded days", len(history_df))
+            st.caption("Drawdown is calculated from recorded daily snapshots only. It will become more informative as more dates accumulate.")
+        else:
+            st.info("Your first daily snapshot has been saved. Maximum drawdown will appear after at least two different dates have been recorded.")
+        st.dataframe(history_df.reset_index().rename(columns={"snapshot_date": "Date", "equity": "Account value", "cash": "Cash", "position_value": "Position value", "realized_pnl": "Realized P/L", "unrealized_pnl": "Open P/L"}).style.format({"Account value": "${:,.2f}", "Cash": "${:,.2f}", "Position value": "${:,.2f}", "Realized P/L": "${:+,.2f}", "Open P/L": "${:+,.2f}"}), use_container_width=True, hide_index=True)
+    else:
+        st.info("No daily snapshots have been recorded yet. Refresh the dashboard to create the first one.")
+
     st.markdown("#### What these numbers do—and don't—tell us")
     st.write(
         "- Total return compares current account equity with the original $1,000 starting balance.\n"
         "- Win rate and average win/loss use recorded SELL and automatic-exit journal entries. Partial exits count as separate closed-trade records in this prototype.\n"
         "- Profit factor compares gross realized gains with gross realized losses. It is unavailable until there is at least one losing closed-trade record.\n"
-        "- Maximum drawdown is not shown yet because the app has not been recording a reliable time series of account-equity snapshots. We should collect that history before calculating it.\n"
+        "- Maximum drawdown is calculated from the daily snapshots recorded by this app. It is not a full intraday drawdown measure, and it becomes more useful as more dates accumulate.\n"
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Prototype limitations: daily data only; no intraday feed, backtesting, news/AI analysis, broker connection, or real order execution. Simulated trades exclude commissions, spread, slippage, and taxes.")
+st.caption("Prototype limitations: daily data only; snapshots update when the dashboard runs (there is not yet a scheduled background recorder); no intraday feed, backtesting, news/AI analysis, broker connection, or real order execution. Simulated trades exclude commissions, spread, slippage, and taxes.")

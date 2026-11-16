@@ -6,6 +6,38 @@ from datetime import datetime
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
 
+# Simple app-level password gate. The password is stored in Streamlit Secrets,
+# never in the GitHub source code. This protects the app UI, not the database
+# from a determined attacker; database permissions will be configured separately.
+import hmac
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+app_password = st.secrets.get("APP_PASSWORD", "")
+if not app_password:
+    st.error("App access is not configured yet. Add APP_PASSWORD in Streamlit Settings → Secrets.")
+    st.stop()
+
+if not st.session_state.authenticated:
+    st.title("🔒 AI Market Intelligence")
+    st.subheader("Private dashboard login")
+    with st.form("login_form"):
+        entered_password = st.text_input("Dashboard password", type="password")
+        submitted = st.form_submit_button("Log in", type="primary")
+    if submitted:
+        if hmac.compare_digest(entered_password, str(app_password)):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("That password didn't match. Please try again.")
+    st.stop()
+
+with st.sidebar:
+    if st.button("Log out", use_container_width=True):
+        st.session_state.authenticated = False
+        st.rerun()
+
 UNIVERSE = {
     "Broad market": ["SPY", "QQQ", "IWM", "DIA"],
     "Stocks": ["NVDA", "TSLA", "AMD", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "AVGO", "PLTR"],
@@ -16,7 +48,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.5 · Risk sizing + simulated exit rules · Paper trading only")
+st.caption("Version 1.6 · Password-protected · Risk sizing + simulated exit rules · Paper trading only")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)

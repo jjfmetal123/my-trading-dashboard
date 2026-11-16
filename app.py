@@ -10,6 +10,7 @@ st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout
 # never in the GitHub source code. This protects the app UI, not the database
 # from a determined attacker; database permissions will be configured separately.
 import hmac
+from supabase import create_client
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -48,7 +49,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.6 · Password-protected · Risk sizing + simulated exit rules · Paper trading only")
+st.caption("Version 1.7 · Password-protected · Supabase-saved paper account · Risk sizing + simulated exit rules")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -117,15 +118,71 @@ def analyze(ticker, frame):
             "20D Vol %": vol20, "SMA20": s20, "SMA50": s50, "SMA200": s200,
             "Illustrative risk level": last - 2 * avg_abs_move}
 
-# Paper account: session-only prototype. A persistent database is a later setup step.
-if "paper_cash" not in st.session_state:
-    st.session_state.paper_cash = 1000.00
-if "paper_positions" not in st.session_state:
-    st.session_state.paper_positions = {}
-if "paper_journal" not in st.session_state:
-    st.session_state.paper_journal = []
-if "realized_pnl" not in st.session_state:
-    st.session_state.realized_pnl = 0.00
+# Persistent paper account stored in Supabase. The secret key is used only
+# server-side in Streamlit; it is never sent to the browser.
+ACCOUNT_ID = "primary-paper-account"
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_client():
+    url = st.secrets.get("SUPABASE_URL", "")
+    secret_key = st.secrets.get("SUPABASE_SECRET_KEY", "")
+    if not url or not secret_key:
+        raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in Streamlit Secrets.")
+    return create_client(str(url), str(secret_key))
+
+def account_payload():
+    return {
+        "account_id": ACCOUNT_ID,
+        "cash": round(float(st.session_state.paper_cash), 2),
+        "realized_pnl": round(float(st.session_state.realized_pnl), 2),
+        "positions": st.session_state.paper_positions,
+        "journal": st.session_state.paper_journal,
+        "updated_at": datetime.now().astimezone().isoformat(),
+    }
+
+def save_account():
+    db.table("paper_account").upsert(account_payload(), on_conflict="account_id").execute()
+
+try:
+    db = get_supabase_client()
+    if not st.session_state.get("paper_db_loaded", False):
+        result = db.table("paper_account").select("*").eq("account_id", ACCOUNT_ID).limit(1).execute()
+        if result.data:
+            saved = result.data[0]
+            st.session_state.paper_cash = float(saved["cash"])
+            st.session_state.realized_pnl = float(saved["realized_pnl"])
+            st.session_state.paper_positions = saved.get("positions") or {}
+            st.session_state.paper_journal = saved.get("journal") or []
+        else:
+            # One-time migration of the user's confirmed first AAPL paper trade.
+            # Original $1,000 less 0.9460 x $351.86 = $667.14044 cash.
+            st.session_state.paper_cash = 667.14
+            st.session_state.realized_pnl = 0.00
+            st.session_state.paper_positions = {
+                "AAPL": {
+                    "quantity": 0.9460,
+                    "average_price": 351.86,
+                    "stop_price": 341.2945,
+                    "target_price": 372.9910,
+                }
+            }
+            st.session_state.paper_journal = [{
+                "Time": "2026-11-16 20:34 UTC",
+                "Action": "BUY",
+                "Symbol": "AAPL",
+                "Quantity": 0.9460,
+                "Reference price": 351.86,
+                "Value": 332.85956,
+                "Realized P/L": 0.0,
+            }]
+            save_account()
+        st.session_state.paper_db_loaded = True
+except Exception as exc:
+    st.error("The dashboard could not load its saved paper account from Supabase. Your account has not been reset. Check the Supabase connection settings and database permissions.")
+    st.exception(exc)
+    st.stop()
+
+st.sidebar.success("Paper account connected · changes save automatically")
 
 with st.sidebar:
     st.header("Scanner settings")
@@ -194,7 +251,7 @@ with scanner_tab:
 
 with paper_tab:
     st.subheader("Virtual account")
-    st.info("Simulation only. Prices are the latest available DAILY bars from Yahoo Finance—not live or executable quotes. The price date shown below is the date of the market data, not the time this page refreshed. This prototype is session-only and may reset if the app restarts or your session expires; do not use it as a permanent trade record.")
+    st.info("Simulation only. Prices are the latest available DAILY bars from Yahoo Finance—not live or executable quotes. Your cash, positions, exit rules, and trade journal are now saved in Supabase and restored when you reopen the dashboard.")
     prices = dict(zip(data["Symbol"], data["Last"]))
     # Simulated exit monitoring uses the latest available DAILY close only.
     # It is not intraday monitoring and does not guarantee execution at the stop/target.
@@ -222,6 +279,7 @@ with paper_tab:
             st.session_state.paper_positions.pop(sym, None)
             triggered_exits.append(f"{sym}: {exit_reason} at daily reference price ${mark:,.2f}")
     if triggered_exits:
+        save_account()
         st.warning("Simulated exit rule triggered: " + " · ".join(triggered_exits) +
                    ". This is recorded at the available daily reference price, not the exact stop/target price.")
     positions = st.session_state.paper_positions
@@ -297,7 +355,8 @@ with paper_tab:
                 }
                 st.session_state.paper_cash -= cost
                 st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "BUY", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": 0.0})
-                st.success(f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}.")
+                save_account()
+                st.success(f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}. Saved to your account.")
         else:
             if float(trade_qty) > current["quantity"] + 1e-8:
                 st.error("You cannot sell more units than you hold in the virtual account.")
@@ -313,7 +372,8 @@ with paper_tab:
                 st.session_state.paper_cash += cost
                 st.session_state.realized_pnl += pnl
                 st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "SELL", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": pnl})
-                st.success(f"Simulated sale recorded. Realized P/L: ${pnl:+,.2f} before costs.")
+                save_account()
+                st.success(f"Simulated sale recorded. Realized P/L: ${pnl:+,.2f} before costs. Saved to your account.")
     st.markdown("#### Open positions")
     if st.session_state.paper_positions:
         position_rows = []
@@ -335,6 +395,7 @@ with paper_tab:
         st.session_state.paper_positions = {}
         st.session_state.paper_journal = []
         st.session_state.realized_pnl = 0.00
+        save_account()
         st.rerun()
 
-st.caption("Prototype limitations: daily data only; no intraday feed, persistent database, backtesting, news/AI analysis, broker connection, or real order execution. Simulated trades exclude commissions, spread, slippage, and taxes.")
+st.caption("Prototype limitations: daily data only; no intraday feed, backtesting, news/AI analysis, broker connection, or real order execution. Simulated trades exclude commissions, spread, slippage, and taxes.")

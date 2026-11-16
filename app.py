@@ -61,7 +61,13 @@ def analyze(ticker, frame):
     score += 10 if 45 <= r <= 68 else (4 if 35 <= r < 45 or 68 < r <= 75 else 0)
     trend = "Strong uptrend" if score >= 75 else "Positive" if score >= 55 else "Mixed" if score >= 35 else "Weak"
     avg_abs_move = close.diff().abs().rolling(14).mean().iloc[-1]
-    return {"Symbol": ticker, "Last": float(last), "Score": int(score), "Trend": trend,
+    price_date = close.index[-1]
+    if hasattr(price_date, "strftime"):
+        price_date_label = price_date.strftime("%b %d, %Y")
+    else:
+        price_date_label = str(price_date)
+    return {"Symbol": ticker, "Last": float(last), "Price date": price_date_label,
+            "Score": int(score), "Trend": trend,
             "1W %": ret5, "1M %": ret20, "3M %": ret60, "RSI": r,
             "20D Vol %": vol20, "SMA20": s20, "SMA50": s50, "SMA200": s200,
             "Illustrative risk level": last - 2 * avg_abs_move}
@@ -114,7 +120,7 @@ c4.metric("Scan updated", stamp)
 scanner_tab, paper_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account"])
 with scanner_tab:
     st.subheader("Strongest trends")
-    display = data[["Symbol", "Trend", "Score", "Last", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
+    display = data[["Symbol", "Trend", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
     st.dataframe(display.style.format({"Last": "${:,.2f}", "1W %": "{:+.1f}%", "1M %": "{:+.1f}%", "3M %": "{:+.1f}%", "RSI": "{:.0f}", "20D Vol %": "{:.1f}%"}).background_gradient(subset=["Score"], cmap="RdYlGn"), use_container_width=True, hide_index=True)
     left, right = st.columns([1.2, 1])
     with left:
@@ -136,7 +142,7 @@ with scanner_tab:
 
 with paper_tab:
     st.subheader("Virtual account")
-    st.info("This is a simulation only. It uses the latest available daily closing prices, not live executable quotes. For this first prototype, the account is held in the active app session and may reset if the app restarts or the session expires. Do not use it as a permanent trade record yet.")
+    st.info("Simulation only. Prices are the latest available DAILY bars from Yahoo Finance—not live or executable quotes. The price date shown below is the date of the market data, not the time this page refreshed. This prototype is session-only and may reset if the app restarts or your session expires; do not use it as a permanent trade record.")
     prices = dict(zip(data["Symbol"], data["Last"]))
     positions = st.session_state.paper_positions
     market_value = sum(pos["quantity"] * prices.get(sym, pos["average_price"]) for sym, pos in positions.items())
@@ -152,9 +158,14 @@ with paper_tab:
         trade_symbol = st.selectbox("Asset", data["Symbol"].tolist())
         trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=1.0, step=0.1, format="%.3f")
         estimated_price = float(prices[trade_symbol])
-        st.caption(f"Reference price: ${estimated_price:,.4f} per unit · estimated order value: ${estimated_price*trade_qty:,.2f}")
+        price_date = str(data.loc[data["Symbol"] == trade_symbol, "Price date"].iloc[0])
+        st.caption(f"Daily-bar reference price: ${estimated_price:,.4f} per unit · estimated order value: ${estimated_price*trade_qty:,.2f}")
+        st.caption(f"Market data date: {price_date} · This is not a live quote.")
+        acknowledge_price = st.checkbox("I understand this simulated trade uses a historical daily price, not a live quote.")
         confirmed = st.form_submit_button(f"Approve simulated {action.lower()}", type="primary")
-    if confirmed:
+    if confirmed and not acknowledge_price:
+        st.error("Please acknowledge that this is a historical daily price before recording the simulated trade.")
+    if confirmed and acknowledge_price:
         price = float(prices[trade_symbol])
         cost = price * float(trade_qty)
         current = st.session_state.paper_positions.get(trade_symbol, {"quantity": 0.0, "average_price": 0.0})

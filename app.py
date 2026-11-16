@@ -16,7 +16,7 @@ UNIVERSE = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 1.1 · Multi-market scanner · Paper trading only")
+st.caption("Version 1.3 · Rule-based scanner signals · Paper trading only")
 st.warning("Research and simulation only—not financial advice. Trend scores are rules-based screens, not predictions. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -60,6 +60,19 @@ def analyze(ticker, frame):
     score += (15 if ret20 > 0 else 0) + (10 if ret60 > 0 else 0)
     score += 10 if 45 <= r <= 68 else (4 if 35 <= r < 45 or 68 < r <= 75 else 0)
     trend = "Strong uptrend" if score >= 75 else "Positive" if score >= 55 else "Mixed" if score >= 35 else "Weak"
+    # Simple transparent screening labels, not AI predictions or guaranteed trade recommendations.
+    if score >= 75 and 0 < ret20 <= 15 and 45 <= r <= 68:
+        signal = "BUY CANDIDATE"
+        signal_reason = "Strong trend, positive 1-month momentum, and RSI in the screening range"
+    elif score >= 55 and ret20 > 0 and r < 72:
+        signal = "WATCH"
+        signal_reason = "Positive trend; wait for stronger confirmation"
+    elif r > 72:
+        signal = "EXTENDED"
+        signal_reason = "RSI is elevated; avoid chasing a sharp move"
+    else:
+        signal = "NO SETUP"
+        signal_reason = "Current trend/momentum rules are not aligned"
     avg_abs_move = close.diff().abs().rolling(14).mean().iloc[-1]
     price_date = close.index[-1]
     if hasattr(price_date, "strftime"):
@@ -67,7 +80,7 @@ def analyze(ticker, frame):
     else:
         price_date_label = str(price_date)
     return {"Symbol": ticker, "Last": float(last), "Price date": price_date_label,
-            "Score": int(score), "Trend": trend,
+            "Score": int(score), "Trend": trend, "Signal": signal, "Signal reason": signal_reason,
             "1W %": ret5, "1M %": ret20, "3M %": ret60, "RSI": r,
             "20D Vol %": vol20, "SMA20": s20, "SMA50": s50, "SMA200": s200,
             "Illustrative risk level": last - 2 * avg_abs_move}
@@ -120,8 +133,15 @@ c4.metric("Scan updated", stamp)
 scanner_tab, paper_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account"])
 with scanner_tab:
     st.subheader("Strongest trends")
-    display = data[["Symbol", "Trend", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
+    display = data[["Symbol", "Signal", "Trend", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
     st.dataframe(display.style.format({"Last": "${:,.2f}", "1W %": "{:+.1f}%", "1M %": "{:+.1f}%", "3M %": "{:+.1f}%", "RSI": "{:.0f}", "20D Vol %": "{:.1f}%"}).background_gradient(subset=["Score"], cmap="RdYlGn"), use_container_width=True, hide_index=True)
+    candidates = data[data["Signal"] == "BUY CANDIDATE"]
+    st.subheader("Rule-based trade candidates")
+    st.caption("These are screening candidates only—not AI recommendations. The rules require a strong trend, positive 1-month return, and RSI between 45 and 68. Always review the chart and risk before paper trading.")
+    if not candidates.empty:
+        st.dataframe(candidates[["Symbol", "Score", "Last", "Price date", "1M %", "RSI", "Signal reason"]].style.format({"Last": "${:,.2f}", "1M %": "{:+.1f}%", "RSI": "{:.1f}"}), use_container_width=True, hide_index=True)
+    else:
+        st.info("No assets currently meet the candidate rules. That's okay—no trade is better than forcing one.")
     left, right = st.columns([1.2, 1])
     with left:
         st.subheader("Trend ranking")
@@ -153,9 +173,15 @@ with paper_tab:
     c.metric("Account value", f"${equity:,.2f}", f"${equity-1000:+,.2f} vs. start")
     d.metric("Realized P/L", f'${st.session_state.realized_pnl:+,.2f}')
     st.markdown("#### Approve a simulated trade")
+    candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
+    default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
+    default_index = data["Symbol"].tolist().index(default_symbol)
+    st.caption("The asset selector is prefilled with the highest-ranked current scanner candidate when one exists. This does not place a trade; you must review and approve each simulation.")
     with st.form("paper_trade_form"):
         action = st.selectbox("Action", ["Buy", "Sell"])
-        trade_symbol = st.selectbox("Asset", data["Symbol"].tolist())
+        trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
+        selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
+        st.caption(f"Scanner status: {selected_signal['Signal']} — {selected_signal['Signal reason']}")
         trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=1.0, step=0.1, format="%.3f")
         estimated_price = float(prices[trade_symbol])
         price_date = str(data.loc[data["Symbol"] == trade_symbol, "Price date"].iloc[0])

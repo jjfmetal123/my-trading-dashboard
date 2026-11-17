@@ -59,7 +59,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.9 · Prioritized market-wide watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.0 · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -337,7 +337,10 @@ with scanner_tab:
         use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="scanner_table"
     )
     selected_rows = selection_event.selection.rows if selection_event and hasattr(selection_event, "selection") else []
-    if selected_rows:
+    # A watchlist selection takes precedence over any previously selected scanner row.
+    if st.session_state.pop("watchlist_override", False):
+        pass
+    elif selected_rows:
         selected_symbol = str(display.iloc[selected_rows[0]]["Symbol"])
         st.session_state["inspected_symbol"] = selected_symbol
     if st.session_state.get("inspected_symbol") not in data["Symbol"].tolist():
@@ -785,8 +788,28 @@ with scanner_tab:
             .format({"Last": "${:,.2f}", "Breakout trigger": "${:,.2f}"})
             .map(watch_status_color, subset=["Pullback status", "Breakout status"])
         )
-        st.dataframe(styled_watch_df, use_container_width=True, hide_index=True)
-        st.caption("Only assets inside a watch range, within one ATR of a watch level, or with an invalidated scenario are shown. Refresh the market scan to update.")
+        watch_selection = st.dataframe(
+            styled_watch_df,
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="market_watchlist_table"
+        )
+        watch_selected_rows = (
+            watch_selection.selection.rows
+            if watch_selection and hasattr(watch_selection, "selection")
+            else []
+        )
+        if watch_selected_rows:
+            chosen_symbol = str(visible_watch_df.iloc[watch_selected_rows[0]]["Symbol"])
+            last_watch_choice = st.session_state.get("last_watchlist_selection")
+            if chosen_symbol in data["Symbol"].tolist() and chosen_symbol != last_watch_choice:
+                st.session_state["last_watchlist_selection"] = chosen_symbol
+                st.session_state["inspected_symbol"] = chosen_symbol
+                st.session_state["watchlist_override"] = True
+                st.rerun()
+        st.caption("Select a row to load that asset into the individual analysis and AI Trade Analyst above. Only assets inside a watch range, within one ATR of a watch level, or with an invalidated scenario are shown. Refresh the market scan to update.")
     else:
         st.info("No scanned assets are currently near their calculated pullback or breakout watch levels. That's okay—no need to force a trade.")
 

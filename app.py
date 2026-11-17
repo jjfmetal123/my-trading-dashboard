@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import json
 import yfinance as yf
 from datetime import datetime, date
 
@@ -58,8 +59,8 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.3 · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
-st.warning("Research and simulation only—not financial advice. Scores and signals are transparent rules-based screens, not AI predictions or guarantees. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
+st.caption("Version 2.4 · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_history(tickers, period="1y"):
@@ -424,6 +425,79 @@ with scanner_tab:
     st.caption("These are educational decision rules, not AI predictions or guaranteed trade recommendations. Position sizing is hypothetical and does not check correlation, sector concentration, liquidity, or all existing portfolio exposures.")
 
 
+    st.markdown("### AI trade analyst")
+    st.caption("Optional AI second opinion. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
+    ai_api_key = st.secrets.get("OPENAI_API_KEY", "")
+    if not ai_api_key:
+        st.info("To enable the AI analyst, add OPENAI_API_KEY to Streamlit Community Cloud → App → Settings → Secrets. Keep the key there only; never put it in GitHub or share it in chat.")
+        st.caption("An OpenAI API key and API billing are separate from a ChatGPT subscription. The analyst is optional; the rules-based scanner continues to work without it.")
+    else:
+        if st.button(f"Ask AI to analyze {symbol}", type="primary", key="ask_ai_analyst"):
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=str(ai_api_key))
+                facts = {
+                    "symbol": symbol,
+                    "asset_class": str(row["Asset class"]),
+                    "price": round(last, 4),
+                    "price_date": str(row["Price date"]),
+                    "scanner_signal": str(row["Signal"]),
+                    "scanner_score": int(row["Score"]),
+                    "signal_reason": str(row["Signal reason"]),
+                    "daily_trend": str(row["Trend"]),
+                    "weekly_trend": str(row["Weekly trend"]),
+                    "risk_classification": str(row["Risk level"]),
+                    "one_week_return_pct": round(float(row["1W %"]), 3),
+                    "one_month_return_pct": round(float(row["1M %"]), 3),
+                    "three_month_return_pct": round(float(row["3M %"]), 3),
+                    "rsi": round(float(row["RSI"]), 2),
+                    "20_day_volatility_pct": round(float(row["20D Vol %"]), 2),
+                    "20_day_average": round(sma20, 4) if pd.notna(sma20) else None,
+                    "price_vs_20_day_average_pct": round(distance_sma20, 3) if pd.notna(distance_sma20) else None,
+                    "reference_entry": round(last, 4),
+                    "illustrative_stop": round(stop, 4),
+                    "illustrative_1R_target": round(target_1r, 4),
+                    "illustrative_2R_target": round(target_2r, 4),
+                    "illustrative_3R_target": round(target_3r, 4),
+                    "account_equity_estimate": round(account_equity_for_plan, 2),
+                    "cash_available": round(cash_for_plan, 2),
+                    "hypothetical_risk_budget_1pct": round(risk_budget_for_plan, 2),
+                    "risk_and_cash_limited_quantity": round(plan_qty, 6),
+                    "estimated_loss_at_reference_stop": round(planned_dollar_risk, 2),
+                    "rule_based_entry_assessment": entry_assessment,
+                }
+                system_prompt = (
+                    "You are a cautious market research assistant reviewing a rules-based trading screen. "
+                    "Give an independent second opinion and feel free to disagree with the scanner. "
+                    "Use only the supplied facts; do not invent news, fundamentals, current quotes, catalysts, or probabilities. "
+                    "The data are daily-bar data and may be delayed. Clearly state when evidence is missing. "
+                    "Do not guarantee outcomes or present this as personalized financial advice. "
+                    "Do not tell the user to place a real trade. This is a $1,000 simulated account. "
+                    "Return sections: Verdict (BUY CANDIDATE / WAIT / AVOID, for paper-study only), "
+                    "Why, Bullish evidence, Bearish risks, Entry assessment, Risk and position-size check, "
+                    "What would invalidate the idea, and What data is missing. "
+                    "Treat all stop/target values as illustrative references, not executable orders. "
+                    "If the price is extended or the reward/risk is poor, prefer WAIT."
+                )
+                with st.spinner("AI is reviewing the selected asset's supplied market data..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4.1-mini",
+                        temperature=0.2,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": "Independently assess this asset using only these supplied facts:\n" + json.dumps(facts, indent=2)},
+                        ],
+                    )
+                st.session_state["ai_analysis_" + symbol] = response.choices[0].message.content or "The AI returned an empty response."
+                st.session_state["ai_analysis_date_" + symbol] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            except Exception as exc:
+                st.error(f"AI analysis could not be completed: {exc}")
+        saved_ai = st.session_state.get("ai_analysis_" + symbol)
+        if saved_ai:
+            st.markdown(f"**AI second opinion for {symbol}** · {st.session_state.get('ai_analysis_date_' + symbol, '')}")
+            st.markdown(saved_ai)
+            st.caption("AI output can be wrong or incomplete. It is not a verified signal, financial advice, or an instruction to trade. Review the underlying data yourself.")
+
     candidates = data[data["Signal"] == "BUY CANDIDATE"]
     st.subheader("Rule-based trade candidates")
     st.caption("These are screening candidates only—not AI recommendations. The rules require a strong daily trend, positive 1-month return, and RSI between 45 and 68. Always review risk before paper trading.")
@@ -714,4 +788,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.3 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.4 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

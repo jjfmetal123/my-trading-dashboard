@@ -49,6 +49,15 @@ UNIVERSE = {
     "Rates & dollar": ["TLT", "IEF", "SHY", "UUP", "FXE", "FXY"],
 }
 
+SECTOR_ETF = {
+    "NVDA": "SMH", "AMD": "SMH", "AVGO": "SMH", "MU": "SMH",
+    "AAPL": "XLK", "MSFT": "XLK", "ORCL": "XLK", "CRM": "XLK",
+    "TSLA": "XLY", "AMZN": "XLY", "COST": "XLP", "LLY": "XLV",
+    "JPM": "XLF", "COIN": "XLF", "HOOD": "XLF", "SOFI": "XLF",
+    "META": "XLC", "GOOGL": "XLC", "NFLX": "XLC",
+    "XOM": "XLE", "CVX": "XLE", "OXY": "XLE",
+}
+
 ASSET_CLASS = {
     **{t: "Broad market ETF" for t in UNIVERSE["Broad market"]},
     **{t: "Stock" for t in UNIVERSE["Stocks"]},
@@ -59,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.0 · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.1 · Volume and market-context analysis · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -103,6 +112,15 @@ def analyze(ticker, frame):
     score += (15 if ret20 > 0 else 0) + (10 if ret60 > 0 else 0)
     score += 10 if 45 <= r <= 68 else (4 if 35 <= r < 45 or 68 < r <= 75 else 0)
     trend = "Strong uptrend" if score >= 75 else "Positive" if score >= 55 else "Mixed" if score >= 35 else "Weak"
+    # Latest daily-bar volume compared with the prior 20 completed bars.
+    # This is a rough participation check, not proof of buying or selling pressure.
+    volume_ratio = np.nan
+    if "Volume" in frame.columns:
+        volume = pd.to_numeric(frame["Volume"], errors="coerce").dropna()
+        if len(volume) >= 21:
+            prior_avg_volume = float(volume.iloc[-21:-1].mean())
+            if prior_avg_volume > 0:
+                volume_ratio = float(volume.iloc[-1] / prior_avg_volume)
     # Simple transparent screening labels, not AI predictions or guaranteed trade recommendations.
     if score >= 75 and 0 < ret20 <= 15 and 45 <= r <= 68:
         signal = "BUY CANDIDATE"
@@ -152,7 +170,8 @@ def analyze(ticker, frame):
             "Score": int(score), "Trend": trend, "Weekly trend": weekly_trend, "Risk level": risk_level,
             "Signal": signal, "Signal reason": signal_reason,
             "1W %": ret5, "1M %": ret20, "3M %": ret60, "RSI": r,
-            "20D Vol %": vol20, "SMA20": s20, "SMA50": s50, "SMA200": s200,
+            "20D Vol %": vol20, "Latest volume / prior 20D avg": volume_ratio,
+            "SMA20": s20, "SMA50": s50, "SMA200": s200,
             "ATR14": atr14, "Recent high 20D": recent_high20, "Recent low 20D": recent_low20,
             "Pullback low": (s20 - 0.25 * atr14) if atr14 is not None and pd.notna(s20) else np.nan,
             "Pullback high": (s20 + 0.25 * atr14) if atr14 is not None and pd.notna(s20) else np.nan,
@@ -283,14 +302,37 @@ if not tickers:
     st.info("Choose at least one market group in the sidebar.")
     st.stop()
 
+if st.session_state.get("scan_schema_version") != "3.1":
+    st.session_state.scan_data = None
+    st.session_state.scan_schema_version = "3.1"
 if "scan_data" not in st.session_state:
     st.session_state.scan_data = None
 if run_scan or st.session_state.scan_data is None:
     with st.spinner("Downloading market history and calculating indicators..."):
-        history = load_history(tuple(tickers), lookback)
-        rows = [analyze(t, frame) for t, frame in history.items()]
+        # Always retrieve broad-market and mapped sector benchmarks alongside
+        # the selected universe, but only display the assets the user selected.
+        context_tickers = ["SPY", "QQQ"] + sorted(set(SECTOR_ETF.values()))
+        fetch_tickers = tuple(dict.fromkeys(tickers + context_tickers))
+        history = load_history(fetch_tickers, lookback)
+        rows = [analyze(t, history[t]) for t in tickers if t in history]
         rows = [row for row in rows if row is not None]
-        st.session_state.scan_data = pd.DataFrame(rows).sort_values("Score", ascending=False) if rows else pd.DataFrame()
+        result_df = pd.DataFrame(rows)
+        if not result_df.empty:
+            def trailing_return(frame, days=20):
+                if frame is None or "Close" not in frame or len(frame["Close"].dropna()) <= days:
+                    return np.nan
+                close_series = frame["Close"].dropna()
+                return float((close_series.iloc[-1] / close_series.iloc[-days-1] - 1) * 100)
+            spy_ret = trailing_return(history.get("SPY"))
+            qqq_ret = trailing_return(history.get("QQQ"))
+            result_df["SPY 1M %"] = spy_ret
+            result_df["QQQ 1M %"] = qqq_ret
+            result_df["Relative vs SPY 1M (pp)"] = result_df["1M %"] - spy_ret if pd.notna(spy_ret) else np.nan
+            result_df["Sector ETF"] = result_df["Symbol"].map(SECTOR_ETF).fillna("—")
+            sector_returns = {etf: trailing_return(history.get(etf)) for etf in set(SECTOR_ETF.values())}
+            result_df["Sector ETF 1M %"] = result_df["Sector ETF"].map(sector_returns)
+            result_df["Relative vs sector 1M (pp)"] = result_df["1M %"] - result_df["Sector ETF 1M %"]
+        st.session_state.scan_data = result_df.sort_values("Score", ascending=False) if not result_df.empty else pd.DataFrame()
 
 data = st.session_state.scan_data
 if data is None or data.empty:
@@ -371,6 +413,25 @@ with scanner_tab:
     t1.metric("1-week return", f"{float(row['1W %']):+.1f}%")
     t2.metric("1-month return", f"{float(row['1M %']):+.1f}%")
     t3.metric("3-month return", f"{float(row['3M %']):+.1f}%")
+    st.markdown("**Volume and market context**")
+    v1, v2, v3, v4 = st.columns(4)
+    volume_ratio = row.get("Latest volume / prior 20D avg", np.nan)
+    if pd.notna(volume_ratio):
+        v1.metric("Latest bar volume vs prior 20D avg", f"{float(volume_ratio):.2f}×")
+        if float(volume_ratio) >= 1.5:
+            st.info("Latest daily bar volume is at least 1.5× the prior 20-bar average. This indicates elevated activity, not whether buyers or sellers dominated.")
+        elif float(volume_ratio) <= 0.7:
+            st.warning("Latest daily bar volume is below 70% of the prior 20-bar average; participation appears lighter.")
+        else:
+            st.caption("Latest daily-bar volume is near its prior 20-bar average. Volume alone does not confirm an entry.")
+    else:
+        v1.metric("Latest bar volume vs prior 20D avg", "Unavailable")
+    v2.metric("SPY 1-month return", f"{float(row['SPY 1M %']):+.1f}%" if pd.notna(row.get("SPY 1M %")) else "—")
+    v3.metric("Relative vs SPY", f"{float(row['Relative vs SPY 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs SPY 1M (pp)")) else "—")
+    sector_name = str(row.get("Sector ETF", "—"))
+    v4.metric(f"Relative vs {sector_name}", f"{float(row['Relative vs sector 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs sector 1M (pp)")) else "—")
+    st.caption("Volume compares the latest available daily bar with the previous 20 bars; if today's bar is still forming, its volume ratio is provisional. SPY/QQQ and sector comparisons use the same daily-price source and trailing 20-session returns. Sector mappings are approximate group proxies, not formal classifications.")
+
     st.markdown("**Illustrative risk / reward plan**")
     st.caption("Reference levels only, calculated from the latest daily close and the scanner's 2 × average absolute daily move. They are not live quotes, guaranteed fills, or broker stop orders.")
     r1, r2, r3, r4 = st.columns(4)
@@ -600,6 +661,13 @@ with scanner_tab:
                     "three_month_return_pct": round(float(row["3M %"]), 3),
                     "rsi": round(float(row["RSI"]), 2),
                     "20_day_volatility_pct": round(float(row["20D Vol %"]), 2),
+                    "latest_daily_bar_volume_vs_prior_20_bar_average": round(float(row["Latest volume / prior 20D avg"]), 3) if pd.notna(row.get("Latest volume / prior 20D avg")) else None,
+                    "spy_1_month_return_pct": round(float(row["SPY 1M %"]), 3) if pd.notna(row.get("SPY 1M %")) else None,
+                    "qqq_1_month_return_pct": round(float(row["QQQ 1M %"]), 3) if pd.notna(row.get("QQQ 1M %")) else None,
+                    "relative_strength_vs_spy_percentage_points": round(float(row["Relative vs SPY 1M (pp)"]), 3) if pd.notna(row.get("Relative vs SPY 1M (pp)")) else None,
+                    "sector_etf_proxy": str(row.get("Sector ETF", "—")),
+                    "sector_etf_1_month_return_pct": round(float(row["Sector ETF 1M %"]), 3) if pd.notna(row.get("Sector ETF 1M %")) else None,
+                    "relative_strength_vs_sector_percentage_points": round(float(row["Relative vs sector 1M (pp)"]), 3) if pd.notna(row.get("Relative vs sector 1M (pp)")) else None,
                     "20_day_average": round(sma20, 4) if pd.notna(sma20) else None,
                     "20_day_high_from_daily_bars": round(recent_high_20, 4) if recent_high_20 is not None else None,
                     "20_day_low_from_daily_bars": round(recent_low_20, 4) if recent_low_20 is not None else None,
@@ -640,19 +708,20 @@ with scanner_tab:
                     "Return these sections in this exact order: "
                     "1. VERDICT: BUY CANDIDATE / WAIT / AVOID (paper-study only). "
                     "2. WHY. 3. BULLISH EVIDENCE. 4. BEARISH RISKS. "
-                    "5. PRICE LEVELS TO WATCH: state the exact pullback range low and high, its midpoint, "
+                    "5. VOLUME AND MARKET CONTEXT: report the supplied latest-bar volume ratio, SPY/QQQ context, and sector-relative strength when available. Treat volume as provisional if the latest daily bar may still be forming; elevated volume does not reveal direction by itself. Do not invent missing context. "
+                    "6. PRICE LEVELS TO WATCH: state the exact pullback range low and high, its midpoint, "
                     "the exact breakout trigger, and the current daily reference price. Clearly label these as watch levels, "
                     "not instructions to buy. If neither scenario is defensible, say NO VALID ENTRY RIGHT NOW, "
                     "but still report any calculated watch levels as conditional levels to monitor. "
-                    "6. ENTRY CONFIRMATION: explain observable daily-bar conditions needed before considering either setup; "
+                    "7. ENTRY CONFIRMATION: explain observable daily-bar conditions needed before considering either setup; "
                     "do not claim confirmation has already occurred unless the supplied facts prove it. "
-                    "7. STOP / INVALIDATION: give the exact calculated stop for each scenario when available, "
+                    "8. STOP / INVALIDATION: give the exact calculated stop for each scenario when available, "
                     "and explain that a daily close below the stop would invalidate that scenario. "
-                    "8. PROFIT TARGETS: calculate 1R, 2R, and 3R separately for the pullback and breakout scenarios "
+                    "9. PROFIT TARGETS: calculate 1R, 2R, and 3R separately for the pullback and breakout scenarios "
                     "using each scenario's own entry midpoint/trigger and stop. Show the arithmetic levels to 2 decimals. "
-                    "9. POSITION SIZE: report the supplied risk-limited and cash-limited quantity for each scenario, "
+                    "10. POSITION SIZE: report the supplied risk-limited and cash-limited quantity for each scenario, "
                     "and estimated dollar loss at the stop. Never exceed the supplied 1% equity risk budget or available cash. "
-                    "10. WHAT WOULD INVALIDATE THE IDEA. 11. WHAT DATA IS MISSING. "
+                    "11. WHAT WOULD INVALIDATE THE IDEA. 12. WHAT DATA IS MISSING. "
                     "The calculated pullback and breakout levels are mechanical formulas based on SMA20, recent 20-day high, "
                     "and ATR; they are watch references only, not confirmed support/resistance. "
                     "If price is extended, reward/risk is poor, or confirmation is absent, the verdict should remain WAIT. "

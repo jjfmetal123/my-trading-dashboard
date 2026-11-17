@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.6 · Trade preview and separate risk buckets · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.7 · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -999,6 +999,9 @@ with paper_tab:
         save_account()
         st.warning("Simulated exit rule triggered: " + " · ".join(triggered_exits) +
                    ". This is recorded at the available daily reference price, not the exact stop/target price.")
+    trade_notice = st.session_state.pop("paper_trade_notice", None)
+    if trade_notice:
+        st.success(trade_notice)
     positions = st.session_state.paper_positions
     market_value = sum(pos["quantity"] * prices.get(sym, pos["average_price"]) for sym, pos in positions.items())
     equity = st.session_state.paper_cash + market_value
@@ -1143,8 +1146,12 @@ with paper_tab:
                 }
                 st.session_state.paper_cash -= cost
                 st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "BUY", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": 0.0})
+                st.session_state.paper_trade_notice = (
+                    f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. "
+                    f"Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}. Saved to your account."
+                )
                 save_account()
-                st.success(f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}. Saved to your account.")
+                st.rerun()
         else:
             if float(trade_qty) > current["quantity"] + 1e-8:
                 st.error("You cannot sell more units than you hold in the virtual account.")
@@ -1160,8 +1167,11 @@ with paper_tab:
                 st.session_state.paper_cash += cost
                 st.session_state.realized_pnl += pnl
                 st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "SELL", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": pnl})
+                st.session_state.paper_trade_notice = (
+                    f"Simulated sale recorded. Realized P/L: ${pnl:+,.2f} before costs. Saved to your account."
+                )
                 save_account()
-                st.success(f"Simulated sale recorded. Realized P/L: ${pnl:+,.2f} before costs. Saved to your account.")
+                st.rerun()
     st.markdown("#### Open positions")
     if st.session_state.paper_positions:
         position_rows = []

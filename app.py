@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.12 · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.13 · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -472,14 +472,16 @@ with cloud_tab:
                 ranked_df = pd.DataFrame(ranked)
                 display_columns = [
                     col for col in [
-                        "symbol", "asset_class", "score", "signal", "trend",
+                        "symbol", "asset_class", "score", "adjusted_score", "sector_group", "sector_rotation_state", "sector_adjustment", "signal", "trend",
                         "weekly_trend", "risk", "last", "price_date",
                         "return_1w_pct", "return_1m_pct", "return_3m_pct",
                         "rsi", "annualized_volatility_pct", "reason"
                     ] if col in ranked_df.columns
                 ]
                 ranked_df = ranked_df[display_columns].rename(columns={
-                    "symbol": "Symbol", "asset_class": "Asset class", "score": "Score",
+                    "symbol": "Symbol", "asset_class": "Asset class", "score": "Base score",
+                    "adjusted_score": "Sector-adjusted score", "sector_group": "Sector group",
+                    "sector_rotation_state": "Sector state", "sector_adjustment": "Sector adjustment",
                     "signal": "Signal", "trend": "Daily trend", "weekly_trend": "Weekly trend",
                     "risk": "Risk", "last": "Last daily price", "price_date": "Price date",
                     "return_1w_pct": "1W %", "return_1m_pct": "1M %",
@@ -503,11 +505,12 @@ with cloud_tab:
                 watch_df = pd.DataFrame(watchlist)
                 watch_columns = [
                     col for col in [
-                        "symbol", "score", "signal", "return_1m_pct", "rsi", "risk"
+                        "symbol", "score", "adjusted_score", "sector_group", "sector_rotation_state", "signal", "return_1m_pct", "rsi", "risk"
                     ] if col in watch_df.columns
                 ]
                 watch_df = watch_df[watch_columns].rename(columns={
-                    "symbol": "Symbol", "score": "Score", "signal": "Signal",
+                    "symbol": "Symbol", "score": "Base score", "adjusted_score": "Sector-adjusted score",
+                    "sector_group": "Sector group", "sector_rotation_state": "Sector state", "signal": "Signal",
                     "return_1m_pct": "1M %", "rsi": "RSI", "risk": "Risk"
                 })
                 st.dataframe(watch_df.style.format({
@@ -563,6 +566,12 @@ with cloud_tab:
                         with st.expander(f"#{rank_value} · {symbol_name} · {stance}"):
                             if candidate.get("rationale"):
                                 st.write(candidate["rationale"])
+                            if candidate.get("sector_group"):
+                                st.caption(
+                                    f"Sector context: {candidate.get('sector_group')} · "
+                                    f"{candidate.get('sector_rotation_state', 'Not mapped')} · "
+                                    f"ranking adjustment {candidate.get('sector_adjustment', 0):+} points"
+                                )
                             bullish = candidate.get("bullish_factors") or []
                             bearish = candidate.get("bearish_factors") or []
                             left, right = st.columns(2)
@@ -600,6 +609,7 @@ with cloud_tab:
             else:
                 st.info("The latest scan is saved, but its AI review is not available yet. The worker may still be reviewing it, or the AI request may have failed. The next scheduled scan will try again.")
 
+            st.caption("Sector-aware ranking is a small, bounded overlay on the original rules score: leading +5, improving +2, fading −2, lagging −5. The original base score and mechanical signal remain unchanged; unmapped assets receive no adjustment.")
             st.warning(
                 "The scanner uses Yahoo Finance daily bars. The AI is a second opinion based only on the supplied scan facts; it does not verify live quotes, news, filings, fundamentals, or intraday conditions. Rankings are research prioritization, not buy/sell signals or instructions to trade. The cloud worker is observation-only."
             )
@@ -1697,4 +1707,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.12 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.13 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

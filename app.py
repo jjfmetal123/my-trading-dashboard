@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.5 · Separate existing and new-position risk · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.6 · Trade preview and separate risk buckets · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1091,9 +1091,27 @@ with paper_tab:
     with st.form("paper_trade_form"):
         default_qty = max(0.001, round(suggested_qty, 3)) if action == "Buy" else max(0.001, round(min(st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.001), 1.0), 3))
         trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=float(default_qty), step=0.1, format="%.3f")
-        st.caption(f"Estimated order value: ${estimated_price*trade_qty:,.2f} · Market data date: {price_date} · Not a live quote.")
         acknowledge_price = st.checkbox("I understand this simulated trade uses a historical daily price, not a live quote.")
+        preview_clicked = st.form_submit_button("Preview quantity")
         confirmed = st.form_submit_button(f"Approve simulated {action.lower()}", type="primary")
+    preview_order_value = estimated_price * float(trade_qty)
+    preview_risk = max(0.0, risk_per_unit) * float(trade_qty) if action == "Buy" else 0.0
+    if preview_clicked:
+        st.info(
+            f"PREVIEW ONLY — {trade_qty:.3f} {trade_symbol} · "
+            f"Estimated order value: ${preview_order_value:,.2f} · "
+            f"Estimated added stop risk: ${preview_risk:,.2f} · "
+            f"Daily market-data date: {price_date}. "
+            "Nothing has been bought or sold."
+        )
+        if action == "Buy" and trade_qty > suggested_qty + 1e-6:
+            st.error(f"Preview exceeds the current risk-and-cash limit of {suggested_qty:.3f} units. Reduce the quantity.")
+        elif action == "Buy" and preview_order_value > st.session_state.paper_cash + 1e-8:
+            st.error("Preview exceeds available virtual cash.")
+        elif action == "Sell" and trade_qty > st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.0) + 1e-8:
+            st.error("Preview exceeds the quantity currently held.")
+        else:
+            st.success("Preview is within the displayed quantity, risk, and cash limits. This is not an executed paper trade.")
     if confirmed and not acknowledge_price:
         st.error("Please acknowledge that this is a historical daily price before recording the simulated trade.")
     if confirmed and acknowledge_price:
@@ -1111,8 +1129,8 @@ with paper_tab:
                 st.error("Adding to an existing position is disabled in this prototype. Close the existing position first.")
             elif float(trade_qty) > suggested_qty + 1e-6:
                 st.error(f"Buy blocked: quantity exceeds the portfolio-risk-and-cash limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
-            elif total_open_risk + (float(trade_qty) * risk_per_unit) > portfolio_cap_for_trade + 1e-6:
-                st.error("Buy blocked: this order would exceed the portfolio-wide risk limit.")
+            elif new_position_risk + (float(trade_qty) * risk_per_unit) > new_position_cap + 1e-6:
+                st.error("Buy blocked: this order would exceed the separate new-position risk allowance.")
             elif cost > st.session_state.paper_cash + 1e-8:
                 st.error("Not enough virtual cash for this purchase.")
             else:

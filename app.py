@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.7 · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.8 · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -86,6 +86,42 @@ def load_history(tickers, period="1y"):
                     out[ticker] = frame.dropna(subset=["Close"])
     elif len(tickers) == 1 and "Close" in raw:
         out[tickers[0]] = raw.dropna(subset=["Close"])
+    return out
+
+
+@st.cache_data(ttl=20, show_spinner=False)
+def load_intraday_bars(tickers):
+    """Fetch recent one-minute Yahoo Finance bars for currently held symbols.
+
+    This is a frequently refreshed data feed, not a guaranteed real-time quote
+    or a broker execution feed. Yahoo can delay, omit, or revise intraday bars.
+    """
+    tickers = tuple(dict.fromkeys(str(t).upper() for t in tickers if t))
+    if not tickers:
+        return {}
+    raw = yf.download(
+        list(tickers), period="1d", interval="1m", auto_adjust=True,
+        group_by="ticker", progress=False, threads=True, prepost=False
+    )
+    out = {}
+    if raw is None or raw.empty:
+        return out
+    if isinstance(raw.columns, pd.MultiIndex):
+        outer = set(raw.columns.get_level_values(0))
+        inner = set(raw.columns.get_level_values(1))
+        for ticker in tickers:
+            if ticker in outer:
+                frame = raw[ticker].copy()
+            elif ticker in inner:
+                frame = raw.xs(ticker, axis=1, level=1).copy()
+            else:
+                continue
+            needed = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in frame.columns]
+            if "Close" in needed:
+                out[ticker] = frame[needed].dropna(subset=["Close"])
+    elif len(tickers) == 1 and "Close" in raw.columns:
+        needed = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in raw.columns]
+        out[tickers[0]] = raw[needed].dropna(subset=["Close"])
     return out
 
 def rsi(series, n=14):
@@ -968,37 +1004,164 @@ with scanner_tab:
 
 with paper_tab:
     st.subheader("Virtual account")
-    st.info("Simulation only. Prices are the latest available DAILY bars from Yahoo Finance—not live or executable quotes. Your cash, positions, exit rules, and trade journal are now saved in Supabase and restored when you reopen the dashboard.")
+    st.info("Simulation only. Scanner and trade-entry references use Yahoo Finance DAILY bars. Open positions are separately checked against frequently refreshed one-minute Yahoo Finance bars while this dashboard session remains open. Neither feed is a guaranteed real-time executable quote. Your paper account is saved in Supabase.")
     prices = dict(zip(data["Symbol"], data["Last"]))
-    # Simulated exit monitoring uses the latest available DAILY close only.
-    # It is not intraday monitoring and does not guarantee execution at the stop/target.
-    triggered_exits = []
-    for sym, pos in list(st.session_state.paper_positions.items()):
-        mark = float(prices.get(sym, pos["average_price"]))
-        stop_level = pos.get("stop_price")
-        target_level = pos.get("target_price")
-        exit_reason = None
-        if stop_level is not None and mark <= float(stop_level):
-            exit_reason = "STOP RULE (daily close)"
-        elif target_level is not None and mark >= float(target_level):
-            exit_reason = "TARGET RULE (daily close)"
-        if exit_reason:
-            qty = float(pos["quantity"])
-            proceeds = qty * mark
-            pnl = (mark - float(pos["average_price"])) * qty
-            st.session_state.paper_cash += proceeds
-            st.session_state.realized_pnl += pnl
-            st.session_state.paper_journal.insert(0, {
-                "Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
-                "Action": "AUTO " + exit_reason, "Symbol": sym, "Quantity": qty,
-                "Reference price": mark, "Value": proceeds, "Realized P/L": pnl
+    @st.fragment(run_every="60s")
+    def render_intraday_exit_monitor():
+        st.markdown("#### Intraday exit monitor")
+        st.caption(
+            "Checks one-minute Yahoo Finance bars about once per minute while this dashboard session is open. "
+            "It stops checking when the dashboard is closed. Quotes may be delayed or missing; this is paper simulation only."
+        )
+        held = dict(st.session_state.paper_positions)
+        if not held:
+            st.info("No open positions to monitor.")
+            return
+
+        try:
+            bars_by_symbol = load_intraday_bars(tuple(sorted(held.keys())))
+        except Exception as exc:
+            st.warning(f"Intraday data could not be refreshed. No automatic exit was recorded. Details: {exc}")
+            return
+
+        now_utc = pd.Timestamp.now(tz="UTC")
+        original_cash = float(st.session_state.paper_cash)
+        original_realized = float(st.session_state.realized_pnl)
+        original_positions = json.loads(json.dumps(st.session_state.paper_positions))
+        original_journal = json.loads(json.dumps(st.session_state.paper_journal))
+        quote_rows = []
+        stale_symbols = []
+        triggered = []
+
+        for sym, pos in held.items():
+            frame = bars_by_symbol.get(sym)
+            if frame is None or frame.empty:
+                quote_rows.append({
+                    "Symbol": sym, "Intraday price": None, "Bar low": None, "Bar high": None,
+                    "Stop": pos.get("stop_price"), "2R target": pos.get("target_price"), "Last bar time": "Unavailable",
+                    "Data age": "—", "Monitor": "NO DATA — no auto-exit"
+                })
+                stale_symbols.append(sym)
+                continue
+
+            row = frame.dropna(subset=["Close"]).iloc[-1]
+            bar_time = pd.Timestamp(frame.dropna(subset=["Close"]).index[-1])
+            if bar_time.tzinfo is None:
+                bar_time = bar_time.tz_localize("America/New_York")
+            bar_utc = bar_time.tz_convert("UTC")
+            age_seconds = max(0.0, (now_utc - bar_utc).total_seconds())
+            fresh = age_seconds <= 300
+
+            close_px = float(row["Close"])
+            open_px = float(row["Open"]) if "Open" in row and pd.notna(row["Open"]) else close_px
+            low_px = float(row["Low"]) if "Low" in row and pd.notna(row["Low"]) else close_px
+            high_px = float(row["High"]) if "High" in row and pd.notna(row["High"]) else close_px
+            stop_level = float(pos["stop_price"]) if pos.get("stop_price") is not None else None
+            target_level = float(pos["target_price"]) if pos.get("target_price") is not None else None
+            local_bar_time = bar_time.tz_convert(datetime.now().astimezone().tzinfo)
+            monitor_status = "MONITORING" if fresh else "STALE — no auto-exit"
+
+            # Never trigger from stale bars. If both stop and target are touched
+            # in the same one-minute candle, assume the stop happened first.
+            exit_reason = None
+            trigger_price = None
+            estimated_fill = None
+            gap_note = ""
+            if fresh:
+                if stop_level is not None and low_px <= stop_level:
+                    exit_reason = "STOP (intraday)"
+                    trigger_price = stop_level
+                    estimated_fill = open_px if open_px < stop_level else stop_level
+                    if open_px < stop_level:
+                        gap_note = "Opened below stop; estimated fill uses bar open (gap-through)."
+                    else:
+                        gap_note = "Estimated fill at stop; actual execution can differ."
+                elif target_level is not None and high_px >= target_level:
+                    exit_reason = "TARGET (intraday)"
+                    trigger_price = target_level
+                    estimated_fill = open_px if open_px > target_level else target_level
+                    gap_note = "Target touched; estimated fill uses target/open, not a broker fill."
+
+            quote_rows.append({
+                "Symbol": sym, "Intraday price": close_px, "Bar low": low_px,
+                "Bar high": high_px, "Stop": stop_level, "2R target": target_level,
+                "Last bar time": local_bar_time.strftime("%b %d %I:%M:%S %p %Z"),
+                "Data age": f"{age_seconds / 60:.1f} min",
+                "Monitor": monitor_status
             })
-            st.session_state.paper_positions.pop(sym, None)
-            triggered_exits.append(f"{sym}: {exit_reason} at daily reference price ${mark:,.2f}")
-    if triggered_exits:
-        save_account()
-        st.warning("Simulated exit rule triggered: " + " · ".join(triggered_exits) +
-                   ". This is recorded at the available daily reference price, not the exact stop/target price.")
+            if not fresh:
+                stale_symbols.append(sym)
+
+            if exit_reason:
+                qty = float(pos.get("quantity", 0.0))
+                avg = float(pos.get("average_price", 0.0))
+                proceeds = qty * float(estimated_fill)
+                pnl = (float(estimated_fill) - avg) * qty
+                now_local = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+                st.session_state.paper_cash += proceeds
+                st.session_state.realized_pnl += pnl
+                st.session_state.paper_journal.insert(0, {
+                    "Time": now_local,
+                    "Action": "AUTO " + exit_reason,
+                    "Symbol": sym,
+                    "Quantity": qty,
+                    "Trigger price": float(trigger_price),
+                    "Observed execution price": float(estimated_fill),
+                    "Last bar close": close_px,
+                    "Quote bar time": local_bar_time.isoformat(),
+                    "Data source": "Yahoo Finance 1-minute OHLC",
+                    "Gap / fill note": gap_note,
+                    "Value": proceeds,
+                    "Realized P/L": pnl
+                })
+                st.session_state.paper_journal = st.session_state.paper_journal[:500]
+                st.session_state.paper_positions.pop(sym, None)
+                triggered.append(
+                    f"{sym} {exit_reason}: trigger ${trigger_price:,.2f}, estimated fill ${estimated_fill:,.2f}, P/L ${pnl:+,.2f}"
+                )
+
+        if triggered:
+            try:
+                save_account()
+            except Exception as exc:
+                # Roll back in-memory changes if persistence fails so the next
+                # rerun cannot silently treat an unsaved exit as completed.
+                st.session_state.paper_cash = original_cash
+                st.session_state.realized_pnl = original_realized
+                st.session_state.paper_positions = original_positions
+                st.session_state.paper_journal = original_journal
+                st.error(f"An intraday exit was detected, but saving the paper-account update failed. The simulated account was restored and no exit was recorded: {exc}")
+                return
+            st.session_state.intraday_exit_notice = " · ".join(triggered)
+            st.rerun()
+
+        notice = st.session_state.pop("intraday_exit_notice", None)
+        if notice:
+            st.success("Simulated intraday exit recorded: " + notice)
+
+        if quote_rows:
+            live_df = pd.DataFrame(quote_rows)
+            st.dataframe(
+                live_df.style.format({
+                    "Intraday price": "${:,.4f}", "Bar low": "${:,.4f}",
+                    "Bar high": "${:,.4f}", "Stop": "${:,.4f}",
+                    "2R target": "${:,.4f}"
+                }, na_rep="—"),
+                use_container_width=True, hide_index=True
+            )
+        if stale_symbols:
+            st.warning(
+                "No automatic exit was evaluated for stale or unavailable intraday data: "
+                + ", ".join(stale_symbols)
+                + ". A stale quote is never treated as a fresh trigger."
+            )
+        st.caption(
+            "Simulation method: a fresh one-minute candle touching the stop/target can trigger a paper exit. "
+            "For a stop gap, the estimated fill uses the candle open when it is below the stop; otherwise it uses the stop. "
+            "One-minute OHLC cannot establish the exact tick sequence or a real fill."
+        )
+
+    render_intraday_exit_monitor()
     trade_notice = st.session_state.pop("paper_trade_notice", None)
     if trade_notice:
         st.success(trade_notice)
@@ -1053,7 +1216,7 @@ with paper_tab:
     candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
     default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
     default_index = data["Symbol"].tolist().index(default_symbol)
-    st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. A buy plan uses the illustrative stop reference and a 2-to-1 reward/risk target. Simulated exit rules are checked only when the app reruns with a new daily price.")
+    st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. A buy plan uses the illustrative stop reference and a 2-to-1 reward/risk target. New positions are entered using the displayed daily reference; open-position exits are monitored separately using one-minute bars while the dashboard session is open.")
     action = st.selectbox("Action", ["Buy", "Sell"])
     trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
     selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
@@ -1090,11 +1253,11 @@ with paper_tab:
             st.warning("No remaining new-position risk allowance. A new simulated buy will be blocked until new-position risk falls or the allowance is reviewed.")
     else:
         st.error("The calculated stop reference is not below the current price. The risk planner cannot size a long buy for this asset.")
-    st.warning("Simulation limitation: the stop and 2R target are stored as rules and checked only when the app reruns using a new DAILY close. They are not live orders, are not monitored intraday, and exits are recorded at the available daily reference price—not necessarily the stop/target price. Gaps can cause larger losses.")
+    st.warning("Important: intraday exits are paper simulations based on Yahoo Finance one-minute bars, not broker stop orders. Monitoring runs about once per minute only while this dashboard session is open. If the app is closed, data is delayed/missing, or price gaps through a stop, losses can exceed the planned amount. Estimated fills are not guaranteed.")
     with st.form("paper_trade_form"):
         default_qty = max(0.001, round(suggested_qty, 3)) if action == "Buy" else max(0.001, round(min(st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.001), 1.0), 3))
         trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=float(default_qty), step=0.1, format="%.3f")
-        acknowledge_price = st.checkbox("I understand this simulated trade uses a historical daily price, not a live quote.")
+        acknowledge_price = st.checkbox("I understand this simulated entry uses a daily reference price, not a live executable quote.")
         preview_clicked = st.form_submit_button("Preview quantity")
         confirmed = st.form_submit_button(f"Approve simulated {action.lower()}", type="primary")
     preview_order_value = estimated_price * float(trade_qty)
@@ -1116,7 +1279,7 @@ with paper_tab:
         else:
             st.success("Preview is within the displayed quantity, risk, and cash limits. This is not an executed paper trade.")
     if confirmed and not acknowledge_price:
-        st.error("Please acknowledge that this is a historical daily price before recording the simulated trade.")
+        st.error("Please acknowledge that this simulated entry uses a daily reference price before recording the trade.")
     if confirmed and acknowledge_price:
         price = float(prices[trade_symbol])
         cost = price * float(trade_qty)

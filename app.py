@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.3 · AI market-wide candidate ranking · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.4 · Portfolio-wide risk manager · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1007,6 +1007,37 @@ with paper_tab:
     b.metric("Position value", f"${market_value:,.2f}")
     c.metric("Account value", f"${equity:,.2f}", f"${equity-1000:+,.2f} vs. start")
     d.metric("Realized P/L", f'${st.session_state.realized_pnl:+,.2f}')
+    st.markdown("#### Portfolio risk manager")
+    st.caption("Portfolio risk is estimated from each open position's stored entry price and stop rule. This is a planning estimate—not a guarantee of maximum loss; gaps, slippage, stale daily prices, and missing stops can increase losses.")
+    open_risk_rows = []
+    unknown_risk_positions = []
+    for open_sym, open_pos in st.session_state.paper_positions.items():
+        open_qty = float(open_pos.get("quantity", 0.0))
+        open_entry = float(open_pos.get("average_price", 0.0))
+        open_stop = open_pos.get("stop_price")
+        if open_stop is None or open_entry <= 0 or float(open_stop) >= open_entry:
+            unknown_risk_positions.append(open_sym)
+            open_risk_rows.append({"Symbol": open_sym, "Quantity": open_qty, "Entry": open_entry, "Stop": open_stop, "Estimated risk to stop": None, "Status": "Risk unavailable — review"})
+        else:
+            one_position_risk = max(0.0, open_entry - float(open_stop)) * open_qty
+            open_risk_rows.append({"Symbol": open_sym, "Quantity": open_qty, "Entry": open_entry, "Stop": float(open_stop), "Estimated risk to stop": one_position_risk, "Status": "Estimated"})
+    total_open_risk = sum(
+        float(item["Estimated risk to stop"])
+        for item in open_risk_rows
+        if item["Estimated risk to stop"] is not None
+    )
+    portfolio_risk_cap = max(0.0, equity * 0.01)
+    remaining_portfolio_risk = max(0.0, portfolio_risk_cap - total_open_risk)
+    pm1, pm2, pm3 = st.columns(3)
+    pm1.metric("1% portfolio risk limit", f"${portfolio_risk_cap:,.2f}")
+    pm2.metric("Estimated open-position risk", f"${total_open_risk:,.2f}")
+    pm3.metric("Remaining risk capacity", f"${remaining_portfolio_risk:,.2f}")
+    if open_risk_rows:
+        st.dataframe(pd.DataFrame(open_risk_rows), use_container_width=True, hide_index=True)
+    else:
+        st.caption("No open positions: the full portfolio risk budget is currently available.")
+    if unknown_risk_positions:
+        st.error("New simulated buys are blocked until stop risk is reviewed for these open positions: " + ", ".join(unknown_risk_positions))
     st.markdown("#### Risk planner and simulated trade")
     candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
     default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
@@ -1019,7 +1050,12 @@ with paper_tab:
     price_date = str(selected_signal["Price date"])
     stop_reference = float(selected_signal["Illustrative risk level"])
     risk_pct = st.select_slider("Maximum planned account risk per buy", options=[0.5, 1.0, 1.5, 2.0], value=1.0, format_func=lambda x: f"{x:.1f}%")
-    risk_budget = max(0.0, equity * risk_pct / 100.0)
+    selected_risk_cap = max(0.0, equity * risk_pct / 100.0)
+    # Portfolio-wide ceiling is the lesser of the user's selected cap and the
+    # standard 1% guardrail used by this prototype. Existing stop risk consumes it.
+    portfolio_cap_for_trade = min(selected_risk_cap, portfolio_risk_cap)
+    remaining_risk_for_trade = max(0.0, portfolio_cap_for_trade - total_open_risk)
+    risk_budget = remaining_risk_for_trade
     risk_per_unit = estimated_price - stop_reference
     target_reference = estimated_price + (2.0 * risk_per_unit) if risk_per_unit > 0 else estimated_price
     cash_limited_qty = st.session_state.paper_cash / estimated_price if estimated_price > 0 else 0.0
@@ -1035,10 +1071,12 @@ with paper_tab:
     r1.metric("Daily reference price", f"${estimated_price:,.2f}")
     r2.metric("Illustrative stop reference", f"${stop_reference:,.2f}")
     r3.metric("2R profit target", f"${target_reference:,.2f}")
-    r4.metric("Risk budget", f"${risk_budget:,.2f}")
+    r4.metric("Remaining risk budget", f"${risk_budget:,.2f}")
     r5.metric("Estimated position size", f"{suggested_qty:.3f}")
     if risk_per_unit > 0:
-        st.caption(f"Estimated risk per unit: ${risk_per_unit:,.2f} · Planned loss at suggested size: ${planned_loss:,.2f} · Cash available: ${st.session_state.paper_cash:,.2f}")
+        st.caption(f"Estimated risk per unit: ${risk_per_unit:,.2f} · Planned added risk: ${planned_loss:,.2f} · Existing open risk: ${total_open_risk:,.2f} · Cash available: ${st.session_state.paper_cash:,.2f}")
+        if risk_budget <= 0:
+            st.warning("No remaining portfolio risk capacity. A new simulated buy will be blocked until open risk falls or the account/risk settings are reviewed.")
     else:
         st.error("The calculated stop reference is not below the current price. The risk planner cannot size a long buy for this asset.")
     st.warning("Simulation limitation: the stop and 2R target are stored as rules and checked only when the app reruns using a new DAILY close. They are not live orders, are not monitored intraday, and exits are recorded at the available daily reference price—not necessarily the stop/target price. Gaps can cause larger losses.")
@@ -1055,12 +1093,18 @@ with paper_tab:
         cost = price * float(trade_qty)
         current = st.session_state.paper_positions.get(trade_symbol, {"quantity": 0.0, "average_price": 0.0})
         if action == "Buy":
-            if risk_per_unit <= 0:
+            if unknown_risk_positions:
+                st.error("Buy blocked: at least one existing position has missing or invalid stop information. Review portfolio risk first.")
+            elif risk_budget <= 0:
+                st.error("Buy blocked: the portfolio risk budget is already fully used.")
+            elif risk_per_unit <= 0:
                 st.error("Buy blocked: no valid illustrative stop reference is available for this asset.")
             elif trade_symbol in st.session_state.paper_positions:
                 st.error("Adding to an existing position is disabled in this prototype. Close the existing position first.")
             elif float(trade_qty) > suggested_qty + 1e-6:
-                st.error(f"Buy blocked: quantity exceeds the risk-sized limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
+                st.error(f"Buy blocked: quantity exceeds the portfolio-risk-and-cash limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
+            elif total_open_risk + (float(trade_qty) * risk_per_unit) > portfolio_cap_for_trade + 1e-6:
+                st.error("Buy blocked: this order would exceed the portfolio-wide risk limit.")
             elif cost > st.session_state.paper_cash + 1e-8:
                 st.error("Not enough virtual cash for this purchase.")
             else:

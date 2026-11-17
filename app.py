@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.11 · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.12 · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -516,6 +516,24 @@ with cloud_tab:
                 }), use_container_width=True, hide_index=True)
             else:
                 st.caption("No BUY CANDIDATE or WATCH assets were stored in the cloud watchlist.")
+            # Sector/asset-group rotation is stored alongside the AI review. It is
+            # computed from ETF/asset proxy price performance, not actual fund flows.
+            ai_review_for_rotation = cloud_scan.get("ai_review") or {}
+            rotation_rows = ai_review_for_rotation.get("sector_rotation") or []
+            if rotation_rows:
+                st.divider()
+                st.markdown("### 🔄 Sector & asset-group rotation")
+                st.caption("Ranked from 1W/1M/3M daily-bar returns and relative performance versus SPY. These are ETF/asset price proxies, not measured fund flows.")
+                rotation_df = pd.DataFrame(rotation_rows)
+                rotation_cols = [c for c in ["group", "proxy", "rotation_state", "return_1w_pct", "return_1m_pct", "return_3m_pct", "relative_1m_vs_spy_pp", "relative_3m_vs_spy_pp", "momentum_score"] if c in rotation_df.columns]
+                rotation_df = rotation_df[rotation_cols].rename(columns={
+                    "group": "Group", "proxy": "Proxy", "rotation_state": "Relative state",
+                    "return_1w_pct": "1W %", "return_1m_pct": "1M %", "return_3m_pct": "3M %",
+                    "relative_1m_vs_spy_pp": "1M vs SPY (pp)", "relative_3m_vs_spy_pp": "3M vs SPY (pp)",
+                    "momentum_score": "Momentum score"
+                })
+                st.dataframe(rotation_df.style.format({c: "{:+.2f}" for c in ["1W %", "1M %", "3M %", "1M vs SPY (pp)", "3M vs SPY (pp)", "Momentum score"] if c in rotation_df.columns}), use_container_width=True, hide_index=True)
+
             st.divider()
             st.markdown("### 🤖 Automatic AI second-stage review")
             ai_review = cloud_scan.get("ai_review")
@@ -1679,4 +1697,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.11 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.12 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

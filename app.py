@@ -59,7 +59,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.7 · Setup status monitor · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.8 · Market-wide entry watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -734,12 +734,26 @@ with scanner_tab:
             ["Nearest setup (ATR)", "Score"] if "Score" in watch_rows[0] else ["Nearest setup (ATR)"],
             ascending=True
         )
-        st.dataframe(
-            watch_df.drop(columns=["Nearest setup (ATR)"]).style.format(
-                {"Last": "${:,.2f}", "Breakout trigger": "${:,.2f}"}
-            ),
-            use_container_width=True, hide_index=True
+        visible_watch_df = watch_df.drop(columns=["Nearest setup (ATR)", "Score"])
+
+        def watch_status_color(value):
+            value = str(value).upper()
+            if "IN WATCH RANGE" in value or "TRIGGER REACHED" in value:
+                return "background-color: #d9f2df; color: #14532d; font-weight: 600"
+            if "NEAR PULLBACK" in value or "NEAR BREAKOUT" in value:
+                return "background-color: #fff1c2; color: #854d0e; font-weight: 600"
+            if "INVALIDATED" in value:
+                return "background-color: #f8d7da; color: #842029; font-weight: 600"
+            if "TREND REVIEW" in value:
+                return "background-color: #e5e7eb; color: #374151"
+            return "color: inherit"
+
+        styled_watch_df = (
+            visible_watch_df.style
+            .format({"Last": "${:,.2f}", "Breakout trigger": "${:,.2f}"})
+            .map(watch_status_color, subset=["Pullback status", "Breakout status"])
         )
+        st.dataframe(styled_watch_df, use_container_width=True, hide_index=True)
         st.caption("Only assets inside a watch range, within one ATR of a watch level, or with an invalidated scenario are shown. Refresh the market scan to update.")
     else:
         st.info("No scanned assets are currently near their calculated pullback or breakout watch levels. That's okay—no need to force a trade.")
@@ -1026,4 +1040,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.7 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.8 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

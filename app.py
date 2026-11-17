@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.9 · Cloud market scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.10 · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -422,108 +422,111 @@ def safe_pct(numerator, denominator):
 scanner_tab, paper_tab, analytics_tab, cloud_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "☁️ Cloud scanner"])
 
 with cloud_tab:
-    st.subheader("☁️ Cloud market scanner")
-    st.caption(
-        "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
-        "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
-    )
-    refresh_cloud = st.button("Refresh cloud results", key="refresh_cloud_results")
-    if refresh_cloud:
-        load_latest_cloud_scan.clear()
-    try:
-        cloud_scan = load_latest_cloud_scan()
-    except Exception as exc:
-        cloud_scan = None
-        st.error("Could not retrieve the cloud scan report from Supabase.")
-        st.caption(f"Technical detail: {exc}")
-
-    if cloud_scan:
-        scanned_at = cloud_scan.get("scanned_at")
-        try:
-            scanned_label = pd.to_datetime(scanned_at, utc=True).astimezone().strftime("%b %d, %Y %I:%M:%S %p %Z")
-        except Exception:
-            scanned_label = str(scanned_at or "Unavailable")
-        counts = cloud_scan.get("signal_counts") or {}
-        ranked = cloud_scan.get("ranked_results") or []
-        watchlist = cloud_scan.get("watchlist") or []
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Symbols analyzed", int(cloud_scan.get("symbol_count") or 0))
-        c2.metric("Ranked results stored", len(ranked))
-        c3.metric("Watchlist entries stored", len(watchlist))
-        st.write(f"**Last cloud scan:** {scanned_label}")
+    @st.fragment(run_every="60s")
+    def render_cloud_scanner():
+        st.subheader("☁️ Cloud market scanner")
         st.caption(
-            f"Source: {cloud_scan.get('data_source', 'Not specified')} · "
-            f"Scan type: {cloud_scan.get('scan_type', 'Not specified')}"
+            "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
+            "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
         )
+        refresh_cloud = st.button("Refresh cloud results", key="refresh_cloud_results")
+        if refresh_cloud:
+            load_latest_cloud_scan.clear()
+        try:
+            cloud_scan = load_latest_cloud_scan()
+        except Exception as exc:
+            cloud_scan = None
+            st.error("Could not retrieve the cloud scan report from Supabase.")
+            st.caption(f"Technical detail: {exc}")
 
-        st.markdown("#### Signal counts")
-        if counts:
-            count_cols = st.columns(min(len(counts), 4))
-            for idx, (signal_name, signal_count) in enumerate(sorted(counts.items())):
-                count_cols[idx % len(count_cols)].metric(str(signal_name), int(signal_count))
+        if cloud_scan:
+            scanned_at = cloud_scan.get("scanned_at")
+            try:
+                scanned_label = pd.to_datetime(scanned_at, utc=True).astimezone().strftime("%b %d, %Y %I:%M:%S %p %Z")
+            except Exception:
+                scanned_label = str(scanned_at or "Unavailable")
+            counts = cloud_scan.get("signal_counts") or {}
+            ranked = cloud_scan.get("ranked_results") or []
+            watchlist = cloud_scan.get("watchlist") or []
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Symbols analyzed", int(cloud_scan.get("symbol_count") or 0))
+            c2.metric("Ranked results stored", len(ranked))
+            c3.metric("Watchlist entries stored", len(watchlist))
+            st.write(f"**Last cloud scan:** {scanned_label}")
+            st.caption(
+                f"Source: {cloud_scan.get('data_source', 'Not specified')} · "
+                f"Scan type: {cloud_scan.get('scan_type', 'Not specified')}"
+            )
+
+            st.markdown("#### Signal counts")
+            if counts:
+                count_cols = st.columns(min(len(counts), 4))
+                for idx, (signal_name, signal_count) in enumerate(sorted(counts.items())):
+                    count_cols[idx % len(count_cols)].metric(str(signal_name), int(signal_count))
+            else:
+                st.info("This scan did not include signal counts.")
+
+            st.markdown("#### Top-ranked cloud scan results")
+            if ranked:
+                ranked_df = pd.DataFrame(ranked)
+                display_columns = [
+                    col for col in [
+                        "symbol", "asset_class", "score", "signal", "trend",
+                        "weekly_trend", "risk", "last", "price_date",
+                        "return_1w_pct", "return_1m_pct", "return_3m_pct",
+                        "rsi", "annualized_volatility_pct", "reason"
+                    ] if col in ranked_df.columns
+                ]
+                ranked_df = ranked_df[display_columns].rename(columns={
+                    "symbol": "Symbol", "asset_class": "Asset class", "score": "Score",
+                    "signal": "Signal", "trend": "Daily trend", "weekly_trend": "Weekly trend",
+                    "risk": "Risk", "last": "Last daily price", "price_date": "Price date",
+                    "return_1w_pct": "1W %", "return_1m_pct": "1M %",
+                    "return_3m_pct": "3M %", "rsi": "RSI",
+                    "annualized_volatility_pct": "Annualized volatility %",
+                    "reason": "Screen rationale"
+                })
+                formatters = {
+                    "Last daily price": "${:,.2f}", "1W %": "{:+.2f}%",
+                    "1M %": "{:+.2f}%", "3M %": "{:+.2f}%",
+                    "RSI": "{:.1f}", "Annualized volatility %": "{:.1f}%"
+                }
+                st.dataframe(ranked_df.style.format(
+                    {k: v for k, v in formatters.items() if k in ranked_df.columns}
+                ), use_container_width=True, hide_index=True)
+            else:
+                st.info("The latest scan did not store ranked results.")
+
+            st.markdown("#### Cloud watchlist")
+            if watchlist:
+                watch_df = pd.DataFrame(watchlist)
+                watch_columns = [
+                    col for col in [
+                        "symbol", "score", "signal", "return_1m_pct", "rsi", "risk"
+                    ] if col in watch_df.columns
+                ]
+                watch_df = watch_df[watch_columns].rename(columns={
+                    "symbol": "Symbol", "score": "Score", "signal": "Signal",
+                    "return_1m_pct": "1M %", "rsi": "RSI", "risk": "Risk"
+                })
+                st.dataframe(watch_df.style.format({
+                    k: v for k, v in {"1M %": "{:+.2f}%", "RSI": "{:.1f}"}.items()
+                    if k in watch_df.columns
+                }), use_container_width=True, hide_index=True)
+            else:
+                st.caption("No BUY CANDIDATE or WATCH assets were stored in the cloud watchlist.")
+            st.warning(
+                "These are rules-based daily-bar screening results. They are not AI-reviewed, "
+                "live quotes, validated entries, or instructions to trade. The cloud worker is observation-only."
+            )
         else:
-            st.info("This scan did not include signal counts.")
+            st.info(
+                "No cloud scan report is available yet. Confirm the Render worker is running and has saved "
+                "a report to Supabase, then use Refresh cloud results."
+            )
 
-        st.markdown("#### Top-ranked cloud scan results")
-        if ranked:
-            ranked_df = pd.DataFrame(ranked)
-            display_columns = [
-                col for col in [
-                    "symbol", "asset_class", "score", "signal", "trend",
-                    "weekly_trend", "risk", "last", "price_date",
-                    "return_1w_pct", "return_1m_pct", "return_3m_pct",
-                    "rsi", "annualized_volatility_pct", "reason"
-                ] if col in ranked_df.columns
-            ]
-            ranked_df = ranked_df[display_columns].rename(columns={
-                "symbol": "Symbol", "asset_class": "Asset class", "score": "Score",
-                "signal": "Signal", "trend": "Daily trend", "weekly_trend": "Weekly trend",
-                "risk": "Risk", "last": "Last daily price", "price_date": "Price date",
-                "return_1w_pct": "1W %", "return_1m_pct": "1M %",
-                "return_3m_pct": "3M %", "rsi": "RSI",
-                "annualized_volatility_pct": "Annualized volatility %",
-                "reason": "Screen rationale"
-            })
-            formatters = {
-                "Last daily price": "${:,.2f}", "1W %": "{:+.2f}%",
-                "1M %": "{:+.2f}%", "3M %": "{:+.2f}%",
-                "RSI": "{:.1f}", "Annualized volatility %": "{:.1f}%"
-            }
-            st.dataframe(ranked_df.style.format(
-                {k: v for k, v in formatters.items() if k in ranked_df.columns}
-            ), use_container_width=True, hide_index=True)
-        else:
-            st.info("The latest scan did not store ranked results.")
-
-        st.markdown("#### Cloud watchlist")
-        if watchlist:
-            watch_df = pd.DataFrame(watchlist)
-            watch_columns = [
-                col for col in [
-                    "symbol", "score", "signal", "return_1m_pct", "rsi", "risk"
-                ] if col in watch_df.columns
-            ]
-            watch_df = watch_df[watch_columns].rename(columns={
-                "symbol": "Symbol", "score": "Score", "signal": "Signal",
-                "return_1m_pct": "1M %", "rsi": "RSI", "risk": "Risk"
-            })
-            st.dataframe(watch_df.style.format({
-                k: v for k, v in {"1M %": "{:+.2f}%", "RSI": "{:.1f}"}.items()
-                if k in watch_df.columns
-            }), use_container_width=True, hide_index=True)
-        else:
-            st.caption("No BUY CANDIDATE or WATCH assets were stored in the cloud watchlist.")
-        st.warning(
-            "These are rules-based daily-bar screening results. They are not AI-reviewed, "
-            "live quotes, validated entries, or instructions to trade. The cloud worker is observation-only."
-        )
-    else:
-        st.info(
-            "No cloud scan report is available yet. Confirm the Render worker is running and has saved "
-            "a report to Supabase, then use Refresh cloud results."
-        )
-
+    render_cloud_scanner()
 
 with scanner_tab:
     st.subheader("Market scanner")
@@ -1611,4 +1614,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.9 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The separate cloud scanner reads and displays saved rules-based scan reports; it does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.10 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The separate cloud scanner reads and displays saved rules-based scan reports; it does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

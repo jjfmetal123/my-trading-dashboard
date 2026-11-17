@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.10 · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.11 · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -290,7 +290,7 @@ def load_latest_cloud_scan():
     client = get_supabase_client()
     result = (
         client.table("market_scan_runs")
-        .select("id,scanned_at,symbol_count,signal_counts,ranked_results,watchlist,data_source,scan_type")
+        .select("id,scanned_at,symbol_count,signal_counts,ranked_results,watchlist,data_source,scan_type,ai_review,ai_reviewed_at,ai_model")
         .order("scanned_at", desc=True)
         .limit(1)
         .execute()
@@ -516,9 +516,74 @@ with cloud_tab:
                 }), use_container_width=True, hide_index=True)
             else:
                 st.caption("No BUY CANDIDATE or WATCH assets were stored in the cloud watchlist.")
+            st.divider()
+            st.markdown("### 🤖 Automatic AI second-stage review")
+            ai_review = cloud_scan.get("ai_review")
+            if ai_review and isinstance(ai_review, dict):
+                ai_report = ai_review.get("report") or {}
+                ai_model_label = cloud_scan.get("ai_model") or ai_review.get("model") or "Model not recorded"
+                reviewed_at = cloud_scan.get("ai_reviewed_at") or ai_review.get("created_at")
+                try:
+                    reviewed_label = pd.to_datetime(reviewed_at, utc=True).astimezone().strftime("%b %d, %Y %I:%M:%S %p %Z")
+                except Exception:
+                    reviewed_label = str(reviewed_at or "Unavailable")
+                a1, a2 = st.columns(2)
+                a1.metric("AI review status", "Completed")
+                a2.metric("Candidates reviewed", min(12, len(ranked)))
+                st.caption(f"Model: {ai_model_label} · Reviewed: {reviewed_label}")
+                market_read = ai_report.get("market_read")
+                if market_read:
+                    st.markdown("#### Market read")
+                    st.write(market_read)
+                ai_ranked = ai_report.get("ranked_candidates") or []
+                if ai_ranked:
+                    st.markdown("#### AI-ranked research candidates")
+                    for candidate in ai_ranked:
+                        symbol_name = str(candidate.get("symbol", "Unknown"))
+                        rank_value = candidate.get("rank", "—")
+                        stance = str(candidate.get("stance", "Unspecified")).replace("_", " ")
+                        with st.expander(f"#{rank_value} · {symbol_name} · {stance}"):
+                            if candidate.get("rationale"):
+                                st.write(candidate["rationale"])
+                            bullish = candidate.get("bullish_factors") or []
+                            bearish = candidate.get("bearish_factors") or []
+                            left, right = st.columns(2)
+                            with left:
+                                st.markdown("**Bullish factors**")
+                                if bullish:
+                                    for item in bullish:
+                                        st.markdown(f"- {item}")
+                                else:
+                                    st.caption("None specified")
+                            with right:
+                                st.markdown("**Bearish factors**")
+                                if bearish:
+                                    for item in bearish:
+                                        st.markdown(f"- {item}")
+                                else:
+                                    st.caption("None specified")
+                            if candidate.get("what_would_improve"):
+                                st.markdown("**What would improve the setup:** " + str(candidate["what_would_improve"]))
+                            if candidate.get("key_risk"):
+                                st.markdown("**Key risk:** " + str(candidate["key_risk"]))
+                top_three = ai_report.get("top_three_for_individual_review") or []
+                if top_three:
+                    st.markdown("**Top three for individual review:** " + " · ".join(str(x) for x in top_three))
+                cautions = ai_report.get("important_cautions") or []
+                limitations = ai_report.get("data_limitations") or []
+                if cautions:
+                    st.markdown("#### Important cautions")
+                    for item in cautions:
+                        st.markdown(f"- {item}")
+                if limitations:
+                    st.markdown("#### Data limitations noted by AI")
+                    for item in limitations:
+                        st.markdown(f"- {item}")
+            else:
+                st.info("The latest scan is saved, but its AI review is not available yet. The worker may still be reviewing it, or the AI request may have failed. The next scheduled scan will try again.")
+
             st.warning(
-                "These are rules-based daily-bar screening results. They are not AI-reviewed, "
-                "live quotes, validated entries, or instructions to trade. The cloud worker is observation-only."
+                "The scanner uses Yahoo Finance daily bars. The AI is a second opinion based only on the supplied scan facts; it does not verify live quotes, news, filings, fundamentals, or intraday conditions. Rankings are research prioritization, not buy/sell signals or instructions to trade. The cloud worker is observation-only."
             )
         else:
             st.info(
@@ -1614,4 +1679,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.10 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The separate cloud scanner reads and displays saved rules-based scan reports; it does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.11 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

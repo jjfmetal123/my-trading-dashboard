@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.14 · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.15 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -475,7 +475,7 @@ with cloud_tab:
                         "symbol", "asset_class", "score", "adjusted_score", "signal_score", "sector_group", "sector_rotation_state", "sector_adjustment", "relative_1m_vs_spy_pp", "relative_1m_vs_sector_pp", "trend_points", "momentum_points", "rsi_points", "weekly_points", "volatility_penalty", "signal", "trend",
                         "weekly_trend", "risk", "last", "price_date",
                         "return_1w_pct", "return_1m_pct", "return_3m_pct",
-                        "rsi", "annualized_volatility_pct", "reason"
+                        "rsi", "annualized_volatility_pct", "setup_type", "setup_status", "setup_quality_score", "setup_entry_reference", "setup_stop_reference", "setup_target_reference", "setup_reward_risk", "setup_distance_to_entry_pct", "atr_pct", "reason"
                     ] if col in ranked_df.columns
                 ]
                 ranked_df = ranked_df[display_columns].rename(columns={
@@ -490,18 +490,50 @@ with cloud_tab:
                     "return_1w_pct": "1W %", "return_1m_pct": "1M %",
                     "return_3m_pct": "3M %", "rsi": "RSI",
                     "annualized_volatility_pct": "Annualized volatility %",
+                    "setup_type": "Setup type", "setup_status": "Setup status",
+                    "setup_quality_score": "Setup quality", "setup_entry_reference": "Entry reference",
+                    "setup_stop_reference": "Stop reference", "setup_target_reference": "Target reference",
+                    "setup_reward_risk": "Illustrative R:R", "setup_distance_to_entry_pct": "Distance to entry %", "atr_pct": "ATR %",
                     "reason": "Screen rationale"
                 })
                 formatters = {
                     "Last daily price": "${:,.2f}", "1W %": "{:+.2f}%",
                     "1M %": "{:+.2f}%", "3M %": "{:+.2f}%",
-                    "RSI": "{:.1f}", "Annualized volatility %": "{:.1f}%"
+                    "RSI": "{:.1f}", "Annualized volatility %": "{:.1f}%",
+                    "Entry reference": "${:,.2f}", "Stop reference": "${:,.2f}", "Target reference": "${:,.2f}",
+                    "Illustrative R:R": "{:.2f}", "Distance to entry %": "{:+.2f}%", "ATR %": "{:.2f}%"
                 }
                 st.dataframe(ranked_df.style.format(
                     {k: v for k, v in formatters.items() if k in ranked_df.columns}
                 ), use_container_width=True, hide_index=True)
             else:
                 st.info("The latest scan did not store ranked results.")
+
+            # Multi-scenario setup diagnostics from the same daily-bar scan.
+            if ranked:
+                setup_df_all = pd.DataFrame(ranked)
+                if "setup_type" in setup_df_all.columns:
+                    st.markdown("#### 🎯 Setup quality & scenario levels")
+                    setup_counts = setup_df_all["setup_type"].fillna("Unavailable").value_counts().to_dict()
+                    setup_cols = st.columns(4)
+                    setup_cols[0].metric("Pullback watches", int(setup_counts.get("PULLBACK WATCH", 0)))
+                    setup_cols[1].metric("Breakout watches", int(setup_counts.get("BREAKOUT WATCH", 0)))
+                    setup_cols[2].metric("Extended", int(setup_counts.get("EXTENDED — DO NOT CHASE", 0)))
+                    setup_cols[3].metric("No clear setup", int(setup_counts.get("NO CLEAR SETUP", 0)))
+                    setup_view = setup_df_all[setup_df_all["setup_type"].isin(["PULLBACK WATCH", "BREAKOUT WATCH", "EXTENDED — DO NOT CHASE"])].copy()
+                    setup_fields = [c for c in ["symbol", "setup_type", "setup_status", "setup_quality_score", "last", "setup_entry_reference", "setup_stop_reference", "setup_target_reference", "setup_reward_risk", "setup_distance_to_entry_pct", "atr_pct"] if c in setup_view.columns]
+                    if setup_fields:
+                        setup_view = setup_view[setup_fields].rename(columns={
+                            "symbol": "Symbol", "setup_type": "Setup type", "setup_status": "Status",
+                            "setup_quality_score": "Quality score", "last": "Last daily close",
+                            "setup_entry_reference": "Entry reference", "setup_stop_reference": "Stop reference",
+                            "setup_target_reference": "Target reference", "setup_reward_risk": "Illustrative R:R",
+                            "setup_distance_to_entry_pct": "Distance to reference %", "atr_pct": "ATR %"
+                        })
+                        st.dataframe(setup_view.style.format({
+                            c: "${:,.2f}" for c in ["Last daily close", "Entry reference", "Stop reference", "Target reference"] if c in setup_view.columns
+                        } | {c: "{:.1f}" for c in ["Quality score", "Illustrative R:R"] if c in setup_view.columns} | {c: "{:+.2f}%" for c in ["Distance to reference %"] if c in setup_view.columns} | {c: "{:.2f}%" for c in ["ATR %"] if c in setup_view.columns}), use_container_width=True, hide_index=True)
+                    st.caption("Entry, stop and target values are ATR-based historical scenario references for research only. They are not live quotes, confirmed support/resistance, trade instructions or guaranteed fills. Forward performance validation is not yet included.")
 
             st.markdown("#### Cloud watchlist")
             if watchlist:
@@ -613,7 +645,7 @@ with cloud_tab:
             else:
                 st.info("The latest scan is saved, but its AI review is not available yet. The worker may still be reviewing it, or the AI request may have failed. The next scheduled scan will try again.")
 
-            st.caption("V3.14 refined ranking uses continuous trend, momentum, RSI, weekly alignment, relative strength versus SPY and the mapped sector ETF, plus a volatility penalty. A bounded sector-rotation overlay is then applied. The separate mechanical signal score and BUY CANDIDATE/WATCH labels remain unchanged; unmapped assets receive no sector adjustment.")
+            st.caption("V3.15 refined ranking uses continuous trend, momentum, RSI, weekly alignment, relative strength versus SPY and the mapped sector ETF, plus a volatility penalty. Setup diagnostics classify pullback/breakout watches and extended conditions using daily ATR and prior 20-day ranges; scenario levels are research references only. A bounded sector-rotation overlay is then applied. The separate mechanical signal score and BUY CANDIDATE/WATCH labels remain unchanged; unmapped assets receive no sector adjustment.")
             st.warning(
                 "The scanner uses Yahoo Finance daily bars. The AI is a second opinion based only on the supplied scan facts; it does not verify live quotes, news, filings, fundamentals, or intraday conditions. Rankings are research prioritization, not buy/sell signals or instructions to trade. The cloud worker is observation-only."
             )
@@ -1711,4 +1743,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.14 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.15 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay, ATR-based setup diagnostics and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

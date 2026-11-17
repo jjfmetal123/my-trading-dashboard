@@ -58,7 +58,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.0 · Expanded multi-market scanner · Daily + weekly trend analysis · Account history · Supabase-saved paper account")
+st.caption("Version 2.1 · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scores and signals are transparent rules-based screens, not AI predictions or guarantees. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -306,35 +306,78 @@ def safe_pct(numerator, denominator):
 
 scanner_tab, paper_tab, analytics_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account", "📈 Performance"])
 with scanner_tab:
-    st.subheader("Strongest trends")
+    st.subheader("Market scanner")
+    st.caption("Select any row to open its analysis directly below the table. On desktop, click anywhere in the row; on mobile, tap the row.")
     display = data[["Symbol", "Asset class", "Signal", "Trend", "Weekly trend", "Risk level", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
-    st.dataframe(display.style.format({"Last": "${:,.2f}", "1W %": "{:+.1f}%", "1M %": "{:+.1f}%", "3M %": "{:+.1f}%", "RSI": "{:.0f}", "20D Vol %": "{:.1f}%"}).background_gradient(subset=["Score"], cmap="RdYlGn"), use_container_width=True, hide_index=True)
+    selection_event = st.dataframe(
+        display.style.format({"Last": "${:,.2f}", "1W %": "{:+.1f}%", "1M %": "{:+.1f}%", "3M %": "{:+.1f}%", "RSI": "{:.0f}", "20D Vol %": "{:.1f}%"}).background_gradient(subset=["Score"], cmap="RdYlGn"),
+        use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="scanner_table"
+    )
+    selected_rows = selection_event.selection.rows if selection_event and hasattr(selection_event, "selection") else []
+    if selected_rows:
+        selected_symbol = str(display.iloc[selected_rows[0]]["Symbol"])
+        st.session_state["inspected_symbol"] = selected_symbol
+    if st.session_state.get("inspected_symbol") not in data["Symbol"].tolist():
+        st.session_state["inspected_symbol"] = str(data.iloc[0]["Symbol"])
+
     candidates = data[data["Signal"] == "BUY CANDIDATE"]
     st.subheader("Rule-based trade candidates")
-    st.caption("These are screening candidates only—not AI recommendations. The rules require a strong daily trend, positive 1-month return, and RSI between 45 and 68. Weekly trend and volatility are shown as additional context. Always review the chart and risk before paper trading.")
+    st.caption("These are screening candidates only—not AI recommendations. The rules require a strong daily trend, positive 1-month return, and RSI between 45 and 68. Always review risk before paper trading.")
     if not candidates.empty:
         st.dataframe(candidates[["Symbol", "Asset class", "Score", "Trend", "Weekly trend", "Risk level", "Last", "Price date", "1M %", "RSI", "Signal reason"]].style.format({"Last": "${:,.2f}", "1M %": "{:+.1f}%", "RSI": "{:.1f}"}), use_container_width=True, hide_index=True)
     else:
         st.info("No assets currently meet the candidate rules. That's okay—no trade is better than forcing one.")
+
+    symbol = st.session_state["inspected_symbol"]
+    row = data[data["Symbol"] == symbol].iloc[0]
+    last = float(row["Last"])
+    stop = float(row["Illustrative risk level"])
+    per_unit_risk = max(last - stop, 0.01)
+    target_1r, target_2r, target_3r = last + per_unit_risk, last + 2 * per_unit_risk, last + 3 * per_unit_risk
+    risk_budget = 1000.0 * 0.01
+    suggested_qty = risk_budget / per_unit_risk
+
+    st.divider()
+    st.subheader(f"🔎 {symbol} — individual asset analysis")
+    st.caption(f"{row['Asset class']} · Price date: {row['Price date']} · {row['Signal reason']}")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Last daily price", f"${last:,.2f}")
+    m2.metric("Scanner score", f"{int(row['Score'])}/100", str(row["Trend"]))
+    m3.metric("RSI", f"{float(row['RSI']):.1f}")
+    m4.metric("Risk classification", str(row["Risk level"]), f"{float(row['20D Vol %']):.1f}% annualized volatility")
+
+    st.markdown("**Trend and momentum**")
+    t1, t2, t3 = st.columns(3)
+    t1.metric("1-week return", f"{float(row['1W %']):+.1f}%")
+    t2.metric("1-month return", f"{float(row['1M %']):+.1f}%")
+    t3.metric("3-month return", f"{float(row['3M %']):+.1f}%")
+    st.markdown("**Illustrative risk / reward plan**")
+    st.caption("Reference levels only, calculated from the latest daily close and the scanner's 2 × average absolute daily move. They are not live quotes, guaranteed fills, or broker stop orders.")
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Reference entry", f"${last:,.2f}")
+    r2.metric("Illustrative stop", f"${stop:,.2f}")
+    r3.metric("2R target", f"${target_2r:,.2f}")
+    r4.metric("3R target", f"${target_3r:,.2f}")
+    st.write(f"At a hypothetical 1% risk budget on a $1,000 account ($10), the arithmetic position size would be about **{suggested_qty:.4f} units** before considering whole-share limits, fees, slippage, liquidity, or portfolio exposure. This is educational sizing, not an instruction to trade.")
     left, right = st.columns([1.2, 1])
     with left:
-        st.subheader("Trend ranking")
-        st.bar_chart(data.set_index("Symbol")[["Score"]].sort_values("Score"))
+        st.markdown("**Recent daily price history**")
+        one = load_history((symbol,), lookback)
+        if symbol in one:
+            st.line_chart(one[symbol]["Close"].rename("Adjusted close"), use_container_width=True)
     with right:
-        st.subheader("Selected asset")
-        symbol = st.selectbox("Inspect symbol", data["Symbol"].tolist())
-        row = data[data["Symbol"] == symbol].iloc[0]
-        st.metric("Trend score", f'{int(row["Score"])}/100', row["Trend"])
-        st.metric("Weekly trend", row["Weekly trend"])
-        st.metric("Volatility risk", row["Risk level"], f'{row["20D Vol %"]:.1f}% annualized')
-        st.metric("Relative strength (RSI)", f'{row["RSI"]:.1f}')
-        st.metric("Illustrative risk reference", f'${row["Illustrative risk level"]:.2f}')
-        st.caption("This reference is informational only; it is not an order or recommended stop.")
-    st.subheader("Price history")
-    one = load_history((symbol,), lookback)
-    if symbol in one:
-        st.line_chart(one[symbol]["Close"].rename("Adjusted close"), use_container_width=True)
-    st.caption("Strong uptrend means several technical conditions align. It does not mean an asset is automatically a good buy.")
+        st.markdown("**Why the scanner classified it this way**")
+        st.write(f"- Signal: **{row['Signal']}**")
+        st.write(f"- Daily trend: **{row['Trend']}**")
+        st.write(f"- Weekly trend: **{row['Weekly trend']}**")
+        st.write(f"- Signal rationale: {row['Signal reason']}")
+        if float(row["RSI"]) > 68:
+            st.warning("RSI is elevated; chasing the move may carry additional risk.")
+        elif float(row["RSI"]) < 45:
+            st.warning("RSI is below the scanner's preferred momentum range.")
+        else:
+            st.info("RSI is within the scanner's preferred 45–68 screening range.")
+    st.caption("The scanner is a transparent rules-based screen, not an AI forecast. No trade is recommended solely because an asset scores highly.")
 
 with paper_tab:
     st.subheader("Virtual account")
@@ -618,4 +661,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.0 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.1 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

@@ -59,7 +59,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.4 · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.5 · AI entry planner · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -426,7 +426,7 @@ with scanner_tab:
 
 
     st.markdown("### AI trade analyst")
-    st.caption("Optional AI second opinion. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
+    st.caption("Optional AI second opinion and entry planner. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
     ai_api_key = st.secrets.get("OPENAI_API_KEY", "")
     if not ai_api_key:
         st.info("To enable the AI analyst, add OPENAI_API_KEY to Streamlit Community Cloud → App → Settings → Secrets. Keep the key there only; never put it in GitHub or share it in chat.")
@@ -436,6 +436,21 @@ with scanner_tab:
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=str(ai_api_key))
+                # Add recent daily OHLC context so the analyst can distinguish
+                # a pullback from a breakout. These remain historical daily bars.
+                recent_ohlc = one[symbol].tail(30) if symbol in one else pd.DataFrame()
+                recent_high_20 = float(recent_ohlc["High"].tail(20).max()) if not recent_ohlc.empty and "High" in recent_ohlc else None
+                recent_low_20 = float(recent_ohlc["Low"].tail(20).min()) if not recent_ohlc.empty and "Low" in recent_ohlc else None
+                atr14 = None
+                if not recent_ohlc.empty and all(col in recent_ohlc for col in ["High", "Low", "Close"]):
+                    prev_close = recent_ohlc["Close"].shift(1)
+                    true_range = pd.concat([
+                        recent_ohlc["High"] - recent_ohlc["Low"],
+                        (recent_ohlc["High"] - prev_close).abs(),
+                        (recent_ohlc["Low"] - prev_close).abs()
+                    ], axis=1).max(axis=1)
+                    if true_range.tail(14).notna().any():
+                        atr14 = round(float(true_range.tail(14).mean()), 4)
                 facts = {
                     "symbol": symbol,
                     "asset_class": str(row["Asset class"]),
@@ -453,6 +468,9 @@ with scanner_tab:
                     "rsi": round(float(row["RSI"]), 2),
                     "20_day_volatility_pct": round(float(row["20D Vol %"]), 2),
                     "20_day_average": round(sma20, 4) if pd.notna(sma20) else None,
+                    "20_day_high_from_daily_bars": round(recent_high_20, 4) if recent_high_20 is not None else None,
+                    "20_day_low_from_daily_bars": round(recent_low_20, 4) if recent_low_20 is not None else None,
+                    "14_day_average_true_range": atr14,
                     "price_vs_20_day_average_pct": round(distance_sma20, 3) if pd.notna(distance_sma20) else None,
                     "reference_entry": round(last, 4),
                     "illustrative_stop": round(stop, 4),
@@ -473,11 +491,25 @@ with scanner_tab:
                     "The data are daily-bar data and may be delayed. Clearly state when evidence is missing. "
                     "Do not guarantee outcomes or present this as personalized financial advice. "
                     "Do not tell the user to place a real trade. This is a $1,000 simulated account. "
-                    "Return sections: Verdict (BUY CANDIDATE / WAIT / AVOID, for paper-study only), "
-                    "Why, Bullish evidence, Bearish risks, Entry assessment, Risk and position-size check, "
-                    "What would invalidate the idea, and What data is missing. "
-                    "Treat all stop/target values as illustrative references, not executable orders. "
-                    "If the price is extended or the reward/risk is poor, prefer WAIT."
+                    "Return these sections in this exact order: "
+                    "1. Verdict (BUY CANDIDATE / WAIT / AVOID, for paper-study only). "
+                    "2. Why. 3. Bullish evidence. 4. Bearish risks. "
+                    "5. ENTRY PLAN with a concrete decision: either NO VALID ENTRY RIGHT NOW, "
+                    "or a proposed pullback entry RANGE with low/high prices, or a breakout trigger PRICE. "
+                    "State which one is preferred and why. Give exact numeric prices in the same currency "
+                    "as the supplied price. Do not give a vague instruction such as 'wait for a pullback' "
+                    "without a price level. If the supplied data do not support a defensible level, say "
+                    "NO VALID ENTRY RIGHT NOW rather than inventing one. "
+                    "6. Stop/invalidation price and why. 7. Profit targets at 2R and 3R measured from "
+                    "the proposed entry and stop, not automatically from the current price. "
+                    "8. Risk and position-size check using the supplied account/risk facts; explain if "
+                    "cash or risk limits quantity. 9. What would invalidate the idea. 10. What data is missing. "
+                    "Use the recent daily high/low, 20-day average, and ATR only as historical reference levels; "
+                    "do not call them confirmed support/resistance. If a proposed entry requires confirmation, "
+                    "spell out what daily-price behavior would count as confirmation. "
+                    "If the price is extended, risk/reward is poor, or a reliable entry cannot be identified, "
+                    "prefer WAIT and explicitly say NO VALID ENTRY RIGHT NOW. "
+                    "All prices are hypothetical paper-study levels, not executable orders or guaranteed fills."
                 )
                 with st.spinner("AI is reviewing the selected asset's supplied market data..."):
                     response = client.chat.completions.create(
@@ -788,4 +820,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.4 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.5 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.2 · Expanded benchmark context (SPY + QQQ) · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.3 · AI market-wide candidate ranking · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -670,6 +670,7 @@ with scanner_tab:
                     "spy_1_month_return_pct": round(float(row["SPY 1M %"]), 3) if pd.notna(row.get("SPY 1M %")) else None,
                     "qqq_1_month_return_pct": round(float(row["QQQ 1M %"]), 3) if pd.notna(row.get("QQQ 1M %")) else None,
                     "relative_strength_vs_spy_percentage_points": round(float(row["Relative vs SPY 1M (pp)"]), 3) if pd.notna(row.get("Relative vs SPY 1M (pp)")) else None,
+                    "relative_strength_vs_qqq_percentage_points": round(float(row["1M %"] - row["QQQ 1M %"]), 3) if pd.notna(row.get("QQQ 1M %")) else None,
                     "sector_etf_proxy": str(row.get("Sector ETF", "—")),
                     "sector_etf_1_month_return_pct": round(float(row["Sector ETF 1M %"]), 3) if pd.notna(row.get("Sector ETF 1M %")) else None,
                     "relative_strength_vs_sector_percentage_points": round(float(row["Relative vs sector 1M (pp)"]), 3) if pd.notna(row.get("Relative vs sector 1M (pp)")) else None,
@@ -713,7 +714,7 @@ with scanner_tab:
                     "Return these sections in this exact order: "
                     "1. VERDICT: BUY CANDIDATE / WAIT / AVOID (paper-study only). "
                     "2. WHY. 3. BULLISH EVIDENCE. 4. BEARISH RISKS. "
-                    "5. VOLUME AND MARKET CONTEXT: report the supplied latest-bar volume ratio, SPY/QQQ context, and sector-relative strength when available. Treat volume as provisional if the latest daily bar may still be forming; elevated volume does not reveal direction by itself. Do not invent missing context. "
+                    "5. VOLUME AND MARKET CONTEXT: report the supplied latest-bar volume ratio, SPY and QQQ 1-month returns, and relative-strength percentage points versus each benchmark when available. Relative strength is asset 1-month return minus benchmark 1-month return. If the supplied relative-strength value is positive, the asset OUTPERFORMED that benchmark; if negative, it UNDERPERFORMED. Never contradict the supplied arithmetic. Also report sector-relative strength when available. Treat volume as provisional if the latest daily bar may still be forming; elevated volume does not reveal direction by itself. Do not invent missing context. "
                     "6. PRICE LEVELS TO WATCH: state the exact pullback range low and high, its midpoint, "
                     "the exact breakout trigger, and the current daily reference price. Clearly label these as watch levels, "
                     "not instructions to buy. If neither scenario is defensible, say NO VALID ENTRY RIGHT NOW, "
@@ -884,6 +885,84 @@ with scanner_tab:
                 st.session_state["watchlist_override"] = True
                 st.rerun()
         st.caption("Select a row to load that asset into the individual analysis and AI Trade Analyst above. Only assets inside a watch range, within one ATR of a watch level, or with an invalidated scenario are shown. Refresh the market scan to update.")
+
+        st.markdown("### AI market-wide shortlist")
+        st.caption("Ask AI to compare up to 10 prioritized watchlist candidates side by side using the scanner's daily-bar metrics, volume, SPY/QQQ context, and sector-relative strength. This is a research ranking—not a buy signal.")
+        ai_api_key_market = st.secrets.get("OPENAI_API_KEY", "")
+        if not ai_api_key_market:
+            st.info("Add OPENAI_API_KEY in Streamlit Secrets to use the AI market-wide shortlist.")
+        else:
+            if st.button("Analyze and rank top 10 candidates", type="primary", key="ai_rank_top10"):
+                try:
+                    from openai import OpenAI
+                    ranking_client = OpenAI(api_key=str(ai_api_key_market))
+                    shortlist_symbols = watch_df["Symbol"].head(10).tolist()
+                    shortlist = []
+                    for candidate_symbol in shortlist_symbols:
+                        candidate_rows = data[data["Symbol"] == candidate_symbol]
+                        if candidate_rows.empty:
+                            continue
+                        candidate = candidate_rows.iloc[0]
+                        shortlist.append({
+                            "symbol": candidate_symbol,
+                            "asset_class": str(candidate.get("Asset class", "")),
+                            "last_daily_price": round(float(candidate["Last"]), 4),
+                            "price_date": str(candidate.get("Price date", "")),
+                            "scanner_signal": str(candidate.get("Signal", "")),
+                            "scanner_score": int(candidate.get("Score", 0)),
+                            "signal_reason": str(candidate.get("Signal reason", "")),
+                            "daily_trend": str(candidate.get("Trend", "")),
+                            "weekly_trend": str(candidate.get("Weekly trend", "")),
+                            "risk_classification": str(candidate.get("Risk level", "")),
+                            "one_week_return_pct": round(float(candidate["1W %"]), 2) if pd.notna(candidate.get("1W %")) else None,
+                            "one_month_return_pct": round(float(candidate["1M %"]), 2) if pd.notna(candidate.get("1M %")) else None,
+                            "three_month_return_pct": round(float(candidate["3M %"]), 2) if pd.notna(candidate.get("3M %")) else None,
+                            "rsi": round(float(candidate["RSI"]), 1) if pd.notna(candidate.get("RSI")) else None,
+                            "annualized_20_day_volatility_pct": round(float(candidate["20D Vol %"]), 1) if pd.notna(candidate.get("20D Vol %")) else None,
+                            "latest_daily_volume_vs_prior_20_day_average": round(float(candidate["Latest volume / prior 20D avg"]), 2) if pd.notna(candidate.get("Latest volume / prior 20D avg")) else None,
+                            "spy_1_month_return_pct": round(float(candidate["SPY 1M %"]), 2) if pd.notna(candidate.get("SPY 1M %")) else None,
+                            "qqq_1_month_return_pct": round(float(candidate["QQQ 1M %"]), 2) if pd.notna(candidate.get("QQQ 1M %")) else None,
+                            "relative_vs_spy_percentage_points": round(float(candidate["Relative vs SPY 1M (pp)"]), 2) if pd.notna(candidate.get("Relative vs SPY 1M (pp)")) else None,
+                            "relative_vs_qqq_percentage_points": round(float(candidate["1M %"] - candidate["QQQ 1M %"]), 2) if pd.notna(candidate.get("QQQ 1M %")) else None,
+                            "sector_etf_proxy": str(candidate.get("Sector ETF", "—")),
+                            "relative_vs_sector_percentage_points": round(float(candidate["Relative vs sector 1M (pp)"]), 2) if pd.notna(candidate.get("Relative vs sector 1M (pp)")) else None,
+                            "pullback_status": str(watch_df[watch_df["Symbol"] == candidate_symbol]["Pullback status"].iloc[0]),
+                            "breakout_status": str(watch_df[watch_df["Symbol"] == candidate_symbol]["Breakout status"].iloc[0]),
+                            "pullback_watch_range": str(watch_df[watch_df["Symbol"] == candidate_symbol]["Pullback range"].iloc[0]),
+                            "breakout_trigger": round(float(candidate["Breakout trigger"]), 2) if pd.notna(candidate.get("Breakout trigger")) else None
+                        })
+                    ranking_prompt = (
+                        "You are a cautious market research analyst. Rank these candidates from strongest to weakest for further paper-trading research, not for immediate buying. "
+                        "Use only supplied data. Do not invent news, catalysts, probabilities, live quotes, fundamentals, or technical indicators. "
+                        "Treat daily bars as potentially delayed and volume as provisional if the latest bar is still forming. "
+                        "Do not rank solely by scanner score or proximity to a watch level. Weigh daily and weekly trend agreement, momentum, RSI, volatility, volume participation, "
+                        "relative strength versus SPY and QQQ, sector-relative strength, and whether the pullback/breakout setup is waiting, near, in range, or invalidated. "
+                        "Relative strength is asset 1-month return minus benchmark 1-month return: positive means OUTPERFORMANCE and negative means UNDERPERFORMANCE. "
+                        "Check that interpretation arithmetically and never say an asset underperformed a benchmark when the supplied relative value is positive. "
+                        "A watch range is not a confirmed entry. A high ranking is not a BUY instruction. "
+                        "Return: (1) ranked table with rank, symbol, setup quality (strong/moderate/weak), and concise reason; "
+                        "(2) top three worth individual review and why; (3) avoid/deprioritize list and reasons; "
+                        "(4) missing evidence/limitations; (5) clear statement that no trade is confirmed from these daily-bar facts alone. "
+                        "Keep explanations concise and distinguish facts from interpretation.\n\n"
+                        "Candidate data:\n" + json.dumps(shortlist, default=str)
+                    )
+                    with st.spinner("AI is comparing the prioritized candidates..."):
+                        ranking_response = ranking_client.chat.completions.create(
+                            model="gpt-4.1-mini",
+                            temperature=0.2,
+                            messages=[
+                                {"role": "system", "content": "You compare market candidates conservatively. Never issue real-trade instructions."},
+                                {"role": "user", "content": ranking_prompt}
+                            ]
+                        )
+                    st.session_state["market_ai_ranking"] = ranking_response.choices[0].message.content
+                    st.session_state["market_ai_ranking_symbols"] = shortlist_symbols
+                except Exception as e:
+                    st.error(f"AI market-wide ranking failed: {e}")
+            if st.session_state.get("market_ai_ranking"):
+                st.markdown("#### AI shortlist results")
+                st.caption("Candidates included: " + ", ".join(st.session_state.get("market_ai_ranking_symbols", [])))
+                st.markdown(st.session_state["market_ai_ranking"])
     else:
         st.info("No scanned assets are currently near their calculated pullback or breakout watch levels. That's okay—no need to force a trade.")
 

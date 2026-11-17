@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.1 · Volume and market-context analysis · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.2 · Expanded benchmark context (SPY + QQQ) · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -414,23 +414,28 @@ with scanner_tab:
     t2.metric("1-month return", f"{float(row['1M %']):+.1f}%")
     t3.metric("3-month return", f"{float(row['3M %']):+.1f}%")
     st.markdown("**Volume and market context**")
-    v1, v2, v3, v4 = st.columns(4)
+    st.caption("Benchmark returns are shown separately so you can compare the broad S&P 500 market (SPY) with the Nasdaq-100 (QQQ).")
     volume_ratio = row.get("Latest volume / prior 20D avg", np.nan)
+    b1, b2, b3 = st.columns(3)
     if pd.notna(volume_ratio):
-        v1.metric("Latest bar volume vs prior 20D avg", f"{float(volume_ratio):.2f}×")
+        b1.metric("Latest bar volume / prior 20D average", f"{float(volume_ratio):.2f}×")
         if float(volume_ratio) >= 1.5:
             st.info("Latest daily bar volume is at least 1.5× the prior 20-bar average. This indicates elevated activity, not whether buyers or sellers dominated.")
         elif float(volume_ratio) <= 0.7:
-            st.warning("Latest daily bar volume is below 70% of the prior 20-bar average; participation appears lighter.")
+            st.warning("Latest daily-bar volume is below 70% of the prior 20-bar average; participation appears lighter.")
         else:
             st.caption("Latest daily-bar volume is near its prior 20-bar average. Volume alone does not confirm an entry.")
     else:
-        v1.metric("Latest bar volume vs prior 20D avg", "Unavailable")
-    v2.metric("SPY 1-month return", f"{float(row['SPY 1M %']):+.1f}%" if pd.notna(row.get("SPY 1M %")) else "—")
-    v3.metric("Relative vs SPY", f"{float(row['Relative vs SPY 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs SPY 1M (pp)")) else "—")
+        b1.metric("Latest bar volume / prior 20D average", "Unavailable")
+    b2.metric("SPY 1-month return", f"{float(row['SPY 1M %']):+.1f}%" if pd.notna(row.get("SPY 1M %")) else "Unavailable")
+    b3.metric("QQQ 1-month return", f"{float(row['QQQ 1M %']):+.1f}%" if pd.notna(row.get("QQQ 1M %")) else "Unavailable")
+
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Relative vs SPY", f"{float(row['Relative vs SPY 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs SPY 1M (pp)")) else "Unavailable")
+    r2.metric("Relative vs QQQ", f"{float(row['1M %'] - row['QQQ 1M %']):+.1f} pp" if pd.notna(row.get("QQQ 1M %")) else "Unavailable")
     sector_name = str(row.get("Sector ETF", "—"))
-    v4.metric(f"Relative vs {sector_name}", f"{float(row['Relative vs sector 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs sector 1M (pp)")) else "—")
-    st.caption("Volume compares the latest available daily bar with the previous 20 bars; if today's bar is still forming, its volume ratio is provisional. SPY/QQQ and sector comparisons use the same daily-price source and trailing 20-session returns. Sector mappings are approximate group proxies, not formal classifications.")
+    r3.metric(f"Relative vs {sector_name}", f"{float(row['Relative vs sector 1M (pp)']):+.1f} pp" if pd.notna(row.get("Relative vs sector 1M (pp)")) else "Unavailable")
+    st.caption("Volume compares the latest available daily bar with the previous 20 bars; if today's bar is still forming, its volume ratio is provisional. SPY, QQQ and sector comparisons use the same daily-price source and trailing 20-session returns. Relative strength is the asset's return minus the benchmark return. Sector mappings are approximate group proxies, not formal classifications.")
 
     st.markdown("**Illustrative risk / reward plan**")
     st.caption("Reference levels only, calculated from the latest daily close and the scanner's 2 × average absolute daily move. They are not live quotes, guaranteed fills, or broker stop orders.")

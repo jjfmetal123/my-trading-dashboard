@@ -59,7 +59,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.8 · Market-wide entry watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.9 · Prioritized market-wide watchlist · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -730,10 +730,41 @@ with scanner_tab:
                 "Nearest setup (ATR)": proximity, "Score": int(item["Score"])
             })
     if watch_rows:
-        watch_df = pd.DataFrame(watch_rows).sort_values(
-            ["Nearest setup (ATR)", "Score"] if "Score" in watch_rows[0] else ["Nearest setup (ATR)"],
-            ascending=True
+        watch_df = pd.DataFrame(watch_rows)
+
+        def watch_priority(item):
+            signal = str(item["Signal"]).upper()
+            pullback = str(item["Pullback status"]).upper()
+            breakout = str(item["Breakout status"]).upper()
+            approaching = any(token in (pullback + " " + breakout) for token in (
+                "IN WATCH RANGE", "NEAR PULLBACK", "NEAR BREAKOUT", "TRIGGER REACHED"
+            ))
+            # First: BUY CANDIDATEs already near a valid watch level.
+            if signal == "BUY CANDIDATE" and approaching:
+                return 0
+            # Next: other BUY CANDIDATEs, even if their setup is not close yet.
+            if signal == "BUY CANDIDATE":
+                return 1
+            # Then: WATCH assets that are approaching a price level.
+            if signal == "WATCH" and approaching:
+                return 2
+            # Other WATCH assets, then all remaining/no-setup assets.
+            if signal == "WATCH":
+                return 3
+            return 4
+
+        watch_df["Priority"] = watch_df.apply(watch_priority, axis=1)
+        watch_df = watch_df.sort_values(
+            ["Priority", "Nearest setup (ATR)", "Score"],
+            ascending=[True, True, False]
         )
+        watch_df["Priority"] = watch_df["Priority"].map({
+            0: "TOP: candidate near entry",
+            1: "Candidate — monitor",
+            2: "Watch — near price level",
+            3: "Watch — monitor",
+            4: "Lower priority — review"
+        })
         visible_watch_df = watch_df.drop(columns=["Nearest setup (ATR)", "Score"])
 
         def watch_status_color(value):
@@ -748,6 +779,7 @@ with scanner_tab:
                 return "background-color: #e5e7eb; color: #374151"
             return "color: inherit"
 
+        st.caption("Sorted by priority: BUY CANDIDATEs near an entry level first, then other BUY CANDIDATEs, then WATCH assets, and finally lower-priority/no-setup assets. Within each group, the closest watch level appears first.")
         styled_watch_df = (
             visible_watch_df.style
             .format({"Last": "${:,.2f}", "Breakout trigger": "${:,.2f}"})
@@ -1040,4 +1072,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.8 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.9 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

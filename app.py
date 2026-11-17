@@ -58,7 +58,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.2 · Inline asset analysis · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.3 · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scores and signals are transparent rules-based screens, not AI predictions or guarantees. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -371,7 +371,57 @@ with scanner_tab:
             st.warning("RSI is below the scanner's preferred momentum range.")
         else:
             st.info("RSI is within the scanner's preferred 45–68 screening range.")
-    st.caption("The scanner is a transparent rules-based screen, not an AI forecast. No trade is recommended solely because an asset scores highly.")
+    # Trade-quality assessment: separate trend strength from whether price is
+    # reasonably placed for a new entry. All thresholds are transparent heuristics.
+    sma20 = float(row["SMA20"]) if pd.notna(row["SMA20"]) else float("nan")
+    distance_sma20 = ((last / sma20) - 1.0) * 100.0 if pd.notna(sma20) and sma20 > 0 else float("nan")
+    account_equity_for_plan = float(st.session_state.paper_cash) + sum(
+        float(pos.get("quantity", 0.0)) * float(data.loc[data["Symbol"] == sym, "Last"].iloc[0]
+        if sym in data["Symbol"].values else pos.get("average_price", 0.0))
+        for sym, pos in st.session_state.paper_positions.items()
+    )
+    risk_budget_for_plan = account_equity_for_plan * 0.01
+    cash_for_plan = float(st.session_state.paper_cash)
+    risk_qty = risk_budget_for_plan / per_unit_risk if per_unit_risk > 0 else 0.0
+    cash_qty = cash_for_plan / last if last > 0 else 0.0
+    plan_qty = min(risk_qty, cash_qty)
+    planned_dollar_risk = plan_qty * per_unit_risk
+    if row["Signal"] != "BUY CANDIDATE":
+        entry_assessment = "WAIT — scanner rules are not currently at BUY CANDIDATE."
+        entry_color = "warning"
+    elif pd.isna(distance_sma20):
+        entry_assessment = "WAIT — not enough moving-average context to assess entry placement."
+        entry_color = "warning"
+    elif distance_sma20 > 3.0:
+        entry_assessment = "WAIT FOR PULLBACK — price is more than 3% above its 20-day average."
+        entry_color = "warning"
+    elif distance_sma20 < -1.0:
+        entry_assessment = "AVOID FOR NOW — price is below its 20-day average; trend needs to recover."
+        entry_color = "error"
+    else:
+        entry_assessment = "POTENTIAL ENTRY AREA — price is near its 20-day average and passes the scanner screen; confirm manually."
+        entry_color = "success"
+
+    st.markdown("**Trade decision & entry quality**")
+    if entry_color == "success":
+        st.success(entry_assessment)
+    elif entry_color == "error":
+        st.error(entry_assessment)
+    else:
+        st.warning(entry_assessment)
+    q1, q2, q3 = st.columns(3)
+    q1.metric("Price vs. 20-day average", f"{distance_sma20:+.1f}%" if pd.notna(distance_sma20) else "—")
+    q2.metric("Illustrative risk budget (1%)", f"${risk_budget_for_plan:,.2f}")
+    q3.metric("Risk-sized quantity", f"{plan_qty:.4f} units")
+    st.caption(f"At the reference price, cash available limits this plan to {cash_qty:.4f} units. Risk sizing limits it to {risk_qty:.4f}; the smaller amount is shown. Estimated loss at the stop: ${planned_dollar_risk:,.2f}, before fees, spread, slippage, gaps, or execution differences.")
+
+    st.markdown("**What would invalidate this setup?**")
+    st.write(
+        f"- A daily close below the illustrative stop reference (${stop:,.2f}) invalidates the planned risk/reward setup. "
+        + (f"A close below the 20-day average (${sma20:,.2f}) is an additional trend warning." if pd.notna(sma20) else "A 20-day average is unavailable, so use the stop reference only as a rough warning level.")
+    )
+    st.write("- A change to a negative 1-month return, a weak weekly trend, or RSI outside the scanner's preferred range should trigger a fresh review—not an automatic buy.")
+    st.caption("These are educational decision rules, not AI predictions or guaranteed trade recommendations. Position sizing is hypothetical and does not check correlation, sector concentration, liquidity, or all existing portfolio exposures.")
 
 
     candidates = data[data["Signal"] == "BUY CANDIDATE"]
@@ -664,4 +714,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.2 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.3 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

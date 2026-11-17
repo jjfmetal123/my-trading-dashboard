@@ -426,7 +426,7 @@ with scanner_tab:
 
 
     st.markdown("### AI trade analyst")
-    st.caption("Optional AI second opinion and entry planner. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
+    st.caption("AI second opinion with calculated pullback and breakout watch prices, scenario-specific stops, targets, and sizing. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
     ai_api_key = st.secrets.get("OPENAI_API_KEY", "")
     if not ai_api_key:
         st.info("To enable the AI analyst, add OPENAI_API_KEY to Streamlit Community Cloud → App → Settings → Secrets. Keep the key there only; never put it in GitHub or share it in chat.")
@@ -451,6 +451,40 @@ with scanner_tab:
                     ], axis=1).max(axis=1)
                     if true_range.tail(14).notna().any():
                         atr14 = round(float(true_range.tail(14).mean()), 4)
+                # Deterministic watch levels: these are calculated from the
+                # supplied historical daily bars, not invented by the AI.
+                pullback_low = pullback_high = breakout_trigger = None
+                pullback_stop = breakout_stop = None
+                pullback_qty = breakout_qty = None
+                pullback_risk_dollars = breakout_risk_dollars = None
+                if sma20 > 0 and atr14 is not None and atr14 > 0:
+                    # A narrow watch zone around the 20-day average.
+                    pullback_low = round(float(sma20 - 0.25 * atr14), 4)
+                    pullback_high = round(float(sma20 + 0.25 * atr14), 4)
+                    # Stop below the watch zone by half an ATR.
+                    pullback_stop = round(float(pullback_low - 0.50 * atr14), 4)
+                if recent_high_20 is not None and atr14 is not None and atr14 > 0:
+                    # Require a small buffer above the prior 20-day high.
+                    breakout_trigger = round(float(recent_high_20 + 0.10 * atr14), 4)
+                    breakout_stop = round(float(breakout_trigger - 1.00 * atr14), 4)
+
+                def size_for_entry(entry_price, stop_price):
+                    if entry_price is None or stop_price is None or entry_price <= stop_price:
+                        return {"quantity": None, "risk_dollars": None, "risk_per_unit": None}
+                    risk_per_unit = entry_price - stop_price
+                    qty_by_risk = risk_budget_for_plan / risk_per_unit if risk_per_unit > 0 else 0.0
+                    qty_by_cash = cash_for_plan / entry_price if entry_price > 0 else 0.0
+                    qty = max(0.0, min(qty_by_risk, qty_by_cash))
+                    return {
+                        "quantity": round(qty, 6),
+                        "risk_dollars": round(qty * risk_per_unit, 2),
+                        "risk_per_unit": round(risk_per_unit, 4),
+                    }
+
+                pullback_mid = round((pullback_low + pullback_high) / 2, 4) if pullback_low is not None else None
+                pullback_sizing = size_for_entry(pullback_mid, pullback_stop)
+                breakout_sizing = size_for_entry(breakout_trigger, breakout_stop)
+
                 facts = {
                     "symbol": symbol,
                     "asset_class": str(row["Asset class"]),
@@ -472,6 +506,19 @@ with scanner_tab:
                     "20_day_low_from_daily_bars": round(recent_low_20, 4) if recent_low_20 is not None else None,
                     "14_day_average_true_range": atr14,
                     "price_vs_20_day_average_pct": round(distance_sma20, 3) if pd.notna(distance_sma20) else None,
+                    "calculated_watch_levels": {
+                        "pullback_watch_range_low": pullback_low,
+                        "pullback_watch_range_high": pullback_high,
+                        "pullback_midpoint_for_sizing_only": pullback_mid,
+                        "pullback_stop_reference": pullback_stop,
+                        "pullback_position_size_units": pullback_sizing["quantity"],
+                        "pullback_estimated_loss_at_stop": pullback_sizing["risk_dollars"],
+                        "breakout_trigger_price": breakout_trigger,
+                        "breakout_stop_reference": breakout_stop,
+                        "breakout_position_size_units": breakout_sizing["quantity"],
+                        "breakout_estimated_loss_at_stop": breakout_sizing["risk_dollars"],
+                        "calculation_note": "Pullback watch zone = 20-day average +/- 0.25 ATR; pullback stop = watch-zone low - 0.50 ATR; breakout trigger = prior 20-day high + 0.10 ATR; breakout stop = trigger - 1.00 ATR. These are mechanical watch references, not validated support/resistance or trade signals."
+                    },
                     "reference_entry": round(last, 4),
                     "illustrative_stop": round(stop, 4),
                     "illustrative_1R_target": round(target_1r, 4),
@@ -485,31 +532,34 @@ with scanner_tab:
                     "rule_based_entry_assessment": entry_assessment,
                 }
                 system_prompt = (
-                    "You are a cautious market research assistant reviewing a rules-based trading screen. "
-                    "Give an independent second opinion and feel free to disagree with the scanner. "
-                    "Use only the supplied facts; do not invent news, fundamentals, current quotes, catalysts, or probabilities. "
-                    "The data are daily-bar data and may be delayed. Clearly state when evidence is missing. "
-                    "Do not guarantee outcomes or present this as personalized financial advice. "
-                    "Do not tell the user to place a real trade. This is a $1,000 simulated account. "
+                    "You are a cautious market research assistant producing a price-specific paper-trade plan. "
+                    "Use only the supplied facts. Do not invent news, fundamentals, quotes, catalysts, or probabilities. "
+                    "The supplied prices come from historical daily bars and may be delayed. "
+                    "Do not recommend or execute a real trade; this is paper-study analysis only. "
+                    "You MUST use the numeric calculated_watch_levels supplied in the facts when available. "
+                    "Do not replace those levels with vague phrases. If a level is null, say it is unavailable. "
                     "Return these sections in this exact order: "
-                    "1. Verdict (BUY CANDIDATE / WAIT / AVOID, for paper-study only). "
-                    "2. Why. 3. Bullish evidence. 4. Bearish risks. "
-                    "5. ENTRY PLAN with a concrete decision: either NO VALID ENTRY RIGHT NOW, "
-                    "or a proposed pullback entry RANGE with low/high prices, or a breakout trigger PRICE. "
-                    "State which one is preferred and why. Give exact numeric prices in the same currency "
-                    "as the supplied price. Do not give a vague instruction such as 'wait for a pullback' "
-                    "without a price level. If the supplied data do not support a defensible level, say "
-                    "NO VALID ENTRY RIGHT NOW rather than inventing one. "
-                    "6. Stop/invalidation price and why. 7. Profit targets at 2R and 3R measured from "
-                    "the proposed entry and stop, not automatically from the current price. "
-                    "8. Risk and position-size check using the supplied account/risk facts; explain if "
-                    "cash or risk limits quantity. 9. What would invalidate the idea. 10. What data is missing. "
-                    "Use the recent daily high/low, 20-day average, and ATR only as historical reference levels; "
-                    "do not call them confirmed support/resistance. If a proposed entry requires confirmation, "
-                    "spell out what daily-price behavior would count as confirmation. "
-                    "If the price is extended, risk/reward is poor, or a reliable entry cannot be identified, "
-                    "prefer WAIT and explicitly say NO VALID ENTRY RIGHT NOW. "
-                    "All prices are hypothetical paper-study levels, not executable orders or guaranteed fills."
+                    "1. VERDICT: BUY CANDIDATE / WAIT / AVOID (paper-study only). "
+                    "2. WHY. 3. BULLISH EVIDENCE. 4. BEARISH RISKS. "
+                    "5. PRICE LEVELS TO WATCH: state the exact pullback range low and high, its midpoint, "
+                    "the exact breakout trigger, and the current daily reference price. Clearly label these as watch levels, "
+                    "not instructions to buy. If neither scenario is defensible, say NO VALID ENTRY RIGHT NOW, "
+                    "but still report any calculated watch levels as conditional levels to monitor. "
+                    "6. ENTRY CONFIRMATION: explain observable daily-bar conditions needed before considering either setup; "
+                    "do not claim confirmation has already occurred unless the supplied facts prove it. "
+                    "7. STOP / INVALIDATION: give the exact calculated stop for each scenario when available, "
+                    "and explain that a daily close below the stop would invalidate that scenario. "
+                    "8. PROFIT TARGETS: calculate 1R, 2R, and 3R separately for the pullback and breakout scenarios "
+                    "using each scenario's own entry midpoint/trigger and stop. Show the arithmetic levels to 2 decimals. "
+                    "9. POSITION SIZE: report the supplied risk-limited and cash-limited quantity for each scenario, "
+                    "and estimated dollar loss at the stop. Never exceed the supplied 1% equity risk budget or available cash. "
+                    "10. WHAT WOULD INVALIDATE THE IDEA. 11. WHAT DATA IS MISSING. "
+                    "The calculated pullback and breakout levels are mechanical formulas based on SMA20, recent 20-day high, "
+                    "and ATR; they are watch references only, not confirmed support/resistance. "
+                    "If price is extended, reward/risk is poor, or confirmation is absent, the verdict should remain WAIT. "
+                    "Never tell the user to chase price. Do not imply a specific entry is currently active just because "
+                    "a watch range or trigger has been calculated. Be concise, use exact dollar figures, and explicitly "
+                    "distinguish a watch price from a confirmed entry."
                 )
                 with st.spinner("AI is reviewing the selected asset's supplied market data..."):
                     response = client.chat.completions.create(

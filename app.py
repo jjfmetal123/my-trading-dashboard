@@ -59,7 +59,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.6 · AI entry planner · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.7 · Setup status monitor · AI-assisted trade analyst · Trade planning & invalidation · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -424,6 +424,73 @@ with scanner_tab:
     st.write("- A change to a negative 1-month return, a weak weekly trend, or RSI outside the scanner's preferred range should trigger a fresh review—not an automatic buy.")
     st.caption("These are educational decision rules, not AI predictions or guaranteed trade recommendations. Position sizing is hypothetical and does not check correlation, sector concentration, liquidity, or all existing portfolio exposures.")
 
+
+    st.markdown("### Setup status monitor")
+    st.caption("Status is calculated from the latest available daily bars and mechanical watch levels. It is a monitoring aid—not an automatic entry signal.")
+    status_ohlc = one[symbol].tail(30) if symbol in one else pd.DataFrame()
+    status_atr = None
+    status_high20 = None
+    if not status_ohlc.empty and all(col in status_ohlc for col in ["High", "Low", "Close"]):
+        status_prev_close = status_ohlc["Close"].shift(1)
+        status_true_range = pd.concat([
+            status_ohlc["High"] - status_ohlc["Low"],
+            (status_ohlc["High"] - status_prev_close).abs(),
+            (status_ohlc["Low"] - status_prev_close).abs()
+        ], axis=1).max(axis=1)
+        if status_true_range.tail(14).notna().any():
+            status_atr = float(status_true_range.tail(14).mean())
+        status_high20 = float(status_ohlc["High"].tail(20).max())
+
+    status_pullback_low = status_pullback_high = status_pullback_stop = None
+    status_breakout_trigger = status_breakout_stop = None
+    if pd.notna(sma20) and status_atr is not None and status_atr > 0:
+        status_pullback_low = float(sma20 - 0.25 * status_atr)
+        status_pullback_high = float(sma20 + 0.25 * status_atr)
+        status_pullback_stop = float(status_pullback_low - 0.50 * status_atr)
+    if status_high20 is not None and status_atr is not None and status_atr > 0:
+        status_breakout_trigger = float(status_high20 + 0.10 * status_atr)
+        status_breakout_stop = float(status_breakout_trigger - status_atr)
+
+    def describe_setup_status(low, high, stop_level, trigger=None):
+        if low is None or high is None or stop_level is None:
+            return ("DATA UNAVAILABLE", "Required daily price history is missing.", "off")
+        if last <= stop_level:
+            return ("INVALIDATED — REVIEW", f"Latest daily reference (${last:,.2f}) is at or below this scenario's stop reference (${stop_level:,.2f}). Reassess the setup.", "error")
+        if trigger is not None and last >= trigger:
+            return ("BREAKOUT THRESHOLD REACHED — VERIFY", f"Latest daily reference (${last:,.2f}) is at/above the ${trigger:,.2f} trigger. Verify an actual daily close above the level and supporting volume before treating it as a valid setup.", "warning")
+        if low <= last <= high:
+            return ("IN WATCH RANGE — CONFIRMATION NEEDED", f"Price is inside ${low:,.2f}–${high:,.2f}. Wait for stabilization and a supportive daily-bar pattern; range entry alone is not confirmation.", "warning")
+        if last > high:
+            next_level = f" Breakout watch trigger: ${trigger:,.2f}." if trigger is not None else ""
+            return ("WAITING", f"Price is above the pullback watch range. Do not chase; monitor for a pullback into ${low:,.2f}–${high:,.2f}.{next_level}", "warning")
+        return ("WAITING — TREND REVIEW", f"Price is below the pullback watch range but above its stop reference (${stop_level:,.2f}). Review trend conditions; do not assume the range is support.", "warning")
+
+    pullback_status = describe_setup_status(status_pullback_low, status_pullback_high, status_pullback_stop)
+    breakout_status = describe_setup_status(status_breakout_trigger, status_breakout_trigger, status_breakout_stop, status_breakout_trigger) if status_breakout_trigger is not None else ("DATA UNAVAILABLE", "Breakout reference could not be calculated.", "off")
+    status_col1, status_col2 = st.columns(2)
+    with status_col1:
+        st.markdown("**Pullback setup**")
+        if pullback_status[2] == "error":
+            st.error(pullback_status[0])
+        elif pullback_status[2] == "warning":
+            st.warning(pullback_status[0])
+        else:
+            st.info(pullback_status[0])
+        st.write(pullback_status[1])
+        if status_pullback_low is not None:
+            st.caption(f"Watch ${status_pullback_low:,.2f}–${status_pullback_high:,.2f} · stop reference ${status_pullback_stop:,.2f}")
+    with status_col2:
+        st.markdown("**Breakout setup**")
+        if breakout_status[2] == "error":
+            st.error(breakout_status[0])
+        elif breakout_status[2] == "warning":
+            st.warning(breakout_status[0])
+        else:
+            st.info(breakout_status[0])
+        st.write(breakout_status[1])
+        if status_breakout_trigger is not None:
+            st.caption(f"Trigger ${status_breakout_trigger:,.2f} · stop reference ${status_breakout_stop:,.2f}")
+    st.caption("This version deliberately does not display ENTRY CONFIRMED: the app does not yet validate volume or candle-pattern confirmation. A price touching a watch level is not enough to confirm a trade.")
 
     st.markdown("### AI trade analyst")
     st.caption("AI second opinion with calculated pullback and breakout watch prices, scenario-specific stops, targets, and sizing. It can disagree with the rules-based scanner. It does not execute trades, and it only sees the daily market data and indicators shown here—not live quotes, news, filings, or your full portfolio context.")
@@ -870,4 +937,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.6 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.7 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, scheduled background monitoring, broker access, or real order execution. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

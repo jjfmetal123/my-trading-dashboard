@@ -58,7 +58,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 2.1 · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 2.2 · Inline asset analysis · Click-to-inspect market analysis · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scores and signals are transparent rules-based screens, not AI predictions or guarantees. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -307,7 +307,7 @@ def safe_pct(numerator, denominator):
 scanner_tab, paper_tab, analytics_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account", "📈 Performance"])
 with scanner_tab:
     st.subheader("Market scanner")
-    st.caption("Select any row to open its analysis directly below the table. On desktop, click anywhere in the row; on mobile, tap the row.")
+    st.caption("Select a row to open its analysis immediately below the scanner. On desktop, click anywhere in the row; on mobile, tap the row.")
     display = data[["Symbol", "Asset class", "Signal", "Trend", "Weekly trend", "Risk level", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
     selection_event = st.dataframe(
         display.style.format({"Last": "${:,.2f}", "1W %": "{:+.1f}%", "1M %": "{:+.1f}%", "3M %": "{:+.1f}%", "RSI": "{:.0f}", "20D Vol %": "{:.1f}%"}).background_gradient(subset=["Score"], cmap="RdYlGn"),
@@ -320,13 +320,6 @@ with scanner_tab:
     if st.session_state.get("inspected_symbol") not in data["Symbol"].tolist():
         st.session_state["inspected_symbol"] = str(data.iloc[0]["Symbol"])
 
-    candidates = data[data["Signal"] == "BUY CANDIDATE"]
-    st.subheader("Rule-based trade candidates")
-    st.caption("These are screening candidates only—not AI recommendations. The rules require a strong daily trend, positive 1-month return, and RSI between 45 and 68. Always review risk before paper trading.")
-    if not candidates.empty:
-        st.dataframe(candidates[["Symbol", "Asset class", "Score", "Trend", "Weekly trend", "Risk level", "Last", "Price date", "1M %", "RSI", "Signal reason"]].style.format({"Last": "${:,.2f}", "1M %": "{:+.1f}%", "RSI": "{:.1f}"}), use_container_width=True, hide_index=True)
-    else:
-        st.info("No assets currently meet the candidate rules. That's okay—no trade is better than forcing one.")
 
     symbol = st.session_state["inspected_symbol"]
     row = data[data["Symbol"] == symbol].iloc[0]
@@ -339,6 +332,7 @@ with scanner_tab:
 
     st.divider()
     st.subheader(f"🔎 {symbol} — individual asset analysis")
+    st.caption("Your selected asset analysis appears here, immediately after the main scanner.")
     st.caption(f"{row['Asset class']} · Price date: {row['Price date']} · {row['Signal reason']}")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Last daily price", f"${last:,.2f}")
@@ -378,6 +372,15 @@ with scanner_tab:
         else:
             st.info("RSI is within the scanner's preferred 45–68 screening range.")
     st.caption("The scanner is a transparent rules-based screen, not an AI forecast. No trade is recommended solely because an asset scores highly.")
+
+
+    candidates = data[data["Signal"] == "BUY CANDIDATE"]
+    st.subheader("Rule-based trade candidates")
+    st.caption("These are screening candidates only—not AI recommendations. The rules require a strong daily trend, positive 1-month return, and RSI between 45 and 68. Always review risk before paper trading.")
+    if not candidates.empty:
+        st.dataframe(candidates[["Symbol", "Asset class", "Score", "Trend", "Weekly trend", "Risk level", "Last", "Price date", "1M %", "RSI", "Signal reason"]].style.format({"Last": "${:,.2f}", "1M %": "{:+.1f}%", "RSI": "{:.1f}"}), use_container_width=True, hide_index=True)
+    else:
+        st.info("No assets currently meet the candidate rules. That's okay—no trade is better than forcing one.")
 
 with paper_tab:
     st.subheader("Virtual account")
@@ -661,4 +664,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 2.1 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 2.2 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. No intraday feed, AI model/API, news analysis, historical backtesting, scheduled background monitoring, broker connection, or real order execution yet. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

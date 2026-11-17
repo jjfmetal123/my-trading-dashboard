@@ -117,6 +117,22 @@ def analyze(ticker, frame):
         signal = "NO SETUP"
         signal_reason = "Current trend/momentum rules are not aligned"
     avg_abs_move = close.diff().abs().rolling(14).mean().iloc[-1]
+    atr14 = None
+    recent_high20 = None
+    recent_low20 = None
+    if all(col in frame.columns for col in ["High", "Low", "Close"]):
+        prev_close = frame["Close"].shift(1)
+        true_range = pd.concat([
+            frame["High"] - frame["Low"],
+            (frame["High"] - prev_close).abs(),
+            (frame["Low"] - prev_close).abs()
+        ], axis=1).max(axis=1)
+        if true_range.tail(14).notna().any():
+            atr14 = float(true_range.tail(14).mean())
+        if frame["High"].tail(20).notna().any():
+            recent_high20 = float(frame["High"].tail(20).max())
+        if frame["Low"].tail(20).notna().any():
+            recent_low20 = float(frame["Low"].tail(20).min())
     # Weekly confirmation is calculated from the same daily source bars.
     # It is a slower trend check, not a separate live or intraday feed.
     weekly = close.resample("W-FRI").last().dropna()
@@ -137,6 +153,12 @@ def analyze(ticker, frame):
             "Signal": signal, "Signal reason": signal_reason,
             "1W %": ret5, "1M %": ret20, "3M %": ret60, "RSI": r,
             "20D Vol %": vol20, "SMA20": s20, "SMA50": s50, "SMA200": s200,
+            "ATR14": atr14, "Recent high 20D": recent_high20, "Recent low 20D": recent_low20,
+            "Pullback low": (s20 - 0.25 * atr14) if atr14 is not None and pd.notna(s20) else np.nan,
+            "Pullback high": (s20 + 0.25 * atr14) if atr14 is not None and pd.notna(s20) else np.nan,
+            "Pullback stop": (s20 - 0.75 * atr14) if atr14 is not None and pd.notna(s20) else np.nan,
+            "Breakout trigger": (recent_high20 + 0.10 * atr14) if atr14 is not None and recent_high20 is not None else np.nan,
+            "Breakout stop": (recent_high20 + 0.10 * atr14 - atr14) if atr14 is not None and recent_high20 is not None else np.nan,
             "Illustrative risk level": last - 2 * avg_abs_move}
 
 # Persistent paper account stored in Supabase. The secret key is used only
@@ -451,22 +473,29 @@ with scanner_tab:
         status_breakout_trigger = float(status_high20 + 0.10 * status_atr)
         status_breakout_stop = float(status_breakout_trigger - status_atr)
 
-    def describe_setup_status(low, high, stop_level, trigger=None):
+    def describe_pullback_status(low, high, stop_level):
         if low is None or high is None or stop_level is None:
             return ("DATA UNAVAILABLE", "Required daily price history is missing.", "off")
         if last <= stop_level:
-            return ("INVALIDATED — REVIEW", f"Latest daily reference (${last:,.2f}) is at or below this scenario's stop reference (${stop_level:,.2f}). Reassess the setup.", "error")
-        if trigger is not None and last >= trigger:
-            return ("BREAKOUT THRESHOLD REACHED — VERIFY", f"Latest daily reference (${last:,.2f}) is at/above the ${trigger:,.2f} trigger. Verify an actual daily close above the level and supporting volume before treating it as a valid setup.", "warning")
+            return ("INVALIDATED — REVIEW", f"Latest daily reference (${last:,.2f}) is at or below the pullback stop reference (${stop_level:,.2f}). Reassess this pullback scenario.", "error")
         if low <= last <= high:
-            return ("IN WATCH RANGE — CONFIRMATION NEEDED", f"Price is inside ${low:,.2f}–${high:,.2f}. Wait for stabilization and a supportive daily-bar pattern; range entry alone is not confirmation.", "warning")
+            return ("IN WATCH RANGE — CONFIRMATION NEEDED", f"Price is inside the pullback watch range ${low:,.2f}–${high:,.2f}. Wait for stabilization and a supportive daily-bar pattern; touching the range alone is not confirmation.", "warning")
         if last > high:
-            next_level = f" Breakout watch trigger: ${trigger:,.2f}." if trigger is not None else ""
-            return ("WAITING", f"Price is above the pullback watch range. Do not chase; monitor for a pullback into ${low:,.2f}–${high:,.2f}.{next_level}", "warning")
+            return ("WAITING", f"Price is above the pullback watch range. Do not chase; monitor for a pullback into ${low:,.2f}–${high:,.2f}.", "warning")
         return ("WAITING — TREND REVIEW", f"Price is below the pullback watch range but above its stop reference (${stop_level:,.2f}). Review trend conditions; do not assume the range is support.", "warning")
 
-    pullback_status = describe_setup_status(status_pullback_low, status_pullback_high, status_pullback_stop)
-    breakout_status = describe_setup_status(status_breakout_trigger, status_breakout_trigger, status_breakout_stop, status_breakout_trigger) if status_breakout_trigger is not None else ("DATA UNAVAILABLE", "Breakout reference could not be calculated.", "off")
+    def describe_breakout_status(trigger, stop_level):
+        if trigger is None or stop_level is None:
+            return ("DATA UNAVAILABLE", "Breakout reference could not be calculated from the available daily bars.", "off")
+        if last <= stop_level:
+            return ("INVALIDATED — REVIEW", f"Latest daily reference (${last:,.2f}) is at or below the breakout scenario's stop reference (${stop_level:,.2f}). Reassess the breakout scenario.", "error")
+        if last >= trigger:
+            return ("BREAKOUT THRESHOLD REACHED — VERIFY", f"Latest daily reference (${last:,.2f}) is at/above the breakout trigger (${trigger:,.2f}). Verify an actual daily close above the trigger and supporting volume before treating it as a potential setup.", "warning")
+        distance_pct = (trigger / last - 1.0) * 100.0 if last > 0 else None
+        return ("WAITING — BREAKOUT NOT TRIGGERED", f"Price is below the breakout trigger (${trigger:,.2f}) by {distance_pct:.1f}%. Monitor for a daily close above the trigger; the pullback range is a separate scenario.", "warning")
+
+    pullback_status = describe_pullback_status(status_pullback_low, status_pullback_high, status_pullback_stop)
+    breakout_status = describe_breakout_status(status_breakout_trigger, status_breakout_stop)
     status_col1, status_col2 = st.columns(2)
     with status_col1:
         st.markdown("**Pullback setup**")
@@ -654,6 +683,66 @@ with scanner_tab:
         st.dataframe(candidates[["Symbol", "Asset class", "Score", "Trend", "Weekly trend", "Risk level", "Last", "Price date", "1M %", "RSI", "Signal reason"]].style.format({"Last": "${:,.2f}", "1M %": "{:+.1f}%", "RSI": "{:.1f}"}), use_container_width=True, hide_index=True)
     else:
         st.info("No assets currently meet the candidate rules. That's okay—no trade is better than forcing one.")
+
+    st.subheader("Market-wide entry watchlist")
+    st.caption("Ranks scanned assets by proximity to mechanically calculated pullback and breakout watch levels. This is a daily-data watchlist—not an entry signal or a guarantee that a level will hold.")
+    watch_rows = []
+    for _, item in data.iterrows():
+        px = float(item["Last"])
+        atr = item.get("ATR14")
+        p_low, p_high, p_stop = item.get("Pullback low"), item.get("Pullback high"), item.get("Pullback stop")
+        b_trigger, b_stop = item.get("Breakout trigger"), item.get("Breakout stop")
+        if pd.isna(atr) or float(atr) <= 0 or pd.isna(p_low) or pd.isna(b_trigger):
+            continue
+        atr = float(atr)
+        # Report the most actionable current state, with separate pullback and breakout columns.
+        if px <= float(p_stop):
+            pullback_state = "INVALIDATED"
+        elif float(p_low) <= px <= float(p_high):
+            pullback_state = "IN WATCH RANGE"
+        elif px > float(p_high):
+            gap = (px - float(p_high)) / atr
+            pullback_state = "NEAR PULLBACK" if gap <= 1.0 else "WAITING"
+        else:
+            pullback_state = "TREND REVIEW"
+        if px <= float(b_stop):
+            breakout_state = "INVALIDATED"
+        elif px >= float(b_trigger):
+            breakout_state = "TRIGGER REACHED — VERIFY CLOSE"
+        else:
+            gap = (float(b_trigger) - px) / atr
+            breakout_state = "NEAR BREAKOUT" if gap <= 1.0 else "WAITING"
+        distances = []
+        if pullback_state == "IN WATCH RANGE":
+            distances.append(0.0)
+        elif pullback_state == "NEAR PULLBACK":
+            distances.append(max(0.0, (px - float(p_high)) / atr))
+        if breakout_state == "TRIGGER REACHED — VERIFY CLOSE":
+            distances.append(0.0)
+        elif breakout_state == "NEAR BREAKOUT":
+            distances.append(max(0.0, (float(b_trigger) - px) / atr))
+        proximity = min(distances) if distances else 99.0
+        if proximity < 99.0 or "INVALIDATED" in (pullback_state, breakout_state):
+            watch_rows.append({
+                "Symbol": item["Symbol"], "Last": px, "Signal": item["Signal"],
+                "Pullback status": pullback_state, "Pullback range": f"${float(p_low):,.2f}–${float(p_high):,.2f}",
+                "Breakout status": breakout_state, "Breakout trigger": float(b_trigger),
+                "Nearest setup (ATR)": proximity, "Score": int(item["Score"])
+            })
+    if watch_rows:
+        watch_df = pd.DataFrame(watch_rows).sort_values(
+            ["Nearest setup (ATR)", "Score"] if "Score" in watch_rows[0] else ["Nearest setup (ATR)"],
+            ascending=True
+        )
+        st.dataframe(
+            watch_df.drop(columns=["Nearest setup (ATR)"]).style.format(
+                {"Last": "${:,.2f}", "Breakout trigger": "${:,.2f}"}
+            ),
+            use_container_width=True, hide_index=True
+        )
+        st.caption("Only assets inside a watch range, within one ATR of a watch level, or with an invalidated scenario are shown. Refresh the market scan to update.")
+    else:
+        st.info("No scanned assets are currently near their calculated pullback or breakout watch levels. That's okay—no need to force a trade.")
 
 with paper_tab:
     st.subheader("Virtual account")

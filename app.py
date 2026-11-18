@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.19 · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.20 · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -297,6 +297,21 @@ def load_latest_cloud_scan():
     )
     return result.data[0] if result.data else None
 
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_strategy_signal_events():
+    """Load persisted first-seen signals and their observed forward outcomes."""
+    client = get_supabase_client()
+    result = (
+        client.table("strategy_signal_observations")
+        .select("symbol,signal_date,setup_type,signal,entry_price,stop_reference,target_reference,setup_score,market_regime,outcomes")
+        .order("signal_date", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
+
 try:
     db = get_supabase_client()
     if not st.session_state.get("paper_db_loaded", False):
@@ -419,7 +434,7 @@ def build_closed_trade_metrics(journal):
 def safe_pct(numerator, denominator):
     return (numerator / denominator * 100.0) if denominator else 0.0
 
-command_tab, scanner_tab, paper_tab, analytics_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "☁️ Cloud scanner"])
+command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "🧪 Strategy validation", "☁️ Cloud scanner"])
 
 with command_tab:
     @st.fragment(run_every="60s")
@@ -543,11 +558,86 @@ with command_tab:
     render_command_center()
 
 
+with validation_tab:
+    st.subheader("🧪 Strategy validation lab")
+    st.caption("Tracks each eligible signal once, at its first observed daily close, then records what happened over 1, 3, 5, 10 and 20 subsequent trading sessions. Results update as new daily bars arrive.")
+    if st.button("↻ Refresh validation data", key="refresh_validation_events"):
+        load_strategy_signal_events.clear()
+    try:
+        validation_events = load_strategy_signal_events()
+    except Exception as exc:
+        validation_events = []
+        st.error(f"Could not load signal observations: {exc}")
+    outcome_rows = []
+    for event in validation_events:
+        outcomes = event.get("outcomes") or {}
+        for horizon, result in outcomes.items():
+            row = {
+                "Symbol": event.get("symbol"),
+                "Signal date": event.get("signal_date"),
+                "Setup": event.get("setup_type"),
+                "Signal": event.get("signal"),
+                "Regime": event.get("market_regime"),
+                "Horizon": horizon,
+                "Return %": result.get("close_return_pct"),
+                "MFE %": result.get("mfe_pct"),
+                "MAE %": result.get("mae_pct"),
+                "SPY return %": result.get("spy_return_pct"),
+                "Excess vs SPY (pp)": result.get("excess_vs_spy_pp"),
+                "Win": result.get("win"),
+            }
+            outcome_rows.append(row)
+    if validation_events:
+        total_events = len(validation_events)
+        completed_5d = sum(1 for r in outcome_rows if r["Horizon"] == "5d")
+        completed_20d = sum(1 for r in outcome_rows if r["Horizon"] == "20d")
+        v1, v2, v3, v4 = st.columns(4)
+        v1.metric("Unique signal events", f"{total_events:,}")
+        v2.metric("With 5-session result", f"{completed_5d:,}")
+        v3.metric("With 20-session result", f"{completed_20d:,}")
+        v4.metric("Awaiting outcomes", f"{total_events - completed_20d:,}")
+        st.markdown("#### Realized forward outcomes by setup and horizon")
+        if outcome_rows:
+            outcomes_df = pd.DataFrame(outcome_rows)
+            summary = (outcomes_df.groupby(["Setup", "Regime", "Horizon"], dropna=False)
+                       .agg(Events=("Win", "count"),
+                            Win_rate_pct=("Win", lambda x: 100.0 * x.dropna().astype(bool).mean() if x.dropna().size else np.nan),
+                            Avg_return_pct=("Return %", "mean"),
+                            Median_return_pct=("Return %", "median"),
+                            Avg_MFE_pct=("MFE %", "mean"),
+                            Avg_MAE_pct=("MAE %", "mean"),
+                            Avg_excess_vs_SPY_pp=("Excess vs SPY (pp)", "mean"))
+                       .reset_index()
+                       .sort_values(["Setup", "Horizon", "Regime"]))
+            st.dataframe(summary.style.format({
+                "Win_rate_pct":"{:.1f}%", "Avg_return_pct":"{:+.2f}%",
+                "Median_return_pct":"{:+.2f}%", "Avg_MFE_pct":"{:+.2f}%",
+                "Avg_MAE_pct":"{:+.2f}%", "Avg_excess_vs_SPY_pp":"{:+.2f}"
+            }, na_rep="—"), use_container_width=True, hide_index=True)
+            st.markdown("#### Latest completed signal outcomes")
+            recent = outcomes_df.sort_values(["Signal date", "Symbol"], ascending=[False, True]).head(100)
+            st.dataframe(recent.style.format({
+                "Return %":"{:+.2f}%", "MFE %":"{:+.2f}%", "MAE %":"{:+.2f}%",
+                "SPY return %":"{:+.2f}%", "Excess vs SPY (pp)":"{:+.2f}"
+            }, na_rep="—"), use_container_width=True, hide_index=True)
+        else:
+            st.info("Signals have been recorded. Forward-outcome columns will populate after enough subsequent daily sessions have elapsed.")
+        st.caption("A signal is recorded once per symbol, date and setup. Horizons use the next completed daily sessions after the signal date. MFE/MAE are intraperiod excursions, not executable fills. Benchmark excess is close-to-close versus SPY. This is observational research—not a backtest with confirmed fills.")
+    else:
+        st.info("No signal observations have been recorded yet. The cloud worker will begin populating this table on its next successful market scan.")
+    st.markdown("#### Validation methodology")
+    st.write("- First-seen eligible BUY CANDIDATE and WATCH signals with PULLBACK WATCH or BREAKOUT WATCH setups are frozen at their initial daily close.")
+    st.write("- Market regime is captured at signal time using SPY's 50/200-day trend and 20-day return.")
+    st.write("- Each event is followed for 1, 3, 5, 10 and 20 subsequent trading sessions.")
+    st.write("- Returns are compared with SPY over the same horizon; MFE and MAE show the best and worst observed price excursion.")
+    st.warning("This first validation release does not simulate stop/target execution, slippage, commissions, taxes, dividends, or portfolio constraints. Signals can overlap, and the universe is curated rather than survivorship-bias-free. Do not interpret these statistics as proof of a tradable edge.")
+
+
 with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.18 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.20 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."

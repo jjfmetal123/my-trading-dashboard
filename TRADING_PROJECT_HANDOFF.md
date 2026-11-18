@@ -307,3 +307,16 @@ When the user says **“Resume the trading project”**:
 ### Dashboard V3.29 protection reason detail
 - The Cloud Scanner decision table now shows the exact broker position protection reason alongside status, open shares, stop shares, and target shares.
 - App commit `c0aedd152c80c2709a5c125206cb3b4fdaced909` passed syntax CI run `44402000809`. Streamlit Community Cloud visual deployment remains unverified.
+
+
+## 14. V5.34 partial-exit and lifecycle hardening / Dashboard V3.30 (Nov 18, 2026)
+- Found and fixed a lifecycle classification gap: `CANCEL_PENDING` and `REPLACE_PENDING` no longer count as confirmed protective coverage. Only accepted, pending-acceptance, and partially-filled child exits count as active.
+- Exit protection now compares each child's remaining quantity (`qty - filled_qty`) with actual open broker position shares. A partially filled stop is considered protective only if its remaining shares still match the current position and the target's remaining shares also match.
+- Multiple active stop or target legs of the same role are treated as ambiguous and fail closed. Unknown exit quantities remain UNKNOWN; zero remaining quantity is inactive.
+- Entry gate now rejects incomplete/malformed snapshots, malformed position rows, and reported `position_count` mismatches rather than assuming missing data means zero positions.
+- Worker helper commit `63473dc531106b74e50486ab0bfb77a18ff09c31`; tests commit `289e9d13052db9d4a2fd1697b8fc746d06043ea7` initially exposed a classification expectation mismatch. The helper was corrected in `bfa590467f31c9fcc980b99c34bf35ac176c4738`. Snapshot count validation commit `18a8ecb129ce52ea239a7389c33ab7b094289059`; position count regression tests commit `9f38aadfe53f1997e12f73f8257cb692f5f23343`.
+- CI for final pre-version helper commits: Python tests `44402839158` SUCCESS; Python checks `44402838809` SUCCESS. Snapshot-count validation tests/syntax `44402908221`, `44402907586` SUCCESS. Latest full tests and checks on `9f38aadf...` passed (`44402932120`, `44402931935`).
+- Worker version bump commit `53e95450682bcfc2a98736b2d7c9ecef0a86a1c0`; worker README commit `ee590a4f8a4e7e0eb59d6dfb6c31c15ac77b2808`. Render deployment for these commits must be verified before calling V5.34 live.
+- Dashboard V3.30 code commit `dcd80769dfa57b3f43ff6c65c8ccefe5255f4f2a` displays remaining stop/target shares rather than original quantities; its syntax CI run `44402974481` is still in progress at handoff time. Dashboard README update follows.
+- The verified Alpaca paper account has zero open positions; no test orders were created. This audit is unit-tested but hasn't yet been observed on an actual open broker position. Paper execution switch remains OFF; no live brokerage endpoints are supported.
+- Continue next with real read-only order snapshot fixtures for Alpaca bracket child lifecycle transitions, plus worker fail-closed integration tests for snapshot fetch failure and stale snapshot age. Confirm Render and Streamlit deployment states before announcing releases.

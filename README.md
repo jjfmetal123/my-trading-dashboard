@@ -62,3 +62,7 @@ GitHub Actions compiles `app.py` on pushes and pull requests. The cloud worker h
 - Decision history now includes broker-confirmed lifecycle state, filled and remaining share quantities, and attached protective exit-leg states from the worker's nested read-only order snapshot.
 - Broker lifecycle statuses are included in the broker-order count. Unknown broker states are not counted as confirmed broker orders.
 - All additions are read-only. The dashboard continues to keep the Supabase virtual paper account separate from the Alpaca paper brokerage account.
+
+
+## Dashboard V3.29 broker position protection audit
+The Cloud Scanner's read-only Alpaca decision table now includes the broker-reported open position quantity, stop-exit quantity, target-exit quantity, and a protection audit status. The dashboard counts non-PROTECTED audit states for review. PROTECTED is shown only when both active bracket exits exactly match the actual open position quantity. This is a read-only audit; it does not modify broker orders or either paper account.

@@ -410,3 +410,10 @@ When the user says **“Resume the trading project”**:
 
 - Additional worker-cycle regression coverage: added `tests/test_worker_execution_snapshot_gate.py` with four execution-cycle checks: missing snapshot skips without database access; stale snapshot skips before daily guardrail/database access; missing position_count blocks before market scan; and a complete fresh empty-account snapshot reaches the market-closed gate without querying candidates. Optional yfinance/Supabase/OpenAI imports are stubbed only for these isolated unit tests; no network or broker action occurs.
 - Full deterministic suite now passes **170 tests** plus compile checks on test commit `065dba24ebd41bf733353888506216ea7544033a`, CI run `44410732448` SUCCESS. V5.39 code remains live from Render deploy `dep-dbv28l7trrvc73b9c4e0` (commit `825771e4...`), which includes the corrected V5.39 docstring. The latest test-only commit's Render build is still in progress at the time of this note; no runtime code changed in that test commit.
+
+
+### V5.39 snapshot-cycle integration tests
+- Added worker-level tests around `run_paper_execution_cycle`: missing snapshot returns without DB access; stale snapshot exits before daily-loss persistence; missing `position_count` blocks before candidate/market-scan work; a complete fresh empty snapshot reaches the expected market-closed gate without touching the DB.
+- The first attempt correctly surfaced that the minimal CI environment does not install optional provider SDKs. Added import-only stubs for yfinance, Supabase, and OpenAI in the test module; no network clients are invoked by these tests.
+- Final worker test run `44410732448` SUCCESS and syntax run `44410732398` SUCCESS on commit `065dba24ebd41bf733353888506216ea7544033a`.
+- This final commit adds tests/stubs only; the V5.39 runtime code was already live on Render commit `825771e4bb85a33a14a44b0360f934fd0f2b1d13` (deploy `dep-dbv28l7trrvc73b9c4e0`). The follow-on test-only commit `065dba24...` has a Render build in progress and does not alter worker runtime behavior.

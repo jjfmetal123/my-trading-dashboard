@@ -305,7 +305,7 @@ def load_strategy_signal_events():
     client = get_supabase_client()
     result = (
         client.table("strategy_signal_observations")
-        .select("symbol,signal_date,setup_type,signal,entry_price,stop_reference,target_reference,setup_score,market_regime,outcomes")
+        .select("symbol,signal_date,setup_type,signal,entry_price,stop_reference,target_reference,setup_score,market_regime,outcomes,created_at,updated_at")
         .order("signal_date", desc=True)
         .limit(5000)
         .execute()
@@ -594,6 +594,9 @@ with validation_tab:
         total_events = len(validation_events)
         completed_5d = sum(1 for r in outcome_rows if r["Horizon"] == "5d")
         completed_20d = sum(1 for r in outcome_rows if r["Horizon"] == "20d")
+        latest_capture = max((str(e.get("created_at") or "") for e in validation_events), default="")
+        latest_signal_date = max((str(e.get("signal_date") or "") for e in validation_events), default="")
+        st.caption(f"Pipeline status: {total_events:,} observations saved · newest signal date {latest_signal_date or '—'} · latest database capture {latest_capture or '—'}")
         v1, v2, v3, v4 = st.columns(4)
         v1.metric("Unique signal events", f"{total_events:,}")
         v2.metric("With 5-session result", f"{completed_5d:,}")

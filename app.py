@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.21 · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.22 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -300,6 +300,21 @@ def load_latest_cloud_scan():
 
 
 @st.cache_data(ttl=60, show_spinner=False)
+def load_latest_historical_portfolio_replay():
+    """Load the newest historical shared-capital replay, preferring V7 when present."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_portfolio_replay_runs")
+        .select("model_version,as_of_date,updated_at,total_return_pct,final_equity,max_drawdown_pct,closed_trades,result")
+        .in_("model_version", ["HISTORICAL_PORTFOLIO_REPLAY_V7", "HISTORICAL_PORTFOLIO_REPLAY_V6"])
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_strategy_signal_events():
     """Load persisted first-seen signals and their observed forward outcomes."""
     client = get_supabase_client()
@@ -443,6 +458,7 @@ with command_tab:
         st.caption("A live overview of the cloud worker's latest completed scan, AI research review, market leadership and paper-portfolio risk. Refreshes from Supabase every 60 seconds.")
         if st.button("↻ Refresh command center", key="refresh_command_center"):
             load_latest_cloud_scan.clear()
+            load_latest_historical_portfolio_replay.clear()
         try:
             scan = load_latest_cloud_scan()
         except Exception as exc:
@@ -551,6 +567,82 @@ with command_tab:
                     st.caption("Out-of-sample is the later 30% of each symbol's history. This is a historical holdout, not a rolling walk-forward or proof of future performance; transaction costs and survivorship-bias adjustments are not included.")
                 else:
                     st.info("Historical setup study is unavailable.")
+            st.divider()
+            st.markdown("#### 🧮 Shared-capital historical portfolio replay")
+            try:
+                replay_row = load_latest_historical_portfolio_replay()
+            except Exception as exc:
+                replay_row = None
+                st.warning(f"Historical portfolio replay could not be loaded: {exc}")
+            if replay_row:
+                replay_result = replay_row.get("result") or {}
+                walk = replay_result.get("walk_forward") or {}
+                model_label = replay_row.get("model_version", "Unknown model")
+                as_of_label = replay_row.get("as_of_date", "Unknown date")
+                st.caption(f"{model_label} · Market data through {as_of_label} · Saved {replay_row.get('updated_at', 'time unavailable')}")
+                m1, m2, m3, m4 = st.columns(4)
+                ret = replay_row.get("total_return_pct")
+                m1.metric("Historical holdout", f"{float(ret):+.2f}%" if ret is not None else "—")
+                equity_value = replay_row.get("final_equity")
+                m2.metric("Ending equity", f"${float(equity_value):,.2f}" if equity_value is not None else "—")
+                dd = replay_row.get("max_drawdown_pct")
+                m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
+                m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
+                wf_cols = st.columns(3)
+                wf_cols[0].metric(
+                    "Walk-forward periods positive",
+                    f"{int(walk.get('positive_test_windows') or 0)}/{int(walk.get('windows') or 0)}"
+                )
+                wf_mean = walk.get("mean_test_return_pct")
+                wf_cols[1].metric("Mean fold return", f"{float(wf_mean):+.2f}%" if wf_mean is not None else "—")
+                wf_cols[2].metric(
+                    "Training samples sufficient",
+                    f"{int(walk.get('windows_with_sufficient_training_events') or 0)}/{int(walk.get('windows') or 0)}"
+                )
+
+                standalone = replay_result.get("out_of_sample_asset_class_only") or {}
+                accepted = replay_result.get("out_of_sample_by_asset_class") or {}
+                pooled = walk.get("aggregate_test_by_asset_class") or {}
+                pooled_cost = walk.get("aggregate_moderate_cost_test_by_asset_class") or {}
+                asset_rows = []
+                for key, label in (("CRYPTO", "Crypto"), ("NON_CRYPTO", "Stocks / ETFs / other")):
+                    solo = standalone.get(key) or {}
+                    mixed = accepted.get(key) or {}
+                    wf_asset = pooled.get(key) or {}
+                    wf_cost = pooled_cost.get(key) or {}
+                    asset_rows.append({
+                        "Asset class": label,
+                        "Standalone OOS return %": solo.get("total_return_pct"),
+                        "Standalone max DD %": solo.get("max_drawdown_pct"),
+                        "Standalone trades": solo.get("closed_trades"),
+                        "Mixed-portfolio trades": mixed.get("trades"),
+                        "Mixed-portfolio trade P&L $": mixed.get("total_net_pnl"),
+                        "Walk-forward pooled P&L $": wf_asset.get("total_net_pnl"),
+                        "Walk-forward moderate-cost P&L $": wf_cost.get("total_net_pnl"),
+                    })
+                asset_df = pd.DataFrame(asset_rows)
+                st.dataframe(
+                    asset_df.style.format({
+                        "Standalone OOS return %": "{:+.2f}%",
+                        "Standalone max DD %": "{:.2f}%",
+                        "Standalone trades": "{:,.0f}",
+                        "Mixed-portfolio trades": "{:,.0f}",
+                        "Mixed-portfolio trade P&L $": "${:+,.2f}",
+                        "Walk-forward pooled P&L $": "${:+,.2f}",
+                        "Walk-forward moderate-cost P&L $": "${:+,.2f}",
+                    }, na_rep="—"),
+                    use_container_width=True, hide_index=True
+                )
+                st.caption(
+                    "Standalone rows each start with separate fresh capital. Mixed-portfolio P&L is the closed-trade contribution "
+                    "from trades accepted in the combined shared-cash run. Walk-forward pooled P&L sums closed trades across test folds; "
+                    "it is not a compounded portfolio return. Moderate costs assume 20 bps spread and 10 bps slippage."
+                )
+                if model_label.endswith("_V6"):
+                    st.info("V7 adds isolated crypto/non-crypto portfolios and pooled asset-class walk-forward attribution. The dashboard will switch to V7 when that run is saved.")
+            else:
+                st.info("No historical portfolio replay is saved yet. The cloud worker will populate this panel after its historical simulation completes.")
+
             missing = health.get("missing_symbols") or []
             if missing:
                 st.caption(f"Symbols missing usable history in this scan: {', '.join(missing)}")
@@ -2029,4 +2121,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.16 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, broker access, or real order execution. The historical setup event study is descriptive and is not a validated backtest. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay, ATR-based setup diagnostics and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.22 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

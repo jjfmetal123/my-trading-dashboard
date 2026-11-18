@@ -425,7 +425,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.17 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.18 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -459,6 +459,18 @@ with cloud_tab:
                 f"Source: {cloud_scan.get('data_source', 'Not specified')} · "
                 f"Scan type: {cloud_scan.get('scan_type', 'Not specified')}"
             )
+            scan_health = (cloud_scan.get("ai_review") or {}).get("scan_health") or {}
+            if scan_health:
+                st.markdown("#### 🩺 Scan health & data coverage")
+                h1, h2, h3 = st.columns(3)
+                h1.metric("Usable symbols", f"{scan_health.get('analyzed_symbols', 0)}/{scan_health.get('requested_symbols', 0)}")
+                h2.metric("Coverage", f"{scan_health.get('coverage_pct', 0):.1f}%")
+                h3.metric("Latest price date", str(scan_health.get("latest_price_date") or "Unavailable"))
+                missing_symbols = scan_health.get("missing_symbols") or []
+                if missing_symbols:
+                    with st.expander(f"Symbols without usable history ({len(missing_symbols)})"):
+                        st.write(", ".join(missing_symbols))
+                st.caption(scan_health.get("note", "Coverage is based on symbols with sufficient usable daily history."))
 
             st.markdown("#### Signal counts")
             if counts:
@@ -611,7 +623,12 @@ with cloud_tab:
                     vc[1].metric("5-day win rate", f"{metrics['win_rate_5d_pct']:.1f}%" if metrics.get("win_rate_5d_pct") is not None else "—")
                     vc[2].metric("10-day average", f"{metrics['average_return_10d_pct']:+.2f}%" if metrics.get("average_return_10d_pct") is not None else "—")
                     vc[3].metric("20-day average", f"{metrics['average_return_20d_pct']:+.2f}%" if metrics.get("average_return_20d_pct") is not None else "—")
-                st.caption("Historical observations are not live signals or evidence of future profitability. Events may overlap; returns exclude trading costs and survivorship-bias adjustments.")
+                    ex = st.columns(4)
+                    ex[0].metric("5D avg favorable move", f"{metrics['average_mfe_5d_pct']:+.2f}%" if metrics.get("average_mfe_5d_pct") is not None else "—")
+                    ex[1].metric("5D avg adverse move", f"{metrics['average_mae_5d_pct']:+.2f}%" if metrics.get("average_mae_5d_pct") is not None else "—")
+                    ex[2].metric("20D avg favorable move", f"{metrics['average_mfe_20d_pct']:+.2f}%" if metrics.get("average_mfe_20d_pct") is not None else "—")
+                    ex[3].metric("20D avg adverse move", f"{metrics['average_mae_20d_pct']:+.2f}%" if metrics.get("average_mae_20d_pct") is not None else "—")
+                st.caption("Historical observations are not live signals or evidence of future profitability. Favorable/adverse excursions show best/worst intraperiod price movement, not an achievable fill. Events may overlap; returns exclude trading costs and survivorship-bias adjustments.")
 
             st.divider()
             st.markdown("### 🤖 Automatic AI second-stage review")
@@ -685,7 +702,7 @@ with cloud_tab:
             else:
                 st.info("The latest scan is saved, but its AI review is not available yet. The worker may still be reviewing it, or the AI request may have failed. The next scheduled scan will try again.")
 
-            st.caption("V3.15 refined ranking uses continuous trend, momentum, RSI, weekly alignment, relative strength versus SPY and the mapped sector ETF, plus a volatility penalty. Setup diagnostics classify pullback/breakout watches and extended conditions using daily ATR and prior 20-day ranges; scenario levels are research references only. A bounded sector-rotation overlay is then applied. The separate mechanical signal score and BUY CANDIDATE/WATCH labels remain unchanged; unmapped assets receive no sector adjustment.")
+            st.caption("V3.18 refined ranking uses continuous trend, momentum, RSI, weekly alignment, relative strength versus SPY and the mapped sector ETF, plus a volatility penalty. Setup diagnostics classify pullback/breakout watches and extended conditions using daily ATR and prior 20-day ranges; scenario levels are research references only. A bounded sector-rotation overlay is then applied. The separate mechanical signal score and BUY CANDIDATE/WATCH labels remain unchanged; unmapped assets receive no sector adjustment.")
             st.warning(
                 "The scanner uses Yahoo Finance daily bars. The AI is a second opinion based only on the supplied scan facts; it does not verify live quotes, news, filings, fundamentals, or intraday conditions. Rankings are research prioritization, not buy/sell signals or instructions to trade. The cloud worker is observation-only."
             )

@@ -199,3 +199,14 @@ When the user says **“Resume the trading project”**:
 5. Add persisted daily loss breaker and session-level reconciliation.
 6. Update dashboard decision UI to distinguish `ORDER_INTENT`, broker accepted/filled/partial, and exit-leg lifecycle states.
 7. Keep execution OFF until full end-to-end paper lifecycle tests pass and the user explicitly approves enabling automatic paper trading.
+
+
+## 10. V5.31 broker lifecycle audit reconciliation (Nov 18, 2026)
+
+- V5.30 is confirmed live on Render; latest prior startup log reported V5.30 and paper-only safety mode.
+- Added read-only recent-order snapshot (latest 100 broker orders) and normalized order lifecycle fields: accepted/pending, partial fills, filled, canceled, expired, rejected, replace/cancel pending, plus nested bracket legs and unresolved exit-leg states.
+- Worker V5.31 now reconciles its own stable `scan-` client order IDs against `paper_trade_decisions` and updates audit rows with broker-confirmed lifecycle status and nested lifecycle snapshot. This does not call any Alpaca order-modification endpoint.
+- Added `broker_lifecycle.py` and `tests/test_broker_lifecycle.py`; worker source commit currently `f2afce57991e5ec377d300da7a3f2c3b7b00e2da`, module commit `a257d7ae9563b83d71eb13bdf77b2f8760ff824b`, test commit `75ead5d3ee7a5d1c9dde6091bd6dbdb9665ed3c7`. README update pending.
+- CI and Render deployment for V5.31 are pending. Verify both before claiming V5.31 live.
+- Important: broker reconciliation is GET-only against Alpaca; audit updates affect only `paper_trade_decisions`. Supabase virtual `paper_account` remains untouched. `ALPACA_PAPER_TRADING_ENABLED` remains false/unset. Never enable until full lifecycle integration tests and explicit user approval.
+- Next: add tests for audit-row reconciliation and missing/unknown client IDs; reconcile actual broker position quantity against filled entry quantity and protective exit legs; add persistent daily-loss circuit breaker without changing any live trading state.

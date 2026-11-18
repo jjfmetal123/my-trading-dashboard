@@ -661,7 +661,7 @@ with command_tab:
                     f"{int(walk.get('windows_with_sufficient_training_events') or 0)}/{int(walk.get('windows') or 0)}"
                 )
                 moderate_cost_return = (cost_sensitivity.get("moderate") or {}).get("total_return_pct")
-                if sufficient_folds and (
+                if not sufficient_folds or (
                     positive_sufficient_folds * 2 < len(sufficient_folds)
                     or (moderate_cost_return is not None and float(moderate_cost_return) <= 0)
                 ):

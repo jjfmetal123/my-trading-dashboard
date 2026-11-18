@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.24 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.25 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -842,8 +842,9 @@ with command_tab:
                 st.info("No historical portfolio replay is saved yet. The cloud worker will populate this panel after its historical simulation completes.")
 
             missing = health.get("missing_symbols") or []
-            if missing:
-                st.caption(f"Symbols missing usable history in this scan: {', '.join(missing)}")
+            stale = health.get("stale_symbols") or []
+            if missing or stale:
+                st.warning(f"Data quality: {len(missing)} missing symbol(s) · {len(stale)} potentially stale price(s). Review the cloud scanner's Scan health panel before acting on rankings.")
             limitations = report.get("data_limitations") or []
             if limitations:
                 with st.expander("Data limitations"):
@@ -981,14 +982,29 @@ with cloud_tab:
             scan_health = (cloud_scan.get("ai_review") or {}).get("scan_health") or {}
             if scan_health:
                 st.markdown("#### 🩺 Scan health & data coverage")
-                h1, h2, h3 = st.columns(3)
+                h1, h2, h3, h4 = st.columns(4)
                 h1.metric("Usable symbols", f"{scan_health.get('analyzed_symbols', 0)}/{scan_health.get('requested_symbols', 0)}")
                 h2.metric("Coverage", f"{scan_health.get('coverage_pct', 0):.1f}%")
-                h3.metric("Latest price date", str(scan_health.get("latest_price_date") or "Unavailable"))
+                h3.metric("Stale symbols", int(scan_health.get("stale_count", 0)))
+                h4.metric("Latest price date", str(scan_health.get("latest_price_date") or "Unavailable"))
+                missing_details = scan_health.get("missing_details") or []
                 missing_symbols = scan_health.get("missing_symbols") or []
                 if missing_symbols:
                     with st.expander(f"Symbols without usable history ({len(missing_symbols)})"):
-                        st.write(", ".join(missing_symbols))
+                        if missing_details:
+                            st.dataframe(pd.DataFrame(missing_details).rename(columns={"symbol": "Symbol", "reason": "Why unavailable"}), use_container_width=True, hide_index=True)
+                        else:
+                            st.write(", ".join(missing_symbols))
+                stale_symbols = scan_health.get("stale_symbols") or []
+                if stale_symbols:
+                    with st.expander(f"Potentially stale daily prices ({len(stale_symbols)})"):
+                        st.dataframe(pd.DataFrame(stale_symbols).rename(columns={"symbol": "Symbol", "price_date": "Price date", "age_calendar_days": "Age (calendar days)", "threshold_days": "Warning threshold (days)", "reason": "Why flagged"}), use_container_width=True, hide_index=True)
+                status = scan_health.get("status", "UNKNOWN")
+                if status == "COMPLETE":
+                    st.success("All requested symbols analyzed; no prices crossed the freshness warning thresholds.")
+                elif status in ("PARTIAL_AND_STALE", "PARTIAL", "STALE"):
+                    st.warning(f"Data-quality status: {status}. Review missing symbols and stale prices before relying on rankings.")
+                st.caption(scan_health.get("freshness_method", "Freshness warnings use calendar-day thresholds and may need holiday/provider context."))
                 st.caption(scan_health.get("note", "Coverage is based on symbols with sufficient usable daily history."))
 
             st.markdown("#### Signal counts")

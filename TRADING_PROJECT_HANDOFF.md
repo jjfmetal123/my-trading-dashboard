@@ -479,3 +479,12 @@ When the user says **“Resume the trading project”**:
 - Safety unchanged: order gateway remains fixed to Alpaca paper host, exact PA account identity required, all account restriction flags must be explicitly false, malformed idempotency lookup blocks, and ALPACA_PAPER_TRADING_ENABLED remains OFF.
 
 - V5.42 final verification: worker test and compile run `44413001652` SUCCESS on README commit `5d515d6c2f0ff56171926c6c4ee8b8bb08d8d2c9`; full suite passed **184 tests**. Render deploy `dep-dbv2g70qsg7c73e7oqk0` is LIVE on the V5.42 code/version commit `233d58d8a56df822a6ff8ea0006bdc1260d6f3e6`. Startup at 22:35:58 UTC confirms `WORKER_VERSION=5.42` and the paper-only safety warning. `ALPACA_PAPER_TRADING_ENABLED` remains OFF; no brokerage orders submitted. The follow-on README-only deploy may still be queued; it does not alter worker code.
+
+
+## V5.43 account restriction observability (Nov 18, 2026)
+- Added explicit startup/preflight observability for Alpaca paper-account restriction flags so each eligibility check records the three broker states: `trading_blocked`, `account_blocked`, and `trade_suspended_by_user`. These remain required explicit booleans set to false; missing, unknown, malformed, or true values fail closed.
+- The order gateway independently checks the same restrictions before order lookup or submission; this is observability and defense-in-depth, not an execution enablement.
+- V5.43 code/version commit `a1f5885d43f1`; README/docs commit `d9d8e2a6c5d31ee3e7b4aa4c5f4bf0ef3a9bb4fd`. Worker test + compile run `44413290275` SUCCESS. Full suite passed; no regression in the account, order-identity, lifecycle, or risk-gate checks.
+- Render deploy for docs commit `d9d8e2a6...` is building as of 22:37 UTC; previous V5.42 deployment remains the last confirmed LIVE version until V5.43 startup is verified.
+- Latest Render scan logs from the existing worker show 239/240 daily symbols analyzed (99.6% coverage); UNI-USD was the one Yahoo Finance no-data symbol. The scanner reported 41 BUY CANDIDATE labels, but these are research observations only—not execution approvals or trades. Data coverage remains visibly PARTIAL rather than silently treating missing data as complete.
+- Safety remains unchanged: `ALPACA_PAPER_TRADING_ENABLED` OFF, no brokerage orders submitted, no live endpoints, and Supabase virtual holdings remain separate.

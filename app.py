@@ -299,6 +299,20 @@ def load_latest_cloud_scan():
 
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def load_latest_paper_trade_decisions():
+    """Load recent paper-only decision audit rows; this never mutates an account."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_trade_decisions")
+        .select("symbol,status,reason,quote_timestamp,quote_feed,bid,ask,midpoint,spread_pct,quantity,estimated_notional,estimated_risk_dollars,current_reward_risk,broker_order_id,client_order_id,updated_at")
+        .order("updated_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return result.data or []
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_latest_historical_portfolio_replay():
     """Load the newest historical shared-capital replay, preferring V7 when present."""
@@ -945,7 +959,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.26 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.27 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -953,6 +967,7 @@ with cloud_tab:
         refresh_cloud = st.button("Refresh cloud results", key="refresh_cloud_results")
         if refresh_cloud:
             load_latest_cloud_scan.clear()
+            load_latest_paper_trade_decisions.clear()
         try:
             cloud_scan = load_latest_cloud_scan()
         except Exception as exc:
@@ -1006,6 +1021,59 @@ with cloud_tab:
                     st.warning(f"Data-quality status: {status}. Review missing symbols and stale prices before relying on rankings.")
                 st.caption(scan_health.get("freshness_method", "Freshness warnings use calendar-day thresholds and may need holiday/provider context."))
                 st.caption(scan_health.get("note", "Coverage is based on symbols with sufficient usable daily history."))
+
+            st.divider()
+            st.markdown("### 🤖 Alpaca paper-trading decisions")
+            st.caption(
+                "Read-only decision audit from the separate Alpaca paper workflow. "
+                "Fresh quotes and risk gates are evaluated by the cloud worker. "
+                "The order switch remains OFF until the full broker lifecycle is validated and explicitly enabled."
+            )
+            try:
+                decision_rows = load_latest_paper_trade_decisions()
+            except Exception as exc:
+                decision_rows = []
+                st.warning("Paper decision history is not available yet.")
+                st.caption(f"Technical detail: {exc}")
+            if decision_rows:
+                decision_df = pd.DataFrame(decision_rows)
+                statuses = decision_df.get("status", pd.Series(dtype=str)).fillna("UNKNOWN")
+                ready_count = int(statuses.isin(["READY_NOT_SUBMITTED", "READY_FOR_PAPER_ORDER"]).sum())
+                submitted_count = int(statuses.isin(["ORDER_SUBMITTED", "ORDER_ALREADY_EXISTS"]).sum())
+                blocked_count = int(statuses.eq("BLOCKED").sum())
+                d1, d2, d3, d4 = st.columns(4)
+                d1.metric("Recent decisions", len(decision_df))
+                d2.metric("Ready (not submitted)", ready_count)
+                d3.metric("Broker orders", submitted_count)
+                d4.metric("Blocked by risk gates", blocked_count)
+                decision_columns = [
+                    "symbol", "status", "reason", "quote_feed", "quote_timestamp",
+                    "bid", "ask", "midpoint", "spread_pct", "quantity",
+                    "estimated_notional", "estimated_risk_dollars",
+                    "current_reward_risk", "broker_order_id", "updated_at"
+                ]
+                visible = [col for col in decision_columns if col in decision_df.columns]
+                decision_df = decision_df[visible].rename(columns={
+                    "symbol": "Symbol", "status": "Decision", "reason": "Gate result",
+                    "quote_feed": "Quote feed", "quote_timestamp": "Quote timestamp (UTC)",
+                    "bid": "Bid", "ask": "Ask", "midpoint": "Midpoint",
+                    "spread_pct": "Spread %", "quantity": "Shares",
+                    "estimated_notional": "Est. notional", "estimated_risk_dollars": "Est. risk $",
+                    "current_reward_risk": "Current R:R", "broker_order_id": "Alpaca order ID",
+                    "updated_at": "Last evaluated"
+                })
+                number_formats = {
+                    "Bid": "${:,.2f}", "Ask": "${:,.2f}", "Midpoint": "${:,.2f}",
+                    "Spread %": "{:.3f}%", "Est. notional": "${:,.2f}",
+                    "Est. risk $": "${:,.2f}", "Current R:R": "{:.2f}"
+                }
+                st.dataframe(
+                    decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
+                    use_container_width=True, hide_index=True
+                )
+                st.caption("A READY_NOT_SUBMITTED row is a simulated decision only; it is not an order or fill. Quote timestamps are UTC.")
+            else:
+                st.info("No Alpaca paper decisions have been recorded yet. The dashboard's Supabase virtual paper account is separate.")
 
             st.markdown("#### Signal counts")
             if counts:

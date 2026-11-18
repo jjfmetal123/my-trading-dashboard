@@ -421,3 +421,10 @@ When the user says **“Resume the trading project”**:
 
 - Final V5.39 deployment verification: Render deploy `dep-dbv29ksel2ts73b8784g` is LIVE on test/stub commit `065dba24ebd41bf733353888506216ea7544033a`. Startup at 22:22:15 UTC confirms `WORKER_VERSION=5.39`; safety log explicitly confirms order submission remains disabled unless the explicit paper flag is enabled. The new instance continues to monitor only the separate Supabase virtual AAPL/MSFT positions; Alpaca paper read-only snapshot verification was completed on the preceding V5.39 runtime deployment. No brokerage orders were submitted.
 - Dashboard handoff syntax workflow for the current note is run `44410892055`; verify its completion before treating the handoff CI as green.
+
+
+### V5.39 expanded worker preflight matrix (Nov 18, 2026)
+- Expanded integration-level run_paper_execution_cycle tests with three additional cases: non-PA/unverified account identity blocks before the daily guardrail, trading_blocked=true blocks before the guardrail, and an existing unprotected position blocks before market-scan access.
+- Combined with the earlier four cases (missing snapshot, stale snapshot, missing position count, and complete fresh empty snapshot), the worker-level preflight matrix now covers seven critical gate paths.
+- Full unit suite and compile checks passed on commit 33e1927ed3430fd9e9df8c4393c8d94a66a14b0a: test run 44410890180 SUCCESS; syntax run 44410890066 SUCCESS. Dashboard handoff syntax run 44410892055 SUCCESS before this additional note.
+- README update commit f10a2fb0c2c97bf4ff0f76e1f3df1dc83dde4f51 documents the added preflight tests. The V5.39 worker code is already live; subsequent test/documentation-only commits do not change the execution engine. Keep paper execution OFF.

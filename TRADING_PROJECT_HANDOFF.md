@@ -490,3 +490,11 @@ When the user says **“Resume the trading project”**:
 - Safety remains unchanged: `ALPACA_PAPER_TRADING_ENABLED` OFF, no brokerage orders submitted, no live endpoints, and Supabase virtual holdings remain separate.
 
 - V5.43 final verification: worker test/compile run `44413290275` SUCCESS; Render deploy `dep-dbv2h39j7cmc73dfe5ig` LIVE. Runtime startup at 22:38:26 UTC confirms `WORKER_VERSION=5.43`; read-only Alpaca paper snapshot at 22:38:28 UTC shows ACTIVE, $100,000 equity, $200,000 buying power, zero brokerage positions, and all three account restriction flags explicitly false. Safety log confirms order submission remains disabled unless the explicit paper switch is enabled. Dashboard handoff syntax CI run `44413444705` SUCCESS on this update.
+
+
+## V5.43 account-state observability and broker identity response validation (Nov 18, 2026)
+- Added all three account restriction flags to the periodic read-only Alpaca snapshot log. Verified live log at 22:38:28 UTC reports `trading_blocked=false`, `account_blocked=false`, and `trade_suspended_by_user=false`.
+- Existing client-order-ID hits now also require a valid UUID broker order ID and a non-empty lifecycle status before being accepted as already-existing. Malformed IDs or missing status block the idempotent path and never trigger another POST.
+- Added tests for malformed UUID and missing lifecycle status. Final worker test/compile run `44413500064` SUCCESS on test commit `9fd39b75fbc9d6dcae018b72daba56a82a356e46`; full suite passed **186 tests**.
+- V5.43 code/version commit `a1f5885d43f182b88a71a0f73075e01cea6521eb`; order ID/lifecycle validation commit `a3eb088bbf78b5a35d52bb0f87ebfdb56b82ccd9`; README commit `d9d8e2a6c5d31ee3e7b4aa4c5f4bf0ef3a9bb4fd`. Render deploy `dep-dbv2h39j7cmc73dfe5ig` is LIVE and startup confirms `WORKER_VERSION=5.43` at 22:38:26 UTC. Safety log confirms paper order submission remains disabled unless explicit opt-in is enabled.
+- Fresh read-only Alpaca snapshot at 22:38:28 UTC: ACTIVE, $100,000 equity, $200,000 buying power, zero brokerage positions, and all three account restriction flags false. Market was closed; entry evaluation skipped. No brokerage orders submitted.

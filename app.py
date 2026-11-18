@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.27 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.28 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1074,7 +1074,7 @@ with cloud_tab:
                 decision_df = pd.DataFrame(decision_rows)
                 statuses = decision_df.get("status", pd.Series(dtype=str)).fillna("UNKNOWN")
                 ready_count = int(statuses.isin(["READY_NOT_SUBMITTED", "READY_FOR_PAPER_ORDER"]).sum())
-                broker_lifecycle_count = int(statuses.str.startswith("BROKER_").sum())
+                broker_lifecycle_count = int((statuses.str.startswith("BROKER_") & ~statuses.eq("BROKER_UNKNOWN")).sum())
                 submitted_count = int(statuses.isin(["ORDER_SUBMITTED", "ORDER_ALREADY_EXISTS"]).sum()) + broker_lifecycle_count
                 blocked_count = int(statuses.eq("BLOCKED").sum())
 

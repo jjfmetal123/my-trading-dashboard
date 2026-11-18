@@ -42,7 +42,7 @@ with st.sidebar:
 
 UNIVERSE = {
     "Broad market": ["SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "RSP"],
-    "Stocks": ["NVDA", "TSLA", "AMD", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "AVGO", "PLTR", "NFLX", "COST", "LLY", "JPM", "ORCL", "CRM", "MU", "COIN", "HOOD", "SOFI"],
+    "Stocks": ["NVDA", "TSLA", "AMD", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "AVGO", "PLTR", "NFLX", "COST", "LLY", "JPM", "ORCL", "CRM", "MU", "COIN", "HOOD", "SOFI", "GILD", "ICE", "CME", "CL"],
     "Gold & silver": ["GLD", "IAU", "SLV", "GDX", "GDXJ", "SGOL"],
     "Oil & energy": ["USO", "BNO", "XLE", "XOP", "OXY", "XOM", "CVX", "UNG", "URA"],
     "Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "ADA-USD", "LTC-USD", "LINK-USD", "AVAX-USD", "BCH-USD"],
@@ -53,7 +53,7 @@ SECTOR_ETF = {
     "NVDA": "SMH", "AMD": "SMH", "AVGO": "SMH", "MU": "SMH",
     "AAPL": "XLK", "MSFT": "XLK", "ORCL": "XLK", "CRM": "XLK",
     "TSLA": "XLY", "AMZN": "XLY", "COST": "XLP", "LLY": "XLV",
-    "JPM": "XLF", "COIN": "XLF", "HOOD": "XLF", "SOFI": "XLF",
+    "JPM": "XLF", "COIN": "XLF", "HOOD": "XLF", "SOFI": "XLF", "ICE": "XLF", "CME": "XLF", "GILD": "XLV", "CL": "XLP",
     "META": "XLC", "GOOGL": "XLC", "NFLX": "XLC",
     "XOM": "XLE", "CVX": "XLE", "OXY": "XLE",
 }
@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.25 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.26 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -945,7 +945,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.25 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.26 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -2335,4 +2335,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.25 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.26 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

@@ -210,3 +210,18 @@ When the user says **“Resume the trading project”**:
 - CI and Render deployment for V5.31 are pending. Verify both before claiming V5.31 live.
 - Important: broker reconciliation is GET-only against Alpaca; audit updates affect only `paper_trade_decisions`. Supabase virtual `paper_account` remains untouched. `ALPACA_PAPER_TRADING_ENABLED` remains false/unset. Never enable until full lifecycle integration tests and explicit user approval.
 - Next: add tests for audit-row reconciliation and missing/unknown client IDs; reconcile actual broker position quantity against filled entry quantity and protective exit legs; add persistent daily-loss circuit breaker without changing any live trading state.
+
+
+## 11. V5.32 persistent daily-loss guardrail (Nov 18, 2026)
+
+- Created `public.paper_execution_guardrails` through Supabase migration `create_paper_execution_guardrails`. It is keyed by Alpaca paper account and New York trading date and stores starting/current equity, daily P&L, daily loss percentage, halt flag/reason, and update timestamp.
+- Verified the table exists, RLS is enabled, `service_role` has SELECT access, and `anon` / `authenticated` do not. Supabase security advisor shows an informational `rls_enabled_no_policy` finding, consistent with service-role-only tables; no public role privileges were granted.
+- Worker V5.32 adds a persisted 2.0% default daily-loss circuit breaker (`ALPACA_MAX_DAILY_LOSS_PCT`). It latches for the remainder of the New York trading date once breached. Invalid baseline, unverified PA account, or database read/write failure blocks entries.
+- Circuit breaker helper was moved into standalone `daily_loss_guardrail.py` so tests do not import the heavy worker runtime. Worker source commit `d82a3d20a2d2c5ec81ce834f3a7e4de88da78fab`; helper extraction commit `4f39eb9f0a6496ea2d7b267f8c05cb185810ff47`; worker integration commit `55d76e49cfbef753143e236680721757e59d8cee`; test isolation commit `408b057fad12507f620fb88f0df131e559833ffe`. Latest README V5.32 and SQL schema file are in the worker repository.
+- Earlier CI failures were caused by the integration test importing `worker.py` (which requires yfinance, not installed in the lightweight unit-test job). That dependency was removed by moving persistence logic to the standalone helper. Latest CI for `408b057...` was queued/in progress at last check; verify before sign-off.
+- Render has not yet been confirmed running V5.32. Latest verified Render startup still showed V5.31. A later Render deploy for the guardrail schema commit was queued/building; check latest deploy and startup logs before calling V5.32 live.
+- Supabase query showed no guardrail rows yet, expected until a V5.32 worker version runs the persistence function. Do not manually seed test values into the production table.
+- This table and code are exclusively for Alpaca paper account risk controls. The separate Supabase virtual `paper_account` and its AAPL/MSFT positions remain untouched.
+- Historical validation caution: the recent shared-cash out-of-sample replay was negative under moderate costs (-2.1082%, profit factor 0.907); non-crypto moderate-cost P&L was -$2,888.68 / PF 0.887. Treat this as evidence that the strategy is not yet validated, not a profit claim. Keep paper execution disabled.
+
+**Next exact tasks:** verify V5.32 CI and Render deployment; add tests around order audit reconciliation; reconcile broker-filled quantity and protective exit-leg quantity to actual Alpaca positions; ensure daily-loss guardrail is called before any candidate evaluation; add dashboard display for broker lifecycle and daily halt state. Do not enable paper orders until the full end-to-end lifecycle is proven and the user explicitly approves.

@@ -30,7 +30,8 @@
 - Dashboard portfolio-risk visibility update previously recorded at commit `2eb42cc2f677745ad065f7e0398fdfb009babbb7`.
 - Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.
 - Dashboard V3.25 scan-quality UI: commit `2f4cd46f890b7f74565afcc12c4ccd600fb68ba2`.
-- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.\n- Dashboard V3.26 expanded local paper-trade scanner universe with GILD, ICE, CME, and CL plus sector mappings: commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`.
+- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.
+- Dashboard V3.26 expanded local paper-trade scanner universe with GILD, ICE, CME, and CL plus sector mappings: commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`.
 
 **Important:** These are known checkpoints, not a claim that they are still the current branch heads. On every resume, fetch the latest default-branch commits for both repositories and reconcile this file with actual source and deploys.
 
@@ -141,9 +142,11 @@ When the user says **“Resume the trading project”**:
 
 ## 8. Immediate next checkpoint
 
-**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol. Render deploy `dep-dbv0d3ju2v8c73fc0dng` was live; follow-up deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest worker commit was still building at last check.
+**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol because Yahoo returned no daily bars. The latest scan at 20:14:50 UTC still showed CME as a pullback watch (daily price about $309.74; reference entry $307.11, stop $296.77, 2R target $327.78). These are daily-bar research levels, not live quotes or orders. Render deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest V5.27 worker commit is now live.
 
-**Latest dashboard CI:** V3.26 syntax job passed on commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5` (run `44388945700`). Streamlit Community Cloud deployment must still be visually verified by refreshing the app.\n\n**Next task:** Confirm V3.26 is live in Streamlit Community Cloud, refresh the cloud scan and local scanner, then use the virtual paper account's risk planner to preview and manually approve any simulated entries.
+**Latest dashboard CI:** V3.26 syntax job passed on commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5` (run `44388945700`). Worker V5.27 Python checks and tests passed on commits `22b7373` and `ee7ca2e`. Streamlit Community Cloud deployment still needs a visual refresh check; GitHub syntax CI passed.
+
+**Next task:** Confirm V3.26 is live in Streamlit Community Cloud, refresh the cloud scan and local scanner, then use the virtual paper account's risk planner to preview and manually approve any simulated entries.
 
 **Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 

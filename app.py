@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.16 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.17 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -425,6 +425,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
+        st.caption("Dashboard V3.17 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -472,7 +473,7 @@ with cloud_tab:
                 ranked_df = pd.DataFrame(ranked)
                 display_columns = [
                     col for col in [
-                        "symbol", "asset_class", "score", "adjusted_score", "signal_score", "sector_group", "sector_rotation_state", "sector_adjustment", "relative_1m_vs_spy_pp", "relative_1m_vs_sector_pp", "trend_points", "momentum_points", "rsi_points", "weekly_points", "volatility_penalty", "signal", "trend",
+                        "symbol", "asset_class", "score", "adjusted_score", "portfolio_fit_score", "portfolio_fit_adjustment", "portfolio_sector_exposure_pct", "portfolio_fit_note", "signal_score", "sector_group", "sector_rotation_state", "sector_adjustment", "relative_1m_vs_spy_pp", "relative_1m_vs_sector_pp", "trend_points", "momentum_points", "rsi_points", "weekly_points", "volatility_penalty", "signal", "trend",
                         "weekly_trend", "risk", "last", "price_date",
                         "return_1w_pct", "return_1m_pct", "return_3m_pct",
                         "rsi", "annualized_volatility_pct", "setup_type", "setup_status", "setup_quality_score", "setup_entry_reference", "setup_stop_reference", "setup_target_reference", "setup_reward_risk", "setup_distance_to_entry_pct", "atr_pct", "reason"
@@ -480,7 +481,7 @@ with cloud_tab:
                 ]
                 ranked_df = ranked_df[display_columns].rename(columns={
                     "symbol": "Symbol", "asset_class": "Asset class", "score": "Technical score",
-                    "adjusted_score": "Refined rank score", "signal_score": "Mechanical signal score", "sector_group": "Sector group",
+                    "adjusted_score": "Refined rank score", "portfolio_fit_score": "Portfolio-fit score", "portfolio_fit_adjustment": "Fit adjustment", "portfolio_sector_exposure_pct": "Existing sector exposure %", "portfolio_fit_note": "Portfolio note", "signal_score": "Mechanical signal score", "sector_group": "Sector group",
                     "sector_rotation_state": "Sector state", "sector_adjustment": "Sector adjustment",
                     "relative_1m_vs_spy_pp": "1M vs SPY (pp)", "relative_1m_vs_sector_pp": "1M vs sector ETF (pp)",
                     "volatility_penalty": "Volatility penalty", "trend_points": "Trend points",
@@ -533,18 +534,18 @@ with cloud_tab:
                         st.dataframe(setup_view.style.format({
                             c: "${:,.2f}" for c in ["Last daily close", "Entry reference", "Stop reference", "Target reference"] if c in setup_view.columns
                         } | {c: "{:.1f}" for c in ["Quality score", "Illustrative R:R"] if c in setup_view.columns} | {c: "{:+.2f}%" for c in ["Distance to reference %"] if c in setup_view.columns} | {c: "{:.2f}%" for c in ["ATR %"] if c in setup_view.columns}), use_container_width=True, hide_index=True)
-                    st.caption("Entry, stop and target values are ATR-based historical scenario references for research only. They are not live quotes, confirmed support/resistance, trade instructions or guaranteed fills. Forward performance validation is not yet included.")
+                    st.caption("Entry, stop and target values are ATR-based historical daily-bar scenario references for research only. They are not live quotes, confirmed support/resistance, trade instructions or guaranteed fills. Descriptive forward event-study results appear below; they are not a validated trading strategy.")
 
             st.markdown("#### Cloud watchlist")
             if watchlist:
                 watch_df = pd.DataFrame(watchlist)
                 watch_columns = [
                     col for col in [
-                        "symbol", "score", "adjusted_score", "signal_score", "sector_group", "sector_rotation_state", "relative_1m_vs_spy_pp", "relative_1m_vs_sector_pp", "signal", "weekly_trend", "return_1m_pct", "rsi", "risk"
+                        "symbol", "score", "adjusted_score", "portfolio_fit_score", "portfolio_fit_adjustment", "portfolio_sector_exposure_pct", "portfolio_fit_note", "signal_score", "sector_group", "sector_rotation_state", "relative_1m_vs_spy_pp", "relative_1m_vs_sector_pp", "signal", "weekly_trend", "return_1m_pct", "rsi", "risk"
                     ] if col in watch_df.columns
                 ]
                 watch_df = watch_df[watch_columns].rename(columns={
-                    "symbol": "Symbol", "score": "Technical score", "adjusted_score": "Refined rank score", "signal_score": "Mechanical signal score",
+                    "symbol": "Symbol", "score": "Technical score", "adjusted_score": "Refined rank score", "portfolio_fit_score": "Portfolio-fit score", "portfolio_fit_adjustment": "Fit adjustment", "portfolio_sector_exposure_pct": "Existing sector exposure %", "portfolio_fit_note": "Portfolio note", "signal_score": "Mechanical signal score",
                     "sector_group": "Sector group", "sector_rotation_state": "Sector state",
                     "relative_1m_vs_spy_pp": "1M vs SPY (pp)", "relative_1m_vs_sector_pp": "1M vs sector ETF (pp)", "signal": "Signal",
                     "return_1m_pct": "1M %", "rsi": "RSI", "risk": "Risk"
@@ -572,6 +573,30 @@ with cloud_tab:
                     "momentum_score": "Momentum score"
                 })
                 st.dataframe(rotation_df.style.format({c: "{:+.2f}" for c in ["1W %", "1M %", "3M %", "1M vs SPY (pp)", "3M vs SPY (pp)", "Momentum score"] if c in rotation_df.columns}), use_container_width=True, hide_index=True)
+
+            portfolio_risk = (cloud_scan.get("ai_review") or {}).get("portfolio_risk") or {}
+            if portfolio_risk:
+                st.divider()
+                st.markdown("### 🛡️ Portfolio concentration & correlation")
+                st.caption(f"Cloud worker version: {portfolio_risk.get('worker_version', (cloud_scan.get('ai_review') or {}).get('worker_version', 'Not recorded'))}")
+                st.caption(portfolio_risk.get("data_note", "Read-only portfolio snapshot from the latest scan."))
+                if portfolio_risk.get("status") == "unavailable":
+                    st.warning(portfolio_risk.get("reason", "Portfolio risk context unavailable."))
+                else:
+                    pc = st.columns(4)
+                    pc[0].metric("Positions", portfolio_risk.get("position_count", 0))
+                    pc[1].metric("Equity reference", f'${float(portfolio_risk.get("equity_reference", 0)):,.2f}')
+                    pc[2].metric("Position value", f'${float(portfolio_risk.get("position_value_reference", 0)):,.2f}')
+                    pc[3].metric("Largest sector", f'{float(portfolio_risk.get("largest_sector_weight_pct", 0)):.1f}%')
+                    sector_weights = portfolio_risk.get("sector_weights_pct") or {}
+                    if sector_weights:
+                        sw = pd.DataFrame([{"Sector / group": k, "Portfolio weight %": v} for k,v in sector_weights.items()])
+                        st.dataframe(sw, use_container_width=True, hide_index=True)
+                    corr_rows = portfolio_risk.get("top_correlated_pairs") or []
+                    if corr_rows:
+                        st.markdown("**Most correlated held-position pairs (60-day daily returns)**")
+                        st.dataframe(pd.DataFrame(corr_rows), use_container_width=True, hide_index=True)
+                    st.caption("Portfolio-fit score is a bounded research-priority adjustment for existing holdings and sector concentration. It is not an order recommendation. Price references may be stale outside market hours.")
 
             validation = (cloud_scan.get("ai_review") or {}).get("setup_validation") or {}
             if validation:

@@ -533,17 +533,22 @@ with command_tab:
                 if setups:
                     rows = []
                     for name, metrics in setups.items():
+                        train = metrics.get("training") or {}
+                        test = metrics.get("out_of_sample") or {}
                         rows.append({
                             "Setup": name.title(),
-                            "Events": metrics.get("event_count", 0),
-                            "5D win rate": metrics.get("win_rate_5d_pct"),
-                            "20D win rate": metrics.get("win_rate_20d_pct"),
-                            "5D MFE": metrics.get("average_mfe_5d_pct"),
-                            "5D MAE": metrics.get("average_mae_5d_pct"),
+                            "De-overlapped events": metrics.get("event_count", 0),
+                            "Train 5D win rate": train.get("win_rate_5d_pct"),
+                            "OOS 5D win rate": test.get("win_rate_5d_pct"),
+                            "Train 5D expectancy": train.get("expectancy_5d_pct"),
+                            "OOS 5D expectancy": test.get("expectancy_5d_pct"),
+                            "OOS 20D win rate": test.get("win_rate_20d_pct"),
+                            "OOS 20D expectancy": test.get("expectancy_20d_pct"),
                         })
                     hist_df = pd.DataFrame(rows)
-                    st.dataframe(hist_df.style.format({c:"{:.1f}%" for c in ["5D win rate","20D win rate","5D MFE","5D MAE"] if c in hist_df.columns}), use_container_width=True, hide_index=True)
-                    st.caption("Descriptive historical events; overlapping observations and no transaction costs. Not a validated strategy.")
+                    st.dataframe(hist_df.style.format({c:"{:+.2f}%" if "expectancy" in c.lower() else "{:.1f}%" for c in hist_df.columns if c not in ["Setup","De-overlapped events"]}, na_rep="—"), use_container_width=True, hide_index=True)
+                    st.caption(f"Chronological 70/30 per-symbol split · {setup.get('de_overlapped_event_count', 0):,} non-overlapping events from {setup.get('raw_event_count', 0):,} raw candidates · 20-session cooldown across setup types.")
+                    st.caption("Out-of-sample is the later 30% of each symbol's history. This is a historical holdout, not a rolling walk-forward or proof of future performance; transaction costs and survivorship-bias adjustments are not included.")
                 else:
                     st.info("Historical setup study is unavailable.")
             missing = health.get("missing_symbols") or []

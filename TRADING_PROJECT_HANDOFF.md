@@ -258,3 +258,13 @@ When the user says **“Resume the trading project”**:
 - Historical strategy holdout remains negative under moderate execution costs. Do not claim profitability or loosen entry filters to force trades.
 
 **Next exact tasks:** verify latest Render deployment and logs for worker integration commit `77af76bc...`; verify Dashboard V3.29 syntax CI and Streamlit deployment; inspect protection audit after naturally occurring paper positions (without placing test orders); add an explicit fail-closed new-entry gate for any known unprotected Alpaca position before considering execution enablement; then add restart/partial-fill integration tests. Keep paper execution OFF pending full lifecycle validation and explicit user approval.
+
+
+### V5.33 fail-closed existing-position entry gate (Nov 18, 2026)
+- Added `evaluate_new_entry_protection_gate(snapshot)` to the pure broker protection module. An empty broker position list passes; every existing position must link to the newest worker-owned entry order and have active stop and target legs whose quantities exactly match the broker position.
+- Any unlinked/manual position, missing or inactive exit leg, unknown quantity, or quantity mismatch blocks the entire new-entry cycle before candidate evaluation. This intentionally favors safety over availability. No order repair/cancel/replace/close action is performed.
+- Helper commit `4c3dd4070e13277793da82dfefc0c8c341dc0c2b`; tests commit `0848c412383d90c9ee369099d94a1a606818ec9f`; worker integration commit `e50711a7b5facc5d384e2a547d9d44a5144aa22e`.
+- GitHub Actions on `e50711a...`: Python tests run `44400571045` SUCCESS; Python checks run `44400571038` SUCCESS. The gate's pure tests also passed on `0848c412...`.
+- Render deployment for `e50711a...` was still BUILD_IN_PROGRESS at the time this handoff entry was written. The previous V5.33 version-label commit `6a8b453...` is LIVE and Render logs confirm `WORKER_VERSION=5.33`. Verify the newest deployment and startup logs before claiming the entry gate is deployed.
+- Dashboard V3.29 syntax CI passed on commit `91777feae5169329244465d3a5a86903409abfb9` (run `44400446548`). Streamlit Community Cloud visual deployment remains unverified.
+- Automatic Alpaca paper order submission remains OFF. No real-money endpoints are supported. The Alpaca paper account had no open positions at the last verified snapshot; the protection audit has therefore been unit-tested but not exercised against an actual open broker position.

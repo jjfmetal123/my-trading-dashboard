@@ -455,3 +455,6 @@ When the user says **“Resume the trading project”**:
 
 
 - V5.40 runtime verification: Render deploy `dep-dbv2bonbhbds73f2cmrg` is LIVE on final code/test commit `067de347802c61a7b4f4c483c0fec11791fe03f8`. Startup at 22:27:06 UTC confirms `WORKER_VERSION=5.40`; safety log confirms order submission remains disabled unless `ALPACA_PAPER_TRADING_ENABLED=true`. Fresh read-only Alpaca paper snapshot at 22:27:08 UTC: ACTIVE, $100,000 equity, $200,000 buying power, zero brokerage positions. Market closed and entry evaluation skipped. Supabase virtual account remains separate and monitors its existing AAPL/MSFT positions. No brokerage orders submitted.
+
+
+- Final V5.40 documentation/runtime confirmation: README commit `4cd3140ffd77878b9017e13457167970b66ce27a` is LIVE on Render deploy `dep-dbv2cd2vcj2c73c0d710`; startup at 22:27:48 UTC again confirms `WORKER_VERSION=5.40` and the paper-only safety warning. Dashboard handoff syntax CI run `44411795957` SUCCESS on commit `1a62ca407d7a8a0acb2d1daa7ee2175c379b8ed4`.

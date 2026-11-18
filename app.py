@@ -1092,6 +1092,7 @@ with cloud_tab:
                         "remaining_shares": lifecycle.get("remaining_qty"),
                         "exit_leg_states": ", ".join(exit_states),
                         "position_protection_status": protection.get("status"),
+                        "position_protection_reason": protection.get("reason"),
                         "position_qty": protection.get("position_qty"),
                         "stop_exit_qty": stop_leg.get("qty"),
                         "target_exit_qty": target_leg.get("qty"),
@@ -1112,7 +1113,8 @@ with cloud_tab:
                 d5.metric("Protection audit alerts", protection_alert_count)
                 decision_columns = [
                     "symbol", "status", "broker_state", "filled_shares", "remaining_shares",
-                    "position_protection_status", "position_qty", "stop_exit_qty", "target_exit_qty",
+                    "position_protection_status", "position_protection_reason",
+                    "position_qty", "stop_exit_qty", "target_exit_qty",
                     "exit_leg_states", "reason", "quote_feed", "quote_timestamp",
                     "bid", "ask", "midpoint", "spread_pct", "quantity",
                     "estimated_notional", "estimated_risk_dollars",
@@ -1122,7 +1124,8 @@ with cloud_tab:
                 decision_df = decision_df[visible].rename(columns={
                     "symbol": "Symbol", "status": "Decision", "broker_state": "Broker state",
                     "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
-                    "position_protection_status": "Position protection", "position_qty": "Open shares",
+                    "position_protection_status": "Position protection",
+                    "position_protection_reason": "Protection reason", "position_qty": "Open shares",
                     "stop_exit_qty": "Stop shares", "target_exit_qty": "Target shares",
                     "exit_leg_states": "Protective exit legs", "reason": "Gate result",
                     "quote_feed": "Quote feed", "quote_timestamp": "Quote timestamp (UTC)",

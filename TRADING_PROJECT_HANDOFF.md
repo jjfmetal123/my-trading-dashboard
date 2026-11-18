@@ -1,6 +1,6 @@
 # Trading Project Handoff
 
-**Last maintained:** 2026-11-18 (updated after V5.27 / V3.25 data-quality batch)  
+**Last maintained:** 2026-11-18 (updated after V5.28 paper-execution foundation)  
 **Purpose:** Durable checkpoint for continuing the trading dashboard and observation-only cloud worker across ChatGPT conversations.
 
 > **Resume phrase:** “Resume the trading project.”  
@@ -11,7 +11,7 @@
 | Component | Repository / service | Known state |
 |---|---|---|
 | Dashboard | [jjfmetal123/my-trading-dashboard](https://github.com/jjfmetal123/my-trading-dashboard) | Streamlit dashboard; README confirms capabilities and research/safety boundaries |
-| Cloud worker | [jjfmetal123/trading-cloud-worker](https://github.com/jjfmetal123/trading-cloud-worker) | **V5.27** data-quality diagnostics; latest code/docs commits recorded below |
+| Cloud worker | [jjfmetal123/trading-cloud-worker](https://github.com/jjfmetal123/trading-cloud-worker) | **V5.28** adds a separate, disabled-by-default Alpaca paper-order adapter; not yet connected to automatic signal routing |
 | Render workspace | My Workspace — `tea-dbu9vo6tlv9c73bqbdh0` | User-confirmed workspace |
 | Render worker service | `srv-dbua8frm8hqs73f895h0` | Worker V5.26 was confirmed deployed successfully in Render logs |
 | Dashboard deployment | Streamlit Community Cloud (per dashboard README) | Current deployment status must be checked; do not assume latest commit is live |
@@ -52,7 +52,7 @@ The dashboard README describes a private, mobile-friendly Streamlit application 
 
 ### Cloud worker
 
-The worker is an observation-only scanner and paper-position monitor. V5.26 documentation includes:
+The worker is a scanner and paper-position monitor. Its scheduled loop is still observation-only. V5.28 adds a separate, disabled-by-default paper-order adapter but no automatic signal routing yet. V5.26 documentation includes:
 
 - Read-only Supabase paper-position monitoring and optional read-only Alpaca paper-account checks.
 - Daily multi-asset scanning and ranked scan reports.
@@ -64,16 +64,17 @@ The worker is an observation-only scanner and paper-position monitor. V5.26 docu
 
 ## 3. Non-negotiable safety rules
 
-1. **The cloud worker is observation-only.**
-2. Alpaca integration must remain pinned to the paper API host and use read-only GET requests only.
-3. Never submit brokerage orders or mutate Alpaca positions, cash, or account state.
-4. Never mutate the dashboard's Supabase virtual paper account unless the user explicitly asks for that specific change.
-5. Keep simulation/replay ledgers isolated from the virtual paper account and from the brokerage account.
-6. Never request, print, commit, or expose passwords, API keys, broker credentials, verification codes, or other secrets.
-7. Preserve existing paper-account seed positions and cash. Do not reset or reseed an account as part of routine development.
-8. Historical results are research estimates, not proof of a durable trading edge or a promise of future performance.
-9. Keep realistic execution caveats visible: gaps, slippage, fees, liquidity, partial fills, intraday path, latency, and data quality can make realized losses larger than a daily-bar stop estimate.
-10. Do not describe a strategy as ready for live trading without substantial validation and explicit user direction.
+1. **Automated Alpaca paper trading is an approved project goal.** The user wants the bot to execute and manage simulated trades without manual approval once the paper-only execution system is fully built and tested.
+2. **Live brokerage trading is prohibited.** Never submit live orders, never use the live Alpaca host, and never use live credentials for this worker.
+3. Paper execution must use the hard-coded `https://paper-api.alpaca.markets` endpoint, with a separate explicit enable flag, paper-account identity verification, and fail-closed behavior. No configurable live endpoint or fallback.
+4. The new V5.28 paper-order adapter is currently disabled and not wired into the worker loop. Do not enable it or add the environment flag to Render until signal triggers, sizing, buying-power checks, open-order/position reconciliation, partial fills, stop/target lifecycle, daily loss limits, idempotency, and comprehensive tests are complete.
+5. Never request, print, commit, or expose passwords, API keys, broker credentials, verification codes, or other secrets.
+6. Never mutate the dashboard's Supabase virtual paper account unless the user explicitly asks for that specific change.
+7. Keep simulation/replay ledgers isolated from the virtual paper account and Alpaca paper brokerage account.
+8. Preserve existing paper-account seed positions and cash. Do not reset or reseed an account as part of routine development.
+9. Historical results are research estimates, not proof of a durable trading edge or a promise of future performance.
+10. Keep realistic execution caveats visible: gaps, slippage, fees, liquidity, partial fills, intraday path, latency, and data quality can make realized losses larger than a daily-bar stop estimate.
+11. Do not describe a strategy as ready for live trading; this project is paper-only.
 
 ### Account separation
 
@@ -146,10 +147,10 @@ When the user says **“Resume the trading project”**:
 
 **Latest dashboard CI:** V3.26 syntax job passed on commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5` (run `44388945700`). Worker V5.27 Python checks and tests passed on commits `22b7373` and `ee7ca2e`. Streamlit Community Cloud deployment still needs a visual refresh check; GitHub syntax CI passed.
 
-**Next task:** Confirm V3.26 is live in Streamlit Community Cloud, refresh the cloud scan and local scanner, then use the virtual paper account's risk planner to preview and manually approve any simulated entries.
+**Next task:** Build the autonomous paper-trading path in safe stages: (1) define candidate trigger rules using fresh executable-quality data rather than daily close alone; (2) calculate risk-sized quantities and enforce buying power, max positions, per-trade risk and daily loss limits; (3) submit paper-only bracket orders through the V5.28 adapter; (4) reconcile order states, partial fills, positions and bracket exits idempotently; (5) surface all decisions/orders/fills/errors in the dashboard. Keep the adapter disabled until end-to-end tests pass. Also confirm V3.26 is live in Streamlit Community Cloud.
 
 **Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 
-**Latest code changes:** Dashboard V3.26 latest commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.
+**Latest code changes:** Dashboard V3.26 latest feature commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`; worker V5.28 paper-only adapter commit `9faf9de9da9b1096d64f454364d39c6ffa271017`, execution safety tests commit `eafb35f313820bc3af5df5e33a299732988f3a7c`, and README/docs commit `cce93cf70190f585b1ee81f4100b02d9c63ef2d5`. The adapter is not wired into `worker.py` and its enable flag is not configured.
 
 **Before further editing:** Refresh current repository heads and inspect actual source and deployment state.

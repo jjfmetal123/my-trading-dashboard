@@ -559,6 +559,35 @@ with command_tab:
                     st.metric("Largest sector weight", f"{float(portfolio.get('largest_sector_weight_pct',0)):.1f}%")
                 else:
                     st.info("No portfolio concentration snapshot is available.")
+
+                held_rows = portfolio.get("positions") or []
+                if held_rows:
+                    st.markdown("**Current holdings · estimated weights**")
+                    held_df = pd.DataFrame(held_rows)
+                    held_columns = [c for c in ["symbol", "sector_group", "market_value", "weight_pct", "annualized_volatility_pct"] if c in held_df.columns]
+                    held_df = held_df[held_columns].rename(columns={
+                        "symbol": "Symbol", "sector_group": "Sector",
+                        "market_value": "Market value $", "weight_pct": "Portfolio weight %",
+                        "annualized_volatility_pct": "60D annualized volatility %",
+                    })
+                    st.dataframe(held_df.style.format({
+                        "Market value $": "${:,.2f}",
+                        "Portfolio weight %": "{:.2f}%",
+                        "60D annualized volatility %": "{:.1f}%",
+                    }, na_rep="—"), use_container_width=True, hide_index=True)
+
+                correlated = portfolio.get("top_correlated_pairs") or []
+                if correlated:
+                    st.markdown("**Most correlated holdings · 60 trading days**")
+                    corr_df = pd.DataFrame(correlated[:5]).rename(columns={
+                        "pair": "Pair", "correlation_60d": "Correlation",
+                    })
+                    st.dataframe(corr_df.style.format({"Correlation": "{:+.2f}"}), use_container_width=True, hide_index=True)
+                    high_pairs = [x for x in correlated if abs(float(x.get("correlation_60d") or 0)) >= 0.80]
+                    if high_pairs:
+                        st.warning(f"{len(high_pairs)} holding pair(s) have absolute 60-day correlation of at least 0.80. Different tickers may still behave like one concentrated bet.")
+                if portfolio.get("data_note"):
+                    st.caption(portfolio["data_note"])
             with p2:
                 st.markdown("#### 🧪 Historical setup behavior")
                 setups = setup.get("setups") or {}

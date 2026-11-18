@@ -581,8 +581,9 @@ with command_tab:
                     st.markdown("**Most correlated holdings · 60 trading days**")
                     corr_df = pd.DataFrame(correlated[:5]).rename(columns={
                         "pair": "Pair", "correlation_60d": "Correlation",
+                        "overlapping_sessions": "Overlapping sessions",
                     })
-                    st.dataframe(corr_df.style.format({"Correlation": "{:+.2f}"}), use_container_width=True, hide_index=True)
+                    st.dataframe(corr_df.style.format({"Correlation": "{:+.2f}", "Overlapping sessions": "{:.0f}"}), use_container_width=True, hide_index=True)
                     high_pairs = [x for x in correlated if abs(float(x.get("correlation_60d") or 0)) >= 0.80]
                     if high_pairs:
                         st.warning(f"{len(high_pairs)} holding pair(s) have absolute 60-day correlation of at least 0.80. Different tickers may still behave like one concentrated bet.")

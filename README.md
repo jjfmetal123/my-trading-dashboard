@@ -72,6 +72,11 @@ The Cloud Scanner's read-only Alpaca decision table now includes the broker-repo
 The Cloud Scanner's read-only broker protection table now displays the remaining stop and target share quantities after any partial exit fills, rather than showing original child-order quantities. This makes the displayed values directly comparable to the broker's current open position. Dashboard code remains observation-only.
 
 
-## Dashboard V3.31 broker data quality
+## Dashboard V3.32 broker data quality
 
 The Cloud Scanner's broker decision table now exposes parent-order fill-quantity validation separately from lifecycle status and protective-exit coverage. Explicitly invalid broker fill quantities are counted in a dedicated alert metric and displayed as `BROKER_DATA_INVALID`; missing quantity metadata remains `UNAVAILABLE` rather than being presented as valid. This is read-only diagnostics.
+
+
+## Dashboard V3.32 broker replacement-chain visibility
+
+The Alpaca broker audit table now displays replacement-chain classification and the ordered broker order IDs when the worker supplies that metadata. Incomplete, ambiguous, cyclic, and inconsistent broker links remain visible rather than being presented as a verified replacement chain.

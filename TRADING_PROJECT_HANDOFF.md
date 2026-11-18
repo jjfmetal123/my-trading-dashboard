@@ -458,3 +458,12 @@ When the user says **“Resume the trading project”**:
 
 
 - Final V5.40 documentation/runtime confirmation: README commit `4cd3140ffd77878b9017e13457167970b66ce27a` is LIVE on Render deploy `dep-dbv2cd2vcj2c73c0d710`; startup at 22:27:48 UTC again confirms `WORKER_VERSION=5.40` and the paper-only safety warning. Dashboard handoff syntax CI run `44411795957` SUCCESS on commit `1a62ca407d7a8a0acb2d1daa7ee2175c379b8ed4`.
+
+
+## V5.41 complete Alpaca account restriction gates (Nov 18, 2026)
+- Hardened account eligibility in both the read-only snapshot and order gateway. Three broker flags must now be explicitly boolean false: trading_blocked, account_blocked, and trade_suspended_by_user. Missing, null, string-encoded, or true values fail closed before daily-loss guardrail/candidate evaluation and before any client-order lookup or POST.
+- Alpaca snapshot normalization now preserves account_blocked and trade_suspended_by_user in addition to trading_blocked. Worker preflight checks all three; order gateway independently re-verifies all three on the fixed paper host and still requires exact expected PA account identity from the sizing snapshot.
+- Added tests covering missing/unknown states for each restriction flag, worker preflight, adapter gateway, and snapshot normalization. The final fixture update was necessary because successful paper-account mocks must explicitly model all three false flags.
+- Code commits: preserve flags 5a447b5f2d..., require all flags clear d11232f100..., worker gate f27f651c51...; final tests commit 71ff28c7c29207a8648ec481568cb81e13bce875. Full test suite and compile checks passed: run 44412195398 SUCCESS; syntax run 44412195255 SUCCESS.
+- Version bump V5.41 commit e4211cb56376648901b155deca253982c59a7a31; README commit 4a46f958eba6a01b408ff6cd5d0496e258b50482. Verify final CI and Render startup before calling V5.41 live.
+- Safety unchanged: ALPACA_PAPER_TRADING_ENABLED remains OFF. No paper or live orders submitted.

@@ -240,3 +240,6 @@ When the user says **“Resume the trading project”**:
 - Existing Alpaca decision audit table now fetches the decision JSON and displays normalized broker state, filled/remaining shares, and protective exit-leg states. Broker lifecycle statuses are included in the broker-order count; unknown statuses are excluded.
 - Dashboard code commit `6798e37a4a98eeea7fce3ecbf80020b498663d2e`; README update follows. Need verify dashboard GitHub Actions and Streamlit Community Cloud deployment before calling it live.
 - Dashboard panel is read-only. It does not touch the separate Supabase virtual `paper_account`, does not submit Alpaca orders, and does not enable the paper execution flag.
+
+
+- Dashboard V3.28 syntax workflow run `44399244197` completed SUCCESS on handoff commit `8653ca1e6cedb88dda43b461bd37910d89419395`. The app code commit `6798e37a4a98eeea7fce3ecbf80020b498663d2e` and README commit `a64834b56e8f35323c9e74dfa7d27eddd07a842c` also passed syntax checks. Streamlit Community Cloud visual deployment is still unverified.

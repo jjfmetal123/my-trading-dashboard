@@ -65,4 +65,4 @@ GitHub Actions compiles `app.py` on pushes and pull requests. The cloud worker h
 
 
 ## Dashboard V3.29 broker position protection audit
-The Cloud Scanner's read-only Alpaca decision table now includes the broker-reported open position quantity, stop-exit quantity, target-exit quantity, and a protection audit status. The dashboard counts non-PROTECTED audit states for review. PROTECTED is shown only when both active bracket exits exactly match the actual open position quantity. This is a read-only audit; it does not modify broker orders or either paper account.
+The Cloud Scanner's read-only Alpaca decision table now includes the broker-reported open position quantity, stop-exit quantity, target-exit quantity, and a protection audit status. The dashboard counts active protection exceptions for review while excluding closed positions and superseded entry orders. PROTECTED is shown only when both active bracket exits exactly match the actual open position quantity. This is a read-only audit; it does not modify broker orders or either paper account.

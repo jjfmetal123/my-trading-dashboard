@@ -731,8 +731,6 @@ with command_tab:
                 for setup_key in sorted(set(setup_pooled) | set(setup_pooled_cost)):
                     base_setup = setup_pooled.get(setup_key) or {}
                     cost_setup = setup_pooled_cost.get(setup_key) or {}
-                    setup_fold_returns = []
-                    setup_fold_cost_returns = []
                     setup_positive_folds = 0
                     setup_adequate_folds = 0
                     for fold in fold_rows:
@@ -743,11 +741,9 @@ with command_tab:
                         if int(fold_setup.get("trades") or 0) > 0:
                             setup_adequate_folds += 1
                             fold_pnl = float(fold_setup.get("total_net_pnl") or 0)
-                            setup_fold_returns.append(fold_pnl)
                             if fold_pnl > 0:
                                 setup_positive_folds += 1
                         if int(fold_cost_setup.get("trades") or 0) > 0:
-                            setup_fold_cost_returns.append(float(fold_cost_setup.get("total_net_pnl") or 0))
                     setup_rows.append({
                         "Entry setup": setup_key.title(),
                         "Baseline trades": base_setup.get("trades"),

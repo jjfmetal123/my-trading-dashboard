@@ -268,3 +268,13 @@ When the user says **“Resume the trading project”**:
 - Render deployment for `e50711a...` was still BUILD_IN_PROGRESS at the time this handoff entry was written. The previous V5.33 version-label commit `6a8b453...` is LIVE and Render logs confirm `WORKER_VERSION=5.33`. Verify the newest deployment and startup logs before claiming the entry gate is deployed.
 - Dashboard V3.29 syntax CI passed on commit `91777feae5169329244465d3a5a86903409abfb9` (run `44400446548`). Streamlit Community Cloud visual deployment remains unverified.
 - Automatic Alpaca paper order submission remains OFF. No real-money endpoints are supported. The Alpaca paper account had no open positions at the last verified snapshot; the protection audit has therefore been unit-tested but not exercised against an actual open broker position.
+
+
+### V5.33 deployment verification and runtime state (Nov 18, 2026)
+- Worker integration commit `e50711a7b5facc5d384e2a547d9d44a5144aa22e` is LIVE on Render deploy `dep-dbv1ddf0n0ks73e01ep0` (finished 2026-11-18 21:22:02 UTC). Startup logs confirm `WORKER_VERSION=5.33` and the paper-only safety mode. The new fail-closed existing-position protection gate is included in this live commit.
+- GitHub Actions for `e50711a...`: tests run `44400571045` SUCCESS; syntax checks run `44400571038` SUCCESS. The earlier helper, position-matching, and entry-gate test runs also passed.
+- Live Alpaca read-only snapshot after deploy: account ACTIVE, equity $100,000, buying power $200,000, zero Alpaca positions. The daily-loss guardrail table was successfully read and upserted. No broker order was submitted.
+- The separate Supabase virtual paper account still has AAPL and MSFT positions; the worker's virtual-account monitor read them but received stale after-hours one-minute bars and correctly skipped exit evaluation. These are not Alpaca positions and were not modified.
+- Dashboard V3.29 code and version commit `91777feae5169329244465d3a5a86903409abfb9` passed GitHub Actions run `44400446548`. Dashboard README commit `f7b4fdb...` and handoff updates passed CI. Streamlit Community Cloud visual deployment remains unverified.
+- Worker README documents the new entry gate at commit `2eb186e23f6033ab130558bfeb4d38a3b0abfed3`; its Render docs-only deployment was still building at last check. The code commit `e50711a...` itself is already confirmed live.
+- Keep `ALPACA_PAPER_TRADING_ENABLED` OFF. Do not create production test positions. The new protection evaluator has unit coverage but no live open Alpaca position against which to exercise it yet.

@@ -743,7 +743,6 @@ with command_tab:
                             fold_pnl = float(fold_setup.get("total_net_pnl") or 0)
                             if fold_pnl > 0:
                                 setup_positive_folds += 1
-                        if int(fold_cost_setup.get("trades") or 0) > 0:
                     setup_rows.append({
                         "Entry setup": setup_key.title(),
                         "Baseline trades": base_setup.get("trades"),

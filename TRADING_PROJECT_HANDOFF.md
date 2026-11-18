@@ -18,14 +18,19 @@
 
 ### Known code checkpoints
 
-- Worker V5.27 scan diagnostics: commit `eb6b72431dbbc4f70ac51197f39cdbd0a964b464` (per-symbol missing reasons, stale-price warnings).\n- Worker zero-coverage handling / reason refinement: commit `22b737387e0efb5495659710f8d2f1fbd21b1f95`.\n- Worker V5.27 documentation: commits `d76aa7811f415ddc30d01b930edd03be9bcbc2ce` and `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.\n- Worker V5.26 version bump: commit `7e8cdb23d733ff70956f3d47892b9bd2a59b81bc`.
+- Worker V5.27 scan diagnostics: commit `eb6b72431dbbc4f70ac51197f39cdbd0a964b464` (per-symbol missing reasons, stale-price warnings).
+- Worker zero-coverage handling / reason refinement: commit `22b737387e0efb5495659710f8d2f1fbd21b1f95`.
+- Worker V5.27 documentation: commits `d76aa7811f415ddc30d01b930edd03be9bcbc2ce` and `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.
+- Worker V5.26 version bump: commit `7e8cdb23d733ff70956f3d47892b9bd2a59b81bc`.
 - Worker correlation sample-size change: commit `14fc8a80bf9c04eb24d5dfaca2e7c6fc215bc5f1`.
 - Worker V5.26 README update: commit `eeaa4442a0dbb235e523f5fe3d5aa76eddcbbd17`.
 - Worker GitHub Actions checks previously passed:
   - Python checks run `44387005586` (completed, success).
   - Python tests run `44386961274` (completed, success).
 - Dashboard portfolio-risk visibility update previously recorded at commit `2eb42cc2f677745ad065f7e0398fdfb009babbb7`.
-- Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.\n- Dashboard V3.25 scan-quality UI: commit `2f4cd46f890b7f74565afcc12c4ccd600fb68ba2`.\n- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.
+- Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.
+- Dashboard V3.25 scan-quality UI: commit `2f4cd46f890b7f74565afcc12c4ccd600fb68ba2`.
+- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.
 
 **Important:** These are known checkpoints, not a claim that they are still the current branch heads. On every resume, fetch the latest default-branch commits for both repositories and reconcile this file with actual source and deploys.
 
@@ -136,8 +141,12 @@ When the user says **“Resume the trading project”**:
 
 ## 8. Immediate next checkpoint
 
-**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol. Render deploy `dep-dbv0d3ju2v8c73fc0dng` was live; follow-up deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest worker commit was still building at last check.\n\n**Next task:** Verify the latest Render deploy is live and the new scan report is visible in the dashboard; then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
+**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol. Render deploy `dep-dbv0d3ju2v8c73fc0dng` was live; follow-up deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest worker commit was still building at last check.
+
+**Next task:** Verify the latest Render deploy is live and the new scan report is visible in the dashboard; then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
 
 **Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 
-**Latest code changes:** Dashboard V3.25 latest commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.\n\n**Before further editing:** Refresh current repository heads and inspect actual source and deployment state.
+**Latest code changes:** Dashboard V3.25 latest commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.
+
+**Before further editing:** Refresh current repository heads and inspect actual source and deployment state.

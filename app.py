@@ -1249,6 +1249,42 @@ with cloud_tab:
             else:
                 st.info("This scan did not include signal counts.")
 
+            st.markdown("#### Candidate overlap / correlation")
+            if watchlist:
+                correlation_df = pd.DataFrame(watchlist)
+                correlation_columns = [
+                    col for col in [
+                        "symbol", "signal", "adjusted_score",
+                        "candidate_correlation_status",
+                        "most_correlated_higher_ranked_symbol",
+                        "highest_ranked_candidate_correlation",
+                        "candidate_correlation_observations", "high_correlation_flag",
+                    ] if col in correlation_df.columns
+                ]
+                if correlation_columns:
+                    correlation_df = correlation_df[correlation_columns].rename(columns={
+                        "symbol": "Candidate", "signal": "Signal",
+                        "adjusted_score": "Rank score",
+                        "candidate_correlation_status": "Data status",
+                        "most_correlated_higher_ranked_symbol": "Compared with higher-ranked",
+                        "highest_ranked_candidate_correlation": "Daily-return correlation",
+                        "candidate_correlation_observations": "Overlapping sessions",
+                        "high_correlation_flag": "High overlap (>= 0.80)",
+                    })
+                    st.dataframe(
+                        correlation_df.style.format({
+                            "Daily-return correlation": "{:.2f}",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
+                    st.caption(
+                        "Pearson correlation of aligned daily returns over up to 60 sessions; "
+                        "at least 40 overlapping observations required. This is a diagnostic "
+                        "between ranked candidates, not a trade block or portfolio correlation to held positions."
+                    )
+            else:
+                st.info("No ranked candidates are available for correlation comparison.")
+
             st.markdown("#### Top-ranked cloud scan results")
             if ranked:
                 ranked_df = pd.DataFrame(ranked)
@@ -2569,4 +2605,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.37 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.38 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

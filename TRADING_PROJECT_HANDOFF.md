@@ -302,3 +302,8 @@ When the user says **“Resume the trading project”**:
 - Enhanced the fake Supabase test client to apply updates, then verified first-pass persistence of `BROKER_PARTIALLY_FILLED` and matching exit coverage, followed by a second identical snapshot that performs no duplicate update. This exercises idempotent restart recovery using the stable client order ID.
 - Audit test commit `d69fc711d0c83e301ac0d894a146bcf012259022`; Python tests run `44401817127` SUCCESS and syntax run `44401817098` SUCCESS.
 - Worker code commit `dcd2dd10...` (signed short quantity normalization) is LIVE on Render. The subsequent audit test commit changes tests only; worker README documentation deployment is pending. The actual Alpaca paper account remains at zero positions, so the broker protection path is not yet observed on a naturally occurring open position.
+
+
+### Dashboard V3.29 protection reason detail
+- The Cloud Scanner decision table now shows the exact broker position protection reason alongside status, open shares, stop shares, and target shares.
+- App commit `c0aedd152c80c2709a5c125206cb3b4fdaced909` passed syntax CI run `44402000809`. Streamlit Community Cloud visual deployment remains unverified.

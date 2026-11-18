@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.31 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.32 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1086,11 +1086,14 @@ with cloud_tab:
                     exit_states = [str(leg.get("lifecycle_state") or "UNKNOWN") for leg in legs if isinstance(leg, dict)]
                     protection = decision.get("position_protection") if isinstance(decision.get("position_protection"), dict) else {}
                     quantity_validation = decision.get("broker_quantity_validation", "UNAVAILABLE")
+                    replacement = lifecycle.get("replacement_chain") if isinstance(lifecycle.get("replacement_chain"), dict) else {}
                     stop_leg = protection.get("stop") if isinstance(protection.get("stop"), dict) else {}
                     target_leg = protection.get("target") if isinstance(protection.get("target"), dict) else {}
                     return pd.Series({
                         "broker_state": lifecycle.get("lifecycle_state"),
                         "broker_quantity_validation": quantity_validation,
+                        "replacement_chain_status": replacement.get("status"),
+                        "replacement_chain_order_ids": " → ".join(str(x) for x in replacement.get("order_ids", [])),
                         "filled_shares": lifecycle.get("filled_qty"),
                         "remaining_shares": lifecycle.get("remaining_qty"),
                         "exit_leg_states": ", ".join(exit_states),
@@ -1117,6 +1120,7 @@ with cloud_tab:
                 d6.metric("Invalid broker data", invalid_broker_data_count)
                 decision_columns = [
                     "symbol", "status", "broker_state", "broker_quantity_validation",
+                    "replacement_chain_status", "replacement_chain_order_ids",
                     "filled_shares", "remaining_shares",
                     "position_protection_status", "position_protection_reason",
                     "position_qty", "stop_exit_qty", "target_exit_qty",
@@ -1129,6 +1133,8 @@ with cloud_tab:
                 decision_df = decision_df[visible].rename(columns={
                     "symbol": "Symbol", "status": "Decision", "broker_state": "Broker state",
                     "broker_quantity_validation": "Broker quantity data",
+                    "replacement_chain_status": "Replacement chain",
+                    "replacement_chain_order_ids": "Order chain IDs",
                     "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
                     "position_protection_status": "Position protection",
                     "position_protection_reason": "Protection reason", "position_qty": "Open shares",

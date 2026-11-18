@@ -631,7 +631,7 @@ with validation_tab:
             }, na_rep="—"), use_container_width=True, hide_index=True)
         else:
             st.info("Signals have been recorded. Forward-outcome columns will populate after enough subsequent daily sessions have elapsed.")
-        st.caption("A signal is recorded once per symbol, date and setup. Horizons use the next completed daily sessions after the signal date. MFE/MAE are intraperiod excursions, not executable fills. Benchmark excess is close-to-close versus SPY. This is observational research—not a backtest with confirmed fills.")
+        st.caption("A signal is recorded once per symbol, date and setup, using a hypothetical entry at that signal-day close, a 1.5-ATR stop and a 2R target. Horizons use the next completed daily sessions. MFE/MAE are intraperiod excursions. Stop/target checks use daily OHLC, with same-day double touches marked ambiguous. Benchmark excess is close-to-close versus SPY. This is a rule simulation, not confirmed executable fills.")
     else:
         st.info("No signal observations have been recorded yet. The cloud worker will begin populating this table on its next successful market scan.")
     st.markdown("#### Validation methodology")
@@ -639,7 +639,7 @@ with validation_tab:
     st.write("- Market regime is captured at signal time using SPY's 50/200-day trend and 20-day return.")
     st.write("- Each event is followed for 1, 3, 5, 10 and 20 subsequent trading sessions.")
     st.write("- Returns are compared with SPY over the same horizon; MFE and MAE show the best and worst observed price excursion.")
-    st.warning("This first validation release does not simulate stop/target execution, slippage, commissions, taxes, dividends, or portfolio constraints. Signals can overlap, and the universe is curated rather than survivorship-bias-free. Do not interpret these statistics as proof of a tradable edge.")
+    st.warning("Stop/target results use daily OHLC bars: if both levels are touched in the same session, that event is marked ambiguous rather than guessing which came first. Gap fills are approximated from the daily open. The test still excludes slippage, commissions, taxes, dividends, partial fills and portfolio constraints. Signals can overlap, and the universe is curated rather than survivorship-bias-free. Do not interpret these statistics as proof of a tradable edge.")
 
 
 with cloud_tab:

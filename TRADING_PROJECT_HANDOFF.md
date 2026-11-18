@@ -337,3 +337,12 @@ When the user says **“Resume the trading project”**:
 - Render deploy `dep-dbv1ldftrrvc73b8oqr0` for commit `5460ab81...` is LIVE. Startup logs confirm `WORKER_VERSION=5.35` at 21:38:55 UTC. Immediately afterward, the live worker completed a fresh read-only Alpaca snapshot (ACTIVE paper account, $100,000 equity, $200,000 buying power, zero positions) and logged the expected market-closed no-entry result.
 - Dashboard V3.30 code, README, and handoff CI all SUCCESS: `44402974481`, `44403099691`, `44403123803`. Streamlit Community Cloud visual rendering still not independently verified.
 - Current safety: paper order switch remains OFF; no orders submitted; Alpaca paper account remains empty. No real-money endpoint is supported.
+
+
+## 16. V5.36 Alpaca bracket child normalization (Nov 18, 2026)
+- Identified a critical audit-path defect: `normalize_order_lifecycle` retained child lifecycle and quantity fields but dropped child `side`, `type`, `stop_price`, and `limit_price`. The downstream protection checker requires those fields to identify stop/limit exit legs. A real nested bracket could therefore be incorrectly classified as missing protection.
+- Fixed normalization to preserve child side/type, stop/limit/trailing prices, group role, and replacement metadata. Malformed non-list nested `legs` are treated as absent rather than trusted.
+- Added raw Alpaca nested-bracket regression fixtures, including a partial stop fill with an OCO sibling reduced to the remaining position quantity, and malformed leg-shape coverage.
+- Code commit `8de3b68cd3a5b778f3cda12a3ab2970241ef49cd`; regression tests commit `2cc213c084795fce1fc95a1764ac9fade7dfccb7`. CI: Python tests `44404369054` SUCCESS; Python syntax checks `44404369086` SUCCESS. The earlier code-only commit also passed tests `44404354388` and syntax `44404354304`.
+- Worker version bump commit `2c09705763d214326a9ef3bc1fe6244e47faa1ee`; README documentation commit `58f0c6e0558636cd0ec5888fdb3a5217340cc866`. Render deployment must be verified before calling V5.36 live.
+- The live Alpaca paper account previously verified empty; no test orders have been submitted. Paper execution remains OFF. Real-money trading is not supported.

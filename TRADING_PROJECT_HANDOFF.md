@@ -417,3 +417,7 @@ When the user says **“Resume the trading project”**:
 - The first attempt correctly surfaced that the minimal CI environment does not install optional provider SDKs. Added import-only stubs for yfinance, Supabase, and OpenAI in the test module; no network clients are invoked by these tests.
 - Final worker test run `44410732448` SUCCESS and syntax run `44410732398` SUCCESS on commit `065dba24ebd41bf733353888506216ea7544033a`.
 - This final commit adds tests/stubs only; the V5.39 runtime code was already live on Render commit `825771e4bb85a33a14a44b0360f934fd0f2b1d13` (deploy `dep-dbv28l7trrvc73b9c4e0`). The follow-on test-only commit `065dba24...` has a Render build in progress and does not alter worker runtime behavior.
+
+
+- Final V5.39 deployment verification: Render deploy `dep-dbv29ksel2ts73b8784g` is LIVE on test/stub commit `065dba24ebd41bf733353888506216ea7544033a`. Startup at 22:22:15 UTC confirms `WORKER_VERSION=5.39`; safety log explicitly confirms order submission remains disabled unless the explicit paper flag is enabled. The new instance continues to monitor only the separate Supabase virtual AAPL/MSFT positions; Alpaca paper read-only snapshot verification was completed on the preceding V5.39 runtime deployment. No brokerage orders were submitted.
+- Dashboard handoff syntax workflow for the current note is run `44410892055`; verify its completion before treating the handoff CI as green.

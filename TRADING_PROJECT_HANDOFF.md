@@ -330,3 +330,10 @@ When the user says **“Resume the trading project”**:
 - Worker version bump commit `d04b056aba57a20913763883845321fac14eff58`; worker README update `5460ab817a608a4c0a3d3dbed29d7872ff177a33`. Render deploy of the version bump and docs must be checked before calling V5.35 live.
 - V5.34 code is confirmed LIVE on Render deploy `dep-dbv1k7oqsg7c73e6trk0`, commit `ee590a4f...`; both worker tests and syntax checks passed. Dashboard V3.30 code commit `dcd80769...` and README/handoff updates passed CI (runs `44402974481`, `44403099691`, `44403123803`).
 - Dashboard Streamlit visual deployment remains unverified. Alpaca paper account remains empty; no test orders placed. Paper order switch stays OFF.
+
+
+### V5.35 final verification (Nov 18, 2026)
+- Worker tests run `44403474230` and syntax checks run `44403474180` both SUCCESS on version bump commit `d04b056a...`; README tests/checks `44403490968` and `44403490491` both SUCCESS on `5460ab81...`.
+- Render deploy `dep-dbv1ldftrrvc73b8oqr0` for commit `5460ab81...` is LIVE. Startup logs confirm `WORKER_VERSION=5.35` at 21:38:55 UTC. Immediately afterward, the live worker completed a fresh read-only Alpaca snapshot (ACTIVE paper account, $100,000 equity, $200,000 buying power, zero positions) and logged the expected market-closed no-entry result.
+- Dashboard V3.30 code, README, and handoff CI all SUCCESS: `44402974481`, `44403099691`, `44403123803`. Streamlit Community Cloud visual rendering still not independently verified.
+- Current safety: paper order switch remains OFF; no orders submitted; Alpaca paper account remains empty. No real-money endpoint is supported.

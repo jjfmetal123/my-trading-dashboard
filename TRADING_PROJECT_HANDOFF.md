@@ -11,21 +11,21 @@
 | Component | Repository / service | Known state |
 |---|---|---|
 | Dashboard | [jjfmetal123/my-trading-dashboard](https://github.com/jjfmetal123/my-trading-dashboard) | Streamlit dashboard; README confirms capabilities and research/safety boundaries |
-| Cloud worker | [jjfmetal123/trading-cloud-worker](https://github.com/jjfmetal123/trading-cloud-worker) | README identifies worker as **V5.26** |
+| Cloud worker | [jjfmetal123/trading-cloud-worker](https://github.com/jjfmetal123/trading-cloud-worker) | **V5.27** data-quality diagnostics; latest code/docs commits recorded below |
 | Render workspace | My Workspace — `tea-dbu9vo6tlv9c73bqbdh0` | User-confirmed workspace |
 | Render worker service | `srv-dbua8frm8hqs73f895h0` | Worker V5.26 was confirmed deployed successfully in Render logs |
 | Dashboard deployment | Streamlit Community Cloud (per dashboard README) | Current deployment status must be checked; do not assume latest commit is live |
 
 ### Known code checkpoints
 
-- Worker V5.26 version bump: commit `7e8cdb23d733ff70956f3d47892b9bd2a59b81bc`.
+- Worker V5.27 scan diagnostics: commit `eb6b72431dbbc4f70ac51197f39cdbd0a964b464` (per-symbol missing reasons, stale-price warnings).\n- Worker zero-coverage handling / reason refinement: commit `22b737387e0efb5495659710f8d2f1fbd21b1f95`.\n- Worker V5.27 documentation: commits `d76aa7811f415ddc30d01b930edd03be9bcbc2ce` and `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.\n- Worker V5.26 version bump: commit `7e8cdb23d733ff70956f3d47892b9bd2a59b81bc`.
 - Worker correlation sample-size change: commit `14fc8a80bf9c04eb24d5dfaca2e7c6fc215bc5f1`.
 - Worker V5.26 README update: commit `eeaa4442a0dbb235e523f5fe3d5aa76eddcbbd17`.
 - Worker GitHub Actions checks previously passed:
   - Python checks run `44387005586` (completed, success).
   - Python tests run `44386961274` (completed, success).
 - Dashboard portfolio-risk visibility update previously recorded at commit `2eb42cc2f677745ad065f7e0398fdfb009babbb7`.
-- Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.
+- Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.\n- Dashboard V3.25 scan-quality UI: commit `2f4cd46f890b7f74565afcc12c4ccd600fb68ba2`.\n- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.
 
 **Important:** These are known checkpoints, not a claim that they are still the current branch heads. On every resume, fetch the latest default-branch commits for both repositories and reconcile this file with actual source and deploys.
 
@@ -71,7 +71,7 @@ The worker is an observation-only scanner and paper-position monitor. V5.26 docu
 
 ### Account separation
 
-- The dashboard virtual paper account is stored separately in Supabase.
+- The dashboard virtual paper account is stored separately in Supabase. A Render read-only monitor log at 2026-11-18 20:12 UTC confirmed two open virtual positions, AAPL and MSFT; quantities and current account state must be read from Supabase before making assumptions.
 - The Alpaca paper account is a different account. A prior worker log showed approximately $100,000 equity and zero positions in Alpaca; that is not the dashboard's virtual portfolio.
 - The previously recorded dashboard virtual seed state included AAPL 0.9460 shares at $351.86, stop $341.2945, target $372.9910, and $667.14 cash from a $1,000 starting balance. Treat this only as a preservation reference; inspect live Supabase/dashboard state before making any assumptions or changes.
 
@@ -92,7 +92,7 @@ The worker is an observation-only scanner and paper-position monitor. V5.26 docu
 
 ### A. Incomplete scan coverage / stale data visibility — next dashboard priority
 
-A worker scan previously analyzed 239 of 240 requested symbols. We want data-quality reporting to make missing symbols and stale prices explicit, so an incomplete scan cannot look complete.
+A worker scan previously analyzed 239 of 240 requested symbols. V5.27 now makes missing symbols and stale prices explicit, so an incomplete scan cannot look complete. A fresh V5.27 scan on 2026-11-18 reported 239/240 (99.6%) coverage, latest price date 2026-11-18, zero stale symbols, and UNI-USD missing because Yahoo Finance returned no daily bars.
 
 Next work:
 - Inspect the current dashboard and worker data structures for requested, successful, missing, stale, and failed symbols.
@@ -136,8 +136,8 @@ When the user says **“Resume the trading project”**:
 
 ## 8. Immediate next checkpoint
 
-**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables.\n\n**Next task:** Run CI, verify Render deploy and a fresh Supabase scan report, then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
+**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol. Render deploy `dep-dbv0d3ju2v8c73fc0dng` was live; follow-up deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest worker commit was still building at last check.\n\n**Next task:** Verify the latest Render deploy is live and the new scan report is visible in the dashboard; then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
 
 **Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 
-**Latest code changes:** Worker V5.27 and dashboard V3.25 data-quality batch committed; exact SHAs and CI/deploy results are appended after verification.\n\n**Before further editing:** Refresh current repository heads and inspect actual source and deployment state.
+**Latest code changes:** Dashboard V3.25 latest commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.\n\n**Before further editing:** Refresh current repository heads and inspect actual source and deployment state.

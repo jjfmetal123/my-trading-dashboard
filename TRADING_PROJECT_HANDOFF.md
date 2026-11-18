@@ -233,3 +233,10 @@ When the user says **“Resume the trading project”**:
 - Render deploy `dep-dbv18u1j7cmc73de61bg` for `9c10e45...` is LIVE. Startup and runtime logs show V5.32 running, Alpaca paper account ACTIVE, and the guardrail table being read/upserted successfully. A prior intermediate deployment briefly crashed due to the escaped-newline syntax error; the corrected commit is live and the worker has resumed.
 - Verified live guardrail row for Alpaca paper account `PA34ODALY`, date `2026-11-18`: starting equity $100,000, current equity $100,000, daily P&L $0, daily loss 0%, halted=false. This is the Alpaca paper account only.
 - V5.32 worker uses the standalone `daily_loss_guardrail.py` helper; integration tests no longer import worker runtime. Paper execution switch remains OFF.
+
+
+## 12. Dashboard V3.28 broker lifecycle and guardrail visibility (Nov 18, 2026)
+- Dashboard V3.28 adds a read-only Alpaca daily-loss guardrail panel to the Cloud Scanner tab: starting equity, daily P&L, daily loss percentage, halted/clear state, and trading date.
+- Existing Alpaca decision audit table now fetches the decision JSON and displays normalized broker state, filled/remaining shares, and protective exit-leg states. Broker lifecycle statuses are included in the broker-order count; unknown statuses are excluded.
+- Dashboard code commit `6798e37a4a98eeea7fce3ecbf80020b498663d2e`; README update follows. Need verify dashboard GitHub Actions and Streamlit Community Cloud deployment before calling it live.
+- Dashboard panel is read-only. It does not touch the separate Supabase virtual `paper_account`, does not submit Alpaca orders, and does not enable the paper execution flag.

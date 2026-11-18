@@ -288,3 +288,10 @@ When the user says **“Resume the trading project”**:
 - GitHub Actions on worker commit `928b6ec2...`: Python tests run `44400925407` SUCCESS and Python checks run `44400925387` SUCCESS. Stale-state tests on `9e534ffe...`: Python tests run `44401025903` SUCCESS and Python checks run `44401025719` SUCCESS.
 - Dashboard commit `f4058cd78272d56809ec2dc65abf98b58f2fecb9` passed syntax CI run `44401049642`.
 - Render deployment for commit `928b6ec2...` was update-in-progress at the last check; the previous V5.33 commit `e50711a...` is live. The latest stale-state test commit `9e534ffe...` was queued for deployment. Verify the newest deployment and startup logs before calling this sub-batch live.
+
+
+### V5.33 exit-state classification and short-quantity hardening (Nov 18, 2026)
+- Tightened the protection evaluator's active-state allowlist. Only accepted, pending-acceptance, partially-filled, cancel-pending, and replace-pending legs count as active. `DONE_FOR_DAY`, `STOPPED`, `SUSPENDED`, and `CALCULATED` now fail closed as inactive.
+- A regression test initially caught that the intended allowlist edit had not been committed; the actual source was corrected in commit `b725bf7cd5fcb8ed5f30e88ff712d6c2e17fc479`. CI tests and syntax checks both passed (runs `44401423964`, `44401423969`).
+- Position quantities are now compared by absolute share count so a broker-reported negative short quantity can match buy-to-cover exits. Helper commit `d177f43922f38e07e0aa57f57df8908608308ce7`; regression test commit `dcd2dd10d1113b5381836923a2e93343633b1cef`. CI tests run `44401570040` and syntax run `44401569987` both completed SUCCESS.
+- Render deploy for the active-state correction `b725bf7...` is LIVE. Deploy for the signed-quantity commit `dcd2dd10...` was BUILD_IN_PROGRESS at the last check; verify it before calling the final edge-case update deployed.

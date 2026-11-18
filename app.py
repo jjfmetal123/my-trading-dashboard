@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.22 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.23 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2232,4 +2232,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.22 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.23 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

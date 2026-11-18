@@ -440,3 +440,11 @@ When the user says **“Resume the trading project”**:
 - Adapter commit f2cd33211aa66565456e8e558e8a15d72207f53e; worker commit 309759c8b217a678d7822f7b546bca00ea7777ad; test commit 9f38ea61a34ac21de7203cc526a2ef5b656d51c8; follow-up test matcher commit 2e7424a070d8bee7e1957c493db03f16a251ca5d.
 - Full worker suite and compile checks passed on final test commit: run 44411371913 SUCCESS; syntax run 44411371909 SUCCESS. V5.40 version commit 65ae79e08061d823ad4748b3131a8e5b0e692c97; README commit 8223897b14095884c9098fbaa99d864b6e0f2143. Verify final CI and Render startup before calling V5.40 live.
 - Safety remains unchanged: ALPACA_PAPER_TRADING_ENABLED stays OFF; no paper or live orders are submitted by this work. This guard makes the already paper-only path more specific; it does not authorize execution.
+
+
+### V5.40 idempotency lookup fail-closed guard
+- Found a duplicate-order edge case: the idempotency lookup previously treated any response without an `id` as evidence that no order existed. A successful but malformed response could therefore have allowed a duplicate POST.
+- Added a private explicit `_ORDER_NOT_FOUND` sentinel returned only for the broker's 404 on the exact client-order lookup route. A new POST is permitted only for that sentinel. A JSON `null`, empty object, malformed payload, or response without an order ID now raises a safe execution error and blocks submission.
+- Regression tests cover malformed object and JSON-null lookup responses, while confirming the explicit not-found path remains the only path to a new POST. Adapter code commit `f60cbd16d667b8ee1aaa0136a00c86f73271ad6a`; test commit `067de347802c61a7b4f4c483c0fec11791fe03f8`. Full worker suite run `44411559931` SUCCESS; syntax run `44411559740` SUCCESS.
+- README records the V5.40 idempotency guard in commit `4cd3140ffd77878b9017e13457167970b66ce27a`. The Render deploy for the final code/test commit `067de347...` is in progress; verify it before marking the newest V5.40 revision live.
+- V5.40 safety state unchanged: `ALPACA_PAPER_TRADING_ENABLED` remains OFF, no orders have been submitted, and no live brokerage endpoints exist in the adapter.

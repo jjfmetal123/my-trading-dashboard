@@ -679,6 +679,40 @@ with command_tab:
                     "from trades accepted in the combined shared-cash run. Walk-forward pooled P&L sums closed trades across test folds; "
                     "it is not a compounded portfolio return. Moderate costs assume 20 bps spread and 10 bps slippage."
                 )
+                fold_detail_rows = []
+                for fold in walk.get("windows_detail") or []:
+                    by_class = fold.get("test_by_asset_class") or {}
+                    by_class_cost = fold.get("test_moderate_cost_by_asset_class") or {}
+                    crypto_pnl = (by_class.get("CRYPTO") or {}).get("total_net_pnl")
+                    noncrypto_pnl = (by_class.get("NON_CRYPTO") or {}).get("total_net_pnl")
+                    crypto_cost_pnl = (by_class_cost.get("CRYPTO") or {}).get("total_net_pnl")
+                    noncrypto_cost_pnl = (by_class_cost.get("NON_CRYPTO") or {}).get("total_net_pnl")
+                    fold_detail_rows.append({
+                        "Fold": fold.get("window"),
+                        "Test period": f"{fold.get('test_start', '—')} to {fold.get('test_end', '—')}",
+                        "Training events": fold.get("training_events"),
+                        "Training adequate": "Yes" if fold.get("training_sample_sufficient") else "No",
+                        "Combined return %": fold.get("test_return_pct"),
+                        "Moderate-cost return %": fold.get("test_moderate_cost_return_pct"),
+                        "Crypto P&L $": crypto_pnl,
+                        "Non-crypto P&L $": noncrypto_pnl,
+                        "Crypto moderate-cost P&L $": crypto_cost_pnl,
+                        "Non-crypto moderate-cost P&L $": noncrypto_cost_pnl,
+                    })
+                if fold_detail_rows:
+                    st.markdown("##### Walk-forward fold detail")
+                    fold_df = pd.DataFrame(fold_detail_rows)
+                    st.dataframe(
+                        fold_df.style.format({
+                            "Combined return %": "{:+.2f}%",
+                            "Moderate-cost return %": "{:+.2f}%",
+                            "Crypto P&L $": "${:+,.2f}",
+                            "Non-crypto P&L $": "${:+,.2f}",
+                            "Crypto moderate-cost P&L $": "${:+,.2f}",
+                            "Non-crypto moderate-cost P&L $": "${:+,.2f}",
+                        }, na_rep="—"),
+                        use_container_width=True, hide_index=True
+                    )
                 if model_label.endswith("_V6"):
                     st.info("V7 adds isolated crypto/non-crypto portfolios and pooled asset-class walk-forward attribution. The dashboard will switch to V7 when that run is saved.")
             else:

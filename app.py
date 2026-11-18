@@ -724,6 +724,59 @@ with command_tab:
                     "from trades accepted in the combined shared-cash run. Walk-forward pooled P&L sums closed trades across test folds; "
                     "it is not a compounded portfolio return. Moderate costs assume 20 bps spread and 10 bps slippage."
                 )
+                # Compare entry setups across the chronological test folds, not just the overall portfolio.
+                setup_pooled = walk.get("aggregate_test_by_setup") or {}
+                setup_pooled_cost = walk.get("aggregate_moderate_cost_test_by_setup") or {}
+                setup_rows = []
+                for setup_key in sorted(set(setup_pooled) | set(setup_pooled_cost)):
+                    base_setup = setup_pooled.get(setup_key) or {}
+                    cost_setup = setup_pooled_cost.get(setup_key) or {}
+                    setup_fold_returns = []
+                    setup_fold_cost_returns = []
+                    setup_positive_folds = 0
+                    setup_adequate_folds = 0
+                    for fold in fold_rows:
+                        if not fold.get("training_sample_sufficient"):
+                            continue
+                        fold_setup = (fold.get("test_by_setup") or {}).get(setup_key) or {}
+                        fold_cost_setup = (fold.get("test_moderate_cost_by_setup") or {}).get(setup_key) or {}
+                        if int(fold_setup.get("trades") or 0) > 0:
+                            setup_adequate_folds += 1
+                            fold_pnl = float(fold_setup.get("total_net_pnl") or 0)
+                            setup_fold_returns.append(fold_pnl)
+                            if fold_pnl > 0:
+                                setup_positive_folds += 1
+                        if int(fold_cost_setup.get("trades") or 0) > 0:
+                            setup_fold_cost_returns.append(float(fold_cost_setup.get("total_net_pnl") or 0))
+                    setup_rows.append({
+                        "Entry setup": setup_key.title(),
+                        "Baseline trades": base_setup.get("trades"),
+                        "Baseline P&L $": base_setup.get("total_net_pnl"),
+                        "Baseline PF": base_setup.get("profit_factor"),
+                        "Moderate-cost trades": cost_setup.get("trades"),
+                        "Moderate-cost P&L $": cost_setup.get("total_net_pnl"),
+                        "Moderate-cost PF": cost_setup.get("profit_factor"),
+                        "Positive adequate folds": f"{setup_positive_folds}/{setup_adequate_folds}",
+                    })
+                if setup_rows:
+                    st.markdown("##### Entry-setup walk-forward attribution")
+                    setup_df = pd.DataFrame(setup_rows)
+                    st.dataframe(
+                        setup_df.style.format({
+                            "Baseline trades": "{:,.0f}",
+                            "Baseline P&L $": "${:+,.2f}",
+                            "Baseline PF": "{:.3f}",
+                            "Moderate-cost trades": "{:,.0f}",
+                            "Moderate-cost P&L $": "${:+,.2f}",
+                            "Moderate-cost PF": "{:.3f}",
+                        }, na_rep="—"),
+                        use_container_width=True, hide_index=True
+                    )
+                    st.caption(
+                        "P&L and profit factor are pooled across non-overlapping test folds. "
+                        "Positive-fold counts include only folds with adequate training and at least one closed trade for that setup. "
+                        "This is diagnostic attribution, not a recommendation to disable either setup."
+                    )
                 fold_detail_rows = []
                 for fold in walk.get("windows_detail") or []:
                     by_class = fold.get("test_by_asset_class") or {}

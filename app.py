@@ -1127,6 +1127,9 @@ with cloud_tab:
                         "aggregate_open_risk_utilization_pct": decision.get("aggregate_open_risk_utilization_pct"),
                         "projected_aggregate_open_risk_dollars": decision.get("projected_aggregate_open_risk_dollars"),
                         "aggregate_open_risk_utilization_after_candidate_pct": decision.get("aggregate_open_risk_utilization_after_candidate_pct"),
+                        "prior_candidate_reserved_risk_dollars": decision.get("prior_candidate_reserved_risk_dollars"),
+                        "prior_candidate_reserved_count": decision.get("prior_candidate_reserved_count"),
+                        "candidate_reserved_risk_dollars": decision.get("candidate_reserved_risk_dollars"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1160,6 +1163,8 @@ with cloud_tab:
                     "current_aggregate_open_risk_dollars", "aggregate_open_risk_limit_dollars",
                     "remaining_aggregate_open_risk_dollars", "aggregate_open_risk_utilization_pct",
                     "projected_aggregate_open_risk_dollars", "aggregate_open_risk_utilization_after_candidate_pct",
+                    "prior_candidate_reserved_risk_dollars", "prior_candidate_reserved_count",
+                    "candidate_reserved_risk_dollars",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]
@@ -1194,6 +1199,9 @@ with cloud_tab:
                     "aggregate_open_risk_utilization_pct": "Stop-risk used %",
                     "projected_aggregate_open_risk_dollars": "Projected stop risk $",
                     "aggregate_open_risk_utilization_after_candidate_pct": "Projected stop-risk used %",
+                    "prior_candidate_reserved_risk_dollars": "Earlier candidates reserved $",
+                    "prior_candidate_reserved_count": "Earlier candidates reserved",
+                    "candidate_reserved_risk_dollars": "This candidate reserved $",
                     "current_reward_risk": "Current R:R", "broker_order_id": "Alpaca order ID",
                     "updated_at": "Last evaluated"
                 })
@@ -1208,6 +1216,7 @@ with cloud_tab:
                     "Open stop risk $": "${:,.2f}", "Stop-risk limit $": "${:,.2f}",
                     "Stop-risk room $": "${:,.2f}", "Stop-risk used %": "{:.1f}%",
                     "Projected stop risk $": "${:,.2f}", "Projected stop-risk used %": "{:.1f}%",
+                    "Earlier candidates reserved $": "${:,.2f}", "This candidate reserved $": "${:,.2f}",
                     "Current R:R": "{:.2f}"
                 }
                 st.dataframe(
@@ -2546,4 +2555,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.35 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.36 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

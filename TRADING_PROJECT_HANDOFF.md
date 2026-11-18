@@ -295,3 +295,10 @@ When the user says **“Resume the trading project”**:
 - A regression test initially caught that the intended allowlist edit had not been committed; the actual source was corrected in commit `b725bf7cd5fcb8ed5f30e88ff712d6c2e17fc479`. CI tests and syntax checks both passed (runs `44401423964`, `44401423969`).
 - Position quantities are now compared by absolute share count so a broker-reported negative short quantity can match buy-to-cover exits. Helper commit `d177f43922f38e07e0aa57f57df8908608308ce7`; regression test commit `dcd2dd10d1113b5381836923a2e93343633b1cef`. CI tests run `44401570040` and syntax run `44401569987` both completed SUCCESS.
 - Render deploy for the active-state correction `b725bf7...` is LIVE. Deploy for the signed-quantity commit `dcd2dd10...` was BUILD_IN_PROGRESS at the last check; verify it before calling the final edge-case update deployed.
+
+
+### V5.33 partial-fill and restart-recovery test coverage (Nov 18, 2026)
+- Added protection test for a partially filled entry where the actual open position and both active exit legs equal the filled quantity, not the original requested quantity. Test commit `4f43d36e20599878e075981c1a77adf520a19634`; both Python test/syntax runs passed (`44401768514`, `44401768443`).
+- Enhanced the fake Supabase test client to apply updates, then verified first-pass persistence of `BROKER_PARTIALLY_FILLED` and matching exit coverage, followed by a second identical snapshot that performs no duplicate update. This exercises idempotent restart recovery using the stable client order ID.
+- Audit test commit `d69fc711d0c83e301ac0d894a146bcf012259022`; Python tests run `44401817127` SUCCESS and syntax run `44401817098` SUCCESS.
+- Worker code commit `dcd2dd10...` (signed short quantity normalization) is LIVE on Render. The subsequent audit test commit changes tests only; worker README documentation deployment is pending. The actual Alpaca paper account remains at zero positions, so the broker protection path is not yet observed on a naturally occurring open position.

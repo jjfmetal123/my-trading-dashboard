@@ -30,7 +30,7 @@
 - Dashboard portfolio-risk visibility update previously recorded at commit `2eb42cc2f677745ad065f7e0398fdfb009babbb7`.
 - Dashboard correlation overlap display update previously recorded at commit `ca64ca1c5ab7850e9f25e840c62f19c64fa05455`.
 - Dashboard V3.25 scan-quality UI: commit `2f4cd46f890b7f74565afcc12c4ccd600fb68ba2`.
-- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.
+- Dashboard V3.25 section/footer label alignment: commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`.\n- Dashboard V3.26 expanded local paper-trade scanner universe with GILD, ICE, CME, and CL plus sector mappings: commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`.
 
 **Important:** These are known checkpoints, not a claim that they are still the current branch heads. On every resume, fetch the latest default-branch commits for both repositories and reconcile this file with actual source and deploys.
 
@@ -143,10 +143,10 @@ When the user says **“Resume the trading project”**:
 
 **Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables. Worker tests and Python checks passed on commits `22b7373` and `ee7ca2e`; dashboard syntax check passed on `796a9fe`. A fresh V5.27 scan logged 239/240 symbols (99.6%), zero stale prices, with UNI-USD the single missing symbol. Render deploy `dep-dbv0d3ju2v8c73fc0dng` was live; follow-up deploy `dep-dbv0dbv0n0ks73duvq1g` for the newest worker commit was still building at last check.
 
-**Next task:** Verify the latest Render deploy is live and the new scan report is visible in the dashboard; then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
+**Latest dashboard CI:** V3.26 syntax job passed on commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5` (run `44388945700`). Streamlit Community Cloud deployment must still be visually verified by refreshing the app.\n\n**Next task:** Confirm V3.26 is live in Streamlit Community Cloud, refresh the cloud scan and local scanner, then use the virtual paper account's risk planner to preview and manually approve any simulated entries.
 
 **Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 
-**Latest code changes:** Dashboard V3.25 latest commit `796a9fe9492ce647baf2d5aece1cf1fbc6a048ce`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.
+**Latest code changes:** Dashboard V3.26 latest commit `e0ff4fd13a9083e8305f0a3a00b9aca6cf639fa5`; worker V5.27 latest relevant code commit `22b737387e0efb5495659710f8d2f1fbd21b1f95` and latest docs commit `ee7ca2e8e9568a0a3f9740ed5cfdd4804db83b98`.
 
 **Before further editing:** Refresh current repository heads and inspect actual source and deployment state.

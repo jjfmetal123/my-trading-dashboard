@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.29 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.30 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.29 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.30 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1094,8 +1094,8 @@ with cloud_tab:
                         "position_protection_status": protection.get("status"),
                         "position_protection_reason": protection.get("reason"),
                         "position_qty": protection.get("position_qty"),
-                        "stop_exit_qty": stop_leg.get("qty"),
-                        "target_exit_qty": target_leg.get("qty"),
+                        "stop_exit_qty": stop_leg.get("remaining_qty"),
+                        "target_exit_qty": target_leg.get("remaining_qty"),
                     })
 
                 lifecycle_df = decision_df.apply(_lifecycle_columns, axis=1)
@@ -1126,7 +1126,7 @@ with cloud_tab:
                     "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
                     "position_protection_status": "Position protection",
                     "position_protection_reason": "Protection reason", "position_qty": "Open shares",
-                    "stop_exit_qty": "Stop shares", "target_exit_qty": "Target shares",
+                    "stop_exit_qty": "Stop remaining shares", "target_exit_qty": "Target remaining shares",
                     "exit_leg_states": "Protective exit legs", "reason": "Gate result",
                     "quote_feed": "Quote feed", "quote_timestamp": "Quote timestamp (UTC)",
                     "bid": "Bid", "ask": "Ask", "midpoint": "Midpoint",

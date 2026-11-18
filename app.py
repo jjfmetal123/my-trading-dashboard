@@ -660,6 +660,15 @@ with command_tab:
                     "Training samples sufficient",
                     f"{int(walk.get('windows_with_sufficient_training_events') or 0)}/{int(walk.get('windows') or 0)}"
                 )
+                moderate_cost_return = (cost_sensitivity.get("moderate") or {}).get("total_return_pct")
+                if sufficient_folds and (
+                    positive_sufficient_folds * 2 < len(sufficient_folds)
+                    or (moderate_cost_return is not None and float(moderate_cost_return) <= 0)
+                ):
+                    st.warning(
+                        "Research gate: the current replay does not show a robust edge. Too few adequately trained "
+                        "walk-forward folds are positive and/or the moderate-cost holdout is non-positive. Keep this model simulation-only."
+                    )
                 try:
                     prior_row = load_prior_historical_portfolio_replay()
                     current_fingerprint = replay_result.get("history_fingerprint")

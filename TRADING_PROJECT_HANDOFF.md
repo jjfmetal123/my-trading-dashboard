@@ -1,6 +1,6 @@
 # Trading Project Handoff
 
-**Last maintained:** 2026-11-18 (updated after V5.28 paper-execution foundation)  
+**Last maintained:** 2026-11-18 (updated after V5.30 durable paper-order intent)  
 **Purpose:** Durable checkpoint for continuing the trading dashboard and observation-only cloud worker across ChatGPT conversations.
 
 > **Resume phrase:** “Resume the trading project.”  
@@ -173,3 +173,29 @@ When the user says **“Resume the trading project”**:
 **Latest worker files/commits:** `alpaca_market_data.py` commit `3e0bc91171b26721a90a1dbffcf2b4433fccaeae`; `paper_trade_engine.py` commit `0c2776ed9555505864fe483028875cf0a176b346` (later open-risk enhancement `8b736f2cbf0459509c1da68e60ab38ebb98cc32c)); paper decision schema commit `f460dca5f4084990022a151f369838c607294942`; read-only snapshot expansion commit `283400c7f0d2a7bd77ec9b2a16e34705fb4b9739`; worker integration commit `58e5a89a78f20ec91d777c0ff2058c4b415a488b`; worker final label commit `07c091f6f553d0bf8df4e0e4ffad9b30434b19f7`; final adapter price-precision commit `e9f5d1d6f7c268296cd6b529b415e2e1fc127d65`; adapter precision test commit `5b101f160b4d00c4bde368118aa236c768c36a6a`; README V5.29 commit `b5f2537f55fb48c6f641457f2451d925985ab2ca`.
 
 **Before further editing:** Refresh both repository heads, GitHub Actions, Render deploys/logs, and Supabase decision rows. Do not infer successful deployment from a queued build or successful syntax job alone.
+
+
+## 9. V5.30 durable order-intent checkpoint (Nov 18, 2026)
+
+- Worker V5.30 commit `5957714bd693f976cacec3dfa3f2a189e4a852f6` moves the Alpaca paper broker request behind a successful Supabase decision upsert.
+- A qualifying order is first persisted as `ORDER_INTENT` with reason `ORDER_INTENT_PERSISTED_BEFORE_SUBMISSION`. If this write fails, the worker skips broker submission.
+- After the broker response, the same `(scan_id,symbol)` row is updated to `ORDER_SUBMITTED`, `ORDER_ALREADY_EXISTS`, or `BLOCKED`. If the final database update fails after a broker response, the worker emits a CRITICAL log containing the stable client order ID so the broker state can be reconciled.
+- The stable client order ID and Alpaca duplicate lookup provide a recovery path if the worker restarts after submission but before the final audit update. This is not a complete broker lifecycle manager; partial fills, bracket-leg state, cancellation/replacement, exit reconciliation, and durable circuit-breaker state remain unfinished.
+- Added regression test `tests/test_worker_order_intent_ordering.py` to verify the intent upsert occurs before the broker submission call and final outcome persistence occurs after it. Test commit: `708ed7609a02d77530cb33d01094ed8c0a699b52`.
+- Worker README V5.30 documents the new sequencing; README commit `3064602bf6e374d376d1b14b40dcfdf8bc9cf87c`.
+- Worker source commit containing the intent-first sequencing: `86143c1aec06e1fe76e9770ab41d85fd09d44e86`.
+- Worker source version bump to V5.30: `5957714bd693f976cacec3dfa3f2a189e4a852f6`.
+- Python syntax CI passed on the initial intent-sequencing commit. Full Python test workflow completed successfully for that initial commit; the new ordering regression test and later V5.30/doc commits require their own latest-run verification.
+- Render deployment for the first intent-sequencing commit was still `build_in_progress` at last check; later commits may supersede that deployment. Verify latest deploy status and startup log reports V5.30 before claiming release live.
+- Alpaca paper execution remains disabled. No order was placed. A live worker log at 20:58–20:59 UTC on Nov 18 showed Alpaca paper ACTIVE with $100,000 equity, $200,000 buying power, and zero Alpaca positions; the worker continued to monitor the separate Supabase virtual AAPL/MSFT positions without mutating them.
+- Fresh decision cycle near the close had zero ready entries. Several IEX quotes were exceptionally wide (e.g. LLY, MMM, TGT, ICE, CME); other candidates were rejected for setup or entry proximity. A later cycle showed some spreads normalize while entry proximity still failed. Do not loosen the 0.20% spread gate to force a trade. Investigate consolidated SIP quote availability versus IEX before the next session; keep fail-closed behavior if SIP entitlement is unavailable.
+- The regular session ended at 21:00 UTC / 3:00 p.m. Central on this date. No need to force an order after the close.
+
+**Next build priorities after V5.30:**
+1. Verify latest GitHub Actions tests and Python syntax checks for the newest worker commit.
+2. Verify Render latest deployment is live and startup reports V5.30 with `ALPACA_PAPER_TRADING_ENABLED=false`.
+3. Investigate Alpaca SIP consolidated quote availability/entitlement versus IEX; keep the 0.20% spread and quote-freshness gates unchanged until verified.
+4. Build broker lifecycle reconciliation for accepted/rejected/partial-filled orders, attached bracket legs, canceled/replaced exits, actual filled quantity versus positions, and restart recovery.
+5. Add persisted daily loss breaker and session-level reconciliation.
+6. Update dashboard decision UI to distinguish `ORDER_INTENT`, broker accepted/filled/partial, and exit-leg lifecycle states.
+7. Keep execution OFF until full end-to-end paper lifecycle tests pass and the user explicitly approves enabling automatic paper trading.

@@ -68,13 +68,13 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.17 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.19 · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_history(tickers, period="1y"):
     raw = yf.download(list(tickers), period=period, interval="1d", auto_adjust=True,
-                      group_by="ticker", progress=False, threads=True)
+                      group_by="ticker", progress=False, threads=False, timeout=20)
     out = {}
     if raw.empty:
         return out
@@ -101,7 +101,7 @@ def load_intraday_bars(tickers):
         return {}
     raw = yf.download(
         list(tickers), period="1d", interval="1m", auto_adjust=True,
-        group_by="ticker", progress=False, threads=True, prepost=False
+        group_by="ticker", progress=False, threads=False, prepost=False, timeout=20
     )
     out = {}
     if raw is None or raw.empty:
@@ -419,7 +419,129 @@ def build_closed_trade_metrics(journal):
 def safe_pct(numerator, denominator):
     return (numerator / denominator * 100.0) if denominator else 0.0
 
-scanner_tab, paper_tab, analytics_tab, cloud_tab = st.tabs(["📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "☁️ Cloud scanner"])
+command_tab, scanner_tab, paper_tab, analytics_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "☁️ Cloud scanner"])
+
+with command_tab:
+    @st.fragment(run_every="60s")
+    def render_command_center():
+        st.subheader("🚀 Trading command center")
+        st.caption("A live overview of the cloud worker's latest completed scan, AI research review, market leadership and paper-portfolio risk. Refreshes from Supabase every 60 seconds.")
+        if st.button("↻ Refresh command center", key="refresh_command_center"):
+            load_latest_cloud_scan.clear()
+        try:
+            scan = load_latest_cloud_scan()
+        except Exception as exc:
+            scan = None
+            st.error(f"Could not load the latest cloud intelligence: {exc}")
+        if not scan:
+            st.warning("No cloud scan is available yet. The worker may still be starting or the first scan has not completed.")
+        else:
+            review = scan.get("ai_review") or {}
+            health = review.get("scan_health") or {}
+            report = review.get("report") or {}
+            portfolio = review.get("portfolio_risk") or {}
+            rotation = review.get("sector_rotation") or []
+            setup = review.get("setup_validation") or {}
+            scanned_at = scan.get("scanned_at")
+            try:
+                scan_dt = pd.to_datetime(scanned_at, utc=True)
+                age_min = max(0, int((pd.Timestamp.now(tz="UTC") - scan_dt).total_seconds() / 60))
+                scan_label = scan_dt.tz_convert("America/Chicago").strftime("%b %d · %I:%M:%S %p CT")
+            except Exception:
+                age_min, scan_label = None, str(scanned_at or "Unavailable")
+            coverage = health.get("coverage_pct")
+            coverage_label = f"{float(coverage):.1f}%" if coverage is not None else "—"
+            equity = portfolio.get("equity_reference")
+            equity_label = f"${float(equity):,.2f}" if equity is not None else "—"
+            top_three = report.get("top_three_for_individual_review") or []
+            candidates = report.get("ranked_candidates") or []
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Universe coverage", coverage_label, f"{health.get('analyzed_symbols', scan.get('symbol_count', 0))}/{health.get('requested_symbols', '—')} symbols")
+            c2.metric("Last completed scan", f"{age_min} min ago" if age_min is not None else "—", scan_label)
+            c3.metric("Paper equity reference", equity_label, f"{portfolio.get('position_count', 0)} open positions")
+            c4.metric("Worker", f"V{review.get('worker_version', '—')}", f"AI: {scan.get('ai_model') or 'not available'}")
+            if age_min is not None and age_min > 35:
+                st.warning("Cloud scan is older than expected. Check worker health before relying on this snapshot.")
+            elif age_min is not None:
+                st.success("Cloud scan is reporting recently completed data.")
+            st.divider()
+            left, right = st.columns([1.2, 1])
+            with left:
+                st.markdown("#### 🧠 AI market read")
+                if report.get("market_read"):
+                    st.write(report["market_read"])
+                else:
+                    st.info("The latest scan has no completed AI market read.")
+                if top_three:
+                    st.markdown("**Priority symbols for individual review**")
+                    st.write(" · ".join(str(x) for x in top_three[:5]))
+                cautions = report.get("important_cautions") or []
+                if cautions:
+                    with st.expander("AI risk notes", expanded=True):
+                        for note in cautions[:5]:
+                            st.markdown(f"- {note}")
+            with right:
+                st.markdown("#### 🧭 Market leadership")
+                if rotation:
+                    rot_df = pd.DataFrame(rotation)
+                    fields = [c for c in ["group", "rotation_state", "return_1m_pct", "relative_1m_vs_spy_pp", "momentum_score"] if c in rot_df.columns]
+                    rot_df = rot_df[fields].copy()
+                    rot_df = rot_df.rename(columns={"group":"Market group","rotation_state":"State","return_1m_pct":"1M return %","relative_1m_vs_spy_pp":"Vs SPY (pp)","momentum_score":"Momentum"})
+                    st.dataframe(rot_df.style.format({c:"{:+.2f}" for c in ["1M return %","Vs SPY (pp)","Momentum"] if c in rot_df.columns}), use_container_width=True, hide_index=True)
+                    st.caption("Leadership is inferred from proxy price performance, not measured capital flows.")
+                else:
+                    st.info("Sector/asset rotation data is unavailable in this scan.")
+            st.divider()
+            st.markdown("#### 🏆 AI research shortlist")
+            if candidates:
+                cand_df = pd.DataFrame(candidates)
+                keep = [c for c in ["rank","symbol","stance","rationale","key_risk","what_would_improve"] if c in cand_df.columns]
+                cand_df = cand_df[keep].copy()
+                cand_df = cand_df.rename(columns={"rank":"Rank","symbol":"Symbol","stance":"Research stance","rationale":"Why it ranked","key_risk":"Main risk","what_would_improve":"What would improve it"})
+                st.dataframe(cand_df, use_container_width=True, hide_index=True)
+                st.caption("AI ranks setup quality from the worker's supplied daily-bar facts. This is a research queue, not a buy signal. Review current quotes and the individual chart before acting.")
+            else:
+                st.info("No AI shortlist was saved with the latest scan.")
+            p1, p2 = st.columns([1, 1])
+            with p1:
+                st.markdown("#### 🛡️ Portfolio concentration")
+                sector_weights = portfolio.get("sector_weights_pct") or {}
+                if sector_weights:
+                    sector_df = pd.DataFrame([{"Sector":k,"Weight %":v} for k,v in sector_weights.items()]).sort_values("Weight %",ascending=False)
+                    st.dataframe(sector_df.style.format({"Weight %":"{:.1f}%"}), use_container_width=True, hide_index=True)
+                    st.metric("Largest sector weight", f"{float(portfolio.get('largest_sector_weight_pct',0)):.1f}%")
+                else:
+                    st.info("No portfolio concentration snapshot is available.")
+            with p2:
+                st.markdown("#### 🧪 Historical setup behavior")
+                setups = setup.get("setups") or {}
+                if setups:
+                    rows = []
+                    for name, metrics in setups.items():
+                        rows.append({
+                            "Setup": name.title(),
+                            "Events": metrics.get("event_count", 0),
+                            "5D win rate": metrics.get("win_rate_5d_pct"),
+                            "20D win rate": metrics.get("win_rate_20d_pct"),
+                            "5D MFE": metrics.get("average_mfe_5d_pct"),
+                            "5D MAE": metrics.get("average_mae_5d_pct"),
+                        })
+                    hist_df = pd.DataFrame(rows)
+                    st.dataframe(hist_df.style.format({c:"{:.1f}%" for c in ["5D win rate","20D win rate","5D MFE","5D MAE"] if c in hist_df.columns}), use_container_width=True, hide_index=True)
+                    st.caption("Descriptive historical events; overlapping observations and no transaction costs. Not a validated strategy.")
+                else:
+                    st.info("Historical setup study is unavailable.")
+            missing = health.get("missing_symbols") or []
+            if missing:
+                st.caption(f"Symbols missing usable history in this scan: {', '.join(missing)}")
+            limitations = report.get("data_limitations") or []
+            if limitations:
+                with st.expander("Data limitations"):
+                    for item in limitations:
+                        st.markdown(f"- {item}")
+            st.caption(f"Scan ID: {scan.get('id','—')} · Saved: {scan_label} · Data: {scan.get('data_source','unspecified')} · Read-only research snapshot.")
+    render_command_center()
+
 
 with cloud_tab:
     @st.fragment(run_every="60s")

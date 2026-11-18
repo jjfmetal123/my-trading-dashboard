@@ -1,60 +1,57 @@
-# Market Intelligence Dashboard — Hosted Starter
+# Trading Dashboard
 
-A responsive Streamlit web dashboard designed to work in a desktop browser and on a phone. This starter scans a diversified list of stock, ETF, commodity-proxy, and crypto symbols using daily historical prices.
+A private, mobile-friendly Streamlit dashboard connected to a separate observation-only cloud worker and Supabase research store.
 
 ## Current capabilities
-- Multi-market daily trend scan with configurable market groups.
-- 5-day, 20-day, and 60-day returns; RSI(14); 20/50/200-day moving averages; 20-day annualized volatility.
-- Transparent 0–100 rules-based trend score and ranked results.
-- Price chart and an illustrative volatility reference.
-- Mobile-friendly Streamlit layout; use your browser's Add to Home Screen option for quick phone access.
 
-## Important limitations
-- This is a research scanner, **not an autonomous AI trader** and not financial advice.
-- The score is a transparent heuristic, not a prediction and not a buy/sell recommendation.
-- Yahoo Finance via `yfinance` is a prototype data source. Data can be delayed, incomplete, rate-limited, or unavailable; check licensing and data entitlements before relying on it.
-- Daily bars only. No intraday signals, persistent portfolio, backtesting, news analysis, broker connection, or order execution yet.
-- No API keys, brokerage credentials, or personal financial information are needed by this starter.
+- Multi-market daily scanner covering equities, broad ETFs, metals, energy/commodity proxies, rates/currencies, and crypto.
+- Rules-based trend, momentum, RSI, weekly confirmation, volatility, relative-strength, and ATR reference analysis.
+- Cloud command center showing the latest scan, scan health, sector/asset proxy rotation, research shortlist, portfolio concentration, and historical setup diagnostics.
+- Persistent virtual paper account with positions, cash, journal, realized/unrealized P&L, and daily snapshots stored in Supabase.
+- Strategy validation lab tracking first-seen signal observations and forward outcomes.
+- Read-only intraday monitoring of paper-position stop/target levels.
+- Historical shared-capital portfolio replay with costs, chronological holdout, walk-forward folds, pooled setup attribution, and asset-class diagnostics.
+- Separate crypto and non-crypto holdout portfolios, each using fresh independent starting capital, plus attribution from trades accepted in the combined portfolio.
 
-## Deploy to Streamlit Community Cloud
+## Research and safety boundaries
 
-### 1. Create a GitHub repository
-1. Sign in to GitHub and create a new repository named `market-intelligence-dashboard`.
-2. For a personal trading tool, choose **Private** if your account and deployment setup support private repositories. Do not put API keys, brokerage credentials, account numbers, or personal financial data in this repository.
-3. Upload the contents of this folder to the repository root. Make sure `app.py`, `requirements.txt`, and `.streamlit/config.toml` are at the root / expected paths.
+- The scanner, replay engine, and intraday monitor are research/simulation tools, not financial advice or evidence of a durable trading edge.
+- The cloud worker is observation-only. Alpaca access is read-only; it does not submit orders or change broker positions.
+- The dashboard's paper account is virtual and stored separately from Alpaca.
+- Standalone asset-class returns are independent simulations with separate capital. Their returns are not additive to the combined portfolio.
+- Combined-portfolio asset-class P&L is closed-trade attribution from trades accepted under shared cash and risk constraints.
+- Walk-forward pooled P&L sums closed trades across test folds; it is not a compounded portfolio return.
+- Historical universe data is not point-in-time and may contain survivorship bias. Yahoo Finance data can be delayed, incomplete, rate-limited, or revised.
+- Do not place secrets, passwords, API keys, broker credentials, or personal financial information in source control.
 
-### 2. Deploy the app
-1. Open <https://share.streamlit.io/> and sign in.
-2. Connect/authorize your GitHub account when prompted.
-3. Select **Create app**.
-4. Choose the repository, branch (usually `main`), and main file path `app.py`.
-5. Choose an app URL/subdomain if available, then select **Deploy**.
-6. Wait for the build to finish. Streamlit will provide a `https://...streamlit.app` address.
+## Deployment
 
-Official instructions: <https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy>
+The dashboard is designed for Streamlit Community Cloud. Set these values in Streamlit app Secrets:
 
-### 3. Open it on both devices
-- Windows 11: open the Streamlit URL in Edge or Chrome and bookmark it.
-- Android: open the same URL in Chrome, tap the browser menu, and choose **Add to Home screen** (wording may vary). This creates an app-like shortcut; it remains a website.
-
-## Run locally on Windows 11
-1. Install Python 3.10 or newer from <https://www.python.org/downloads/>. During setup, enable **Add Python to PATH**.
-2. Extract this ZIP to a folder, for example `C:\\Users\\YourName\\market_dashboard_hosted`.
-3. Open that folder in File Explorer, click the address bar, type `cmd`, and press Enter.
-4. Run:
-
-```bat
-py -m venv .venv
-.venv\\Scripts\\activate
-py -m pip install -r requirements.txt
-py -m streamlit run app.py
+```toml
+APP_PASSWORD = "your-private-dashboard-password"
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_SECRET_KEY = "your-server-side-supabase-key"
 ```
 
-The local dashboard opens at <http://localhost:8501>.
+Use a server-side Supabase key only in the Streamlit Secrets store. Never expose it in browser code or commit it to GitHub.
 
-## Next build stages
-1. Add a persistent virtual $1,000 paper account, positions, cash ledger, and trade journal.
-2. Add robust backtesting with fees, spreads, slippage, out-of-sample and walk-forward tests.
-3. Add market-session-aware intraday data from a provider with documented licensing and latency.
-4. Add alerts and a separate AI explanation layer grounded in retrieved data/news. AI commentary must not silently override strategy rules.
-5. Add broker paper trading only after the strategy and risk limits are validated. Live execution stays disabled until separately and explicitly approved, with a kill switch and audit trail.
+The cloud worker is deployed separately as a Render background worker. It writes scan reports and simulation results to the same Supabase project; the dashboard reads those reports.
+
+## Run locally
+
+```bash
+python -m venv .venv
+# Windows:
+.venv\\Scripts\\activate
+# macOS / Linux:
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
+
+The dashboard opens at http://localhost:8501.
+
+## Validation
+
+GitHub Actions compiles `app.py` on pushes and pull requests. The cloud worker has its own deterministic unit-test workflows; its results are separate from the dashboard's syntax check.

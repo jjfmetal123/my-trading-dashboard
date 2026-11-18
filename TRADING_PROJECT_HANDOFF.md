@@ -320,3 +320,13 @@ When the user says **“Resume the trading project”**:
 - Dashboard V3.30 code commit `dcd80769dfa57b3f43ff6c65c8ccefe5255f4f2a` displays remaining stop/target shares rather than original quantities; its syntax CI run `44402974481` is still in progress at handoff time. Dashboard README update follows.
 - The verified Alpaca paper account has zero open positions; no test orders were created. This audit is unit-tested but hasn't yet been observed on an actual open broker position. Paper execution switch remains OFF; no live brokerage endpoints are supported.
 - Continue next with real read-only order snapshot fixtures for Alpaca bracket child lifecycle transitions, plus worker fail-closed integration tests for snapshot fetch failure and stale snapshot age. Confirm Render and Streamlit deployment states before announcing releases.
+
+
+## 15. V5.35 fresh Alpaca snapshot guard (Nov 18, 2026)
+- Added `is_snapshot_fresh` to the read-only Alpaca client. Every successful account/positions/orders/clock snapshot now carries an aware UTC `snapshot_fetched_at` timestamp.
+- Before any candidate evaluation, `run_paper_execution_cycle` requires a valid timestamp within 120 seconds by default (`ALPACA_MAX_SNAPSHOT_AGE_SECONDS` configurable, minimum 30 seconds). Missing, malformed, naive, future, or stale snapshots block entries. This is an additional guard on top of the existing fetch-error cache clear, paper-account identity, daily loss, and position-protection gates.
+- Snapshot timestamp commit `d0b7f3667d7c5f4dc487ec3e59f8ab29e36ddbb3`; freshness regression tests commit `cc8a7879f59086df6124e64621fc41e7273bd831`; worker entry-cycle integration commit `11048a91466e17ec02293bee9fb14b63a9581437`.
+- CI on worker integration `11048a91...`: Python tests run `44403344358` SUCCESS; syntax checks run `44403343712` still running at time of note. Freshness tests run `44403314225` SUCCESS and `44403314021` SUCCESS.
+- Worker version bump commit `d04b056aba57a20913763883845321fac14eff58`; worker README update `5460ab817a608a4c0a3d3dbed29d7872ff177a33`. Render deploy of the version bump and docs must be checked before calling V5.35 live.
+- V5.34 code is confirmed LIVE on Render deploy `dep-dbv1k7oqsg7c73e6trk0`, commit `ee590a4f...`; both worker tests and syntax checks passed. Dashboard V3.30 code commit `dcd80769...` and README/handoff updates passed CI (runs `44402974481`, `44403099691`, `44403123803`).
+- Dashboard Streamlit visual deployment remains unverified. Alpaca paper account remains empty; no test orders placed. Paper order switch stays OFF.

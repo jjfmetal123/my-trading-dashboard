@@ -315,6 +315,21 @@ def load_latest_historical_portfolio_replay():
 
 
 @st.cache_data(ttl=60, show_spinner=False)
+def load_prior_historical_portfolio_replay():
+    """Load V6 for a source-history fingerprint comparison with the V7 replay."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_portfolio_replay_runs")
+        .select("model_version,as_of_date,updated_at,result")
+        .eq("model_version", "HISTORICAL_PORTFOLIO_REPLAY_V6")
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_strategy_signal_events():
     """Load persisted first-seen signals and their observed forward outcomes."""
     client = get_supabase_client()
@@ -459,6 +474,7 @@ with command_tab:
         if st.button("↻ Refresh command center", key="refresh_command_center"):
             load_latest_cloud_scan.clear()
             load_latest_historical_portfolio_replay.clear()
+            load_prior_historical_portfolio_replay.clear()
         try:
             scan = load_latest_cloud_scan()
         except Exception as exc:
@@ -588,17 +604,42 @@ with command_tab:
                 dd = replay_row.get("max_drawdown_pct")
                 m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
                 m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
-                wf_cols = st.columns(3)
+                fold_rows = walk.get("windows_detail") or []
+                sufficient_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
+                positive_sufficient_folds = sum(
+                    1 for row in sufficient_folds if float(row.get("test_return_pct") or 0) > 0
+                )
+                wf_cols = st.columns(4)
                 wf_cols[0].metric(
                     "Walk-forward periods positive",
                     f"{int(walk.get('positive_test_windows') or 0)}/{int(walk.get('windows') or 0)}"
                 )
+                wf_cols[1].metric(
+                    "Positive with adequate training",
+                    f"{positive_sufficient_folds}/{len(sufficient_folds)}"
+                )
                 wf_mean = walk.get("mean_test_return_pct")
-                wf_cols[1].metric("Mean fold return", f"{float(wf_mean):+.2f}%" if wf_mean is not None else "—")
-                wf_cols[2].metric(
+                wf_cols[2].metric("Mean fold return", f"{float(wf_mean):+.2f}%" if wf_mean is not None else "—")
+                wf_cols[3].metric(
                     "Training samples sufficient",
                     f"{int(walk.get('windows_with_sufficient_training_events') or 0)}/{int(walk.get('windows') or 0)}"
                 )
+                try:
+                    prior_row = load_prior_historical_portfolio_replay()
+                    current_fingerprint = replay_result.get("history_fingerprint")
+                    prior_fingerprint = (prior_row.get("result") or {}).get("history_fingerprint") if prior_row else None
+                    if current_fingerprint and prior_fingerprint and current_fingerprint != prior_fingerprint:
+                        st.warning(
+                            "Market-history fingerprint changed since V6. The V6-to-V7 return difference is not a clean code-only comparison; "
+                            "the underlying historical price data was revised."
+                        )
+                except Exception as exc:
+                    st.caption(f"Prior replay fingerprint comparison unavailable: {exc}")
+                if walk.get("windows_with_insufficient_training_events"):
+                    st.caption(
+                        f"{int(walk.get('windows_with_insufficient_training_events'))} walk-forward period(s) had too few training events; "
+                        "the first fold had no training events and should not count as evidence of a validated edge."
+                    )
 
                 standalone = replay_result.get("out_of_sample_asset_class_only") or {}
                 accepted = replay_result.get("out_of_sample_by_asset_class") or {}

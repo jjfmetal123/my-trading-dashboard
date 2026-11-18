@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.30 · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.34 · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1107,7 +1107,24 @@ with cloud_tab:
                     })
 
                 lifecycle_df = decision_df.apply(_lifecycle_columns, axis=1)
-                decision_df = pd.concat([decision_df, lifecycle_df], axis=1)
+
+                def _portfolio_exposure_columns(item):
+                    decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
+                    return pd.Series({
+                        "current_gross_exposure_dollars": decision.get("current_gross_exposure_dollars"),
+                        "gross_exposure_limit_dollars": decision.get("gross_exposure_limit_dollars"),
+                        "remaining_gross_exposure_dollars": decision.get("remaining_gross_exposure_dollars"),
+                        "gross_exposure_utilization_pct": decision.get("gross_exposure_utilization_pct"),
+                        "largest_existing_position_symbol": decision.get("largest_existing_position_symbol"),
+                        "largest_existing_position_dollars": decision.get("largest_existing_position_dollars"),
+                        "largest_existing_position_pct_equity": decision.get("largest_existing_position_pct_equity"),
+                        "candidate_position_pct_equity": decision.get("candidate_position_pct_equity"),
+                        "projected_gross_exposure_dollars": decision.get("projected_gross_exposure_dollars"),
+                        "projected_largest_position_pct_equity": decision.get("projected_largest_position_pct_equity"),
+                    })
+
+                exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
+                decision_df = pd.concat([decision_df, lifecycle_df, exposure_df], axis=1)
                 protection_statuses = decision_df.get("position_protection_status", pd.Series(index=decision_df.index, dtype=object))
                 protection_alert_count = int((
                     protection_statuses.notna()
@@ -1129,6 +1146,11 @@ with cloud_tab:
                     "exit_leg_states", "reason", "quote_feed", "quote_timestamp",
                     "bid", "ask", "midpoint", "spread_pct", "quantity",
                     "estimated_notional", "estimated_risk_dollars",
+                    "current_gross_exposure_dollars", "gross_exposure_limit_dollars",
+                    "remaining_gross_exposure_dollars", "gross_exposure_utilization_pct",
+                    "largest_existing_position_symbol", "largest_existing_position_dollars",
+                    "largest_existing_position_pct_equity", "candidate_position_pct_equity",
+                    "projected_gross_exposure_dollars", "projected_largest_position_pct_equity",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]
@@ -1147,13 +1169,28 @@ with cloud_tab:
                     "bid": "Bid", "ask": "Ask", "midpoint": "Midpoint",
                     "spread_pct": "Spread %", "quantity": "Shares",
                     "estimated_notional": "Est. notional", "estimated_risk_dollars": "Est. risk $",
+                    "current_gross_exposure_dollars": "Gross exposure $",
+                    "gross_exposure_limit_dollars": "Gross limit $",
+                    "remaining_gross_exposure_dollars": "Gross room $",
+                    "gross_exposure_utilization_pct": "Gross used %",
+                    "largest_existing_position_symbol": "Largest holding",
+                    "largest_existing_position_dollars": "Largest holding $",
+                    "largest_existing_position_pct_equity": "Largest holding % equity",
+                    "candidate_position_pct_equity": "Candidate % equity",
+                    "projected_gross_exposure_dollars": "Projected gross $",
+                    "projected_largest_position_pct_equity": "Projected largest % equity",
                     "current_reward_risk": "Current R:R", "broker_order_id": "Alpaca order ID",
                     "updated_at": "Last evaluated"
                 })
                 number_formats = {
                     "Bid": "${:,.2f}", "Ask": "${:,.2f}", "Midpoint": "${:,.2f}",
                     "Spread %": "{:.3f}%", "Est. notional": "${:,.2f}",
-                    "Est. risk $": "${:,.2f}", "Current R:R": "{:.2f}"
+                    "Est. risk $": "${:,.2f}", "Gross exposure $": "${:,.2f}",
+                    "Gross limit $": "${:,.2f}", "Gross room $": "${:,.2f}",
+                    "Gross used %": "{:.1f}%", "Largest holding $": "${:,.2f}",
+                    "Largest holding % equity": "{:.1f}%", "Candidate % equity": "{:.1f}%",
+                    "Projected gross $": "${:,.2f}", "Projected largest % equity": "{:.1f}%",
+                    "Current R:R": "{:.2f}"
                 }
                 st.dataframe(
                     decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),

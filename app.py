@@ -585,6 +585,9 @@ with validation_tab:
                 "SPY return %": result.get("spy_return_pct"),
                 "Excess vs SPY (pp)": result.get("excess_vs_spy_pp"),
                 "Win": result.get("win"),
+                "Stop/target result": (result.get("stop_target_test") or {}).get("result"),
+                "Stop/target session": (result.get("stop_target_test") or {}).get("session"),
+                "Rule return %": (result.get("stop_target_test") or {}).get("strategy_return_pct"),
             }
             outcome_rows.append(row)
     if validation_events:
@@ -606,19 +609,25 @@ with validation_tab:
                             Median_return_pct=("Return %", "median"),
                             Avg_MFE_pct=("MFE %", "mean"),
                             Avg_MAE_pct=("MAE %", "mean"),
-                            Avg_excess_vs_SPY_pp=("Excess vs SPY (pp)", "mean"))
+                            Avg_excess_vs_SPY_pp=("Excess vs SPY (pp)", "mean"),
+                            Rule_avg_return_pct=("Rule return %", "mean"),
+                            Target_hits=("Stop/target result", lambda x: int((x == "TARGET").sum())),
+                            Stop_hits=("Stop/target result", lambda x: int((x == "STOP").sum())),
+                            Ambiguous_bars=("Stop/target result", lambda x: int((x == "AMBIGUOUS_SAME_DAY").sum())))
                        .reset_index()
                        .sort_values(["Setup", "Horizon", "Regime"]))
             st.dataframe(summary.style.format({
                 "Win_rate_pct":"{:.1f}%", "Avg_return_pct":"{:+.2f}%",
                 "Median_return_pct":"{:+.2f}%", "Avg_MFE_pct":"{:+.2f}%",
-                "Avg_MAE_pct":"{:+.2f}%", "Avg_excess_vs_SPY_pp":"{:+.2f}"
+                "Avg_MAE_pct":"{:+.2f}%", "Avg_excess_vs_SPY_pp":"{:+.2f}%",
+                "Rule_avg_return_pct":"{:+.2f}%"
             }, na_rep="—"), use_container_width=True, hide_index=True)
             st.markdown("#### Latest completed signal outcomes")
             recent = outcomes_df.sort_values(["Signal date", "Symbol"], ascending=[False, True]).head(100)
             st.dataframe(recent.style.format({
                 "Return %":"{:+.2f}%", "MFE %":"{:+.2f}%", "MAE %":"{:+.2f}%",
-                "SPY return %":"{:+.2f}%", "Excess vs SPY (pp)":"{:+.2f}"
+                "SPY return %":"{:+.2f}%", "Excess vs SPY (pp)":"{:+.2f}%",
+                "Rule return %":"{:+.2f}%"
             }, na_rep="—"), use_container_width=True, hide_index=True)
         else:
             st.info("Signals have been recorded. Forward-outcome columns will populate after enough subsequent daily sessions have elapsed.")

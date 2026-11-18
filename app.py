@@ -1100,7 +1100,10 @@ with cloud_tab:
                 lifecycle_df = decision_df.apply(_lifecycle_columns, axis=1)
                 decision_df = pd.concat([decision_df, lifecycle_df], axis=1)
                 protection_statuses = decision_df.get("position_protection_status", pd.Series(index=decision_df.index, dtype=object))
-                protection_alert_count = int((protection_statuses.notna() & ~protection_statuses.eq("PROTECTED")).sum())
+                protection_alert_count = int((
+                    protection_statuses.notna()
+                    & ~protection_statuses.isin(["PROTECTED", "NO_OPEN_POSITION", "NOT_CURRENT_POSITION_ENTRY"])
+                ).sum())
                 d1, d2, d3, d4, d5 = st.columns(5)
                 d1.metric("Recent decisions", len(decision_df))
                 d2.metric("Ready (not submitted)", ready_count)

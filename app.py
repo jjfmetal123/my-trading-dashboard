@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.39 · Portfolio correlation diagnostics · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.40 · Weighted portfolio diversification · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.39 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.40 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1140,6 +1140,14 @@ with cloud_tab:
                         "most_correlated_held_symbol": decision.get("most_correlated_held_symbol"),
                         "held_position_correlation_observations": decision.get("held_position_correlation_observations"),
                         "high_held_correlation_flag": decision.get("high_held_correlation_flag"),
+                        "portfolio_diversification_status": decision.get("portfolio_diversification_status"),
+                        "current_portfolio_weighted_correlation": decision.get("current_portfolio_weighted_correlation"),
+                        "current_portfolio_diversification_score": decision.get("current_portfolio_diversification_score"),
+                        "candidate_diversification_status": decision.get("candidate_diversification_status"),
+                        "candidate_weighted_held_correlation": decision.get("candidate_weighted_held_correlation"),
+                        "candidate_diversification_score": decision.get("candidate_diversification_score"),
+                        "diversification_holdings_count": decision.get("diversification_holdings_count"),
+                        "diversification_observations": decision.get("diversification_observations"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1181,6 +1189,10 @@ with cloud_tab:
                     "held_position_correlation_status", "highest_held_position_correlation",
                     "most_correlated_held_symbol", "held_position_correlation_observations",
                     "high_held_correlation_flag",
+                    "portfolio_diversification_status", "current_portfolio_weighted_correlation",
+                    "current_portfolio_diversification_score", "candidate_diversification_status",
+                    "candidate_weighted_held_correlation", "candidate_diversification_score",
+                    "diversification_holdings_count", "diversification_observations",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]

@@ -431,3 +431,12 @@ When the user says **“Resume the trading project”**:
 
 
 - Additional audit-integrity guard: `reconcile_broker_order_audit` now compares the normalized broker order symbol with the matched Supabase audit-row symbol before writing lifecycle/protection data. Missing or mismatched symbols are skipped and logged, preventing a client-ID collision or malformed row from applying broker state to the wrong instrument. Code commit `a3ebbbe493bb0d6d508d8805dc5f519ddb124a8e`; regression test commit `40184b0cb17df2ccfec9f54c8494e9c813ea1af7`. Full worker suite: **175 tests passed**, compile passed, CI run `44411100239` SUCCESS.
+
+
+## V5.40 exact paper-account identity binding (Nov 18, 2026)
+- Found a safety gap in the paper order gateway: it verified that the broker account had a PA prefix, but did not prove it was the exact paper account used to size the candidate. A credential/account switch between the read-only sizing snapshot and the order request could have routed the bracket into a different paper account.
+- Changed submit_paper_bracket_order to require expected_account_number from the fresh snapshot. The gateway validates that expected identity is a PA account, verifies the live paper account is active/unblocked, and compares the actual account number exactly before even looking up the client_order_id or sending a POST. Missing or mismatched expected identity blocks without any broker order lookup/submission.
+- Worker now passes snapshot.account_number into the order gateway. Added tests for mismatched PA account, missing expected account, and successful same-account path. Updated the AST intent-order test to recognize the multiline gateway call.
+- Adapter commit f2cd33211aa66565456e8e558e8a15d72207f53e; worker commit 309759c8b217a678d7822f7b546bca00ea7777ad; test commit 9f38ea61a34ac21de7203cc526a2ef5b656d51c8; follow-up test matcher commit 2e7424a070d8bee7e1957c493db03f16a251ca5d.
+- Full worker suite and compile checks passed on final test commit: run 44411371913 SUCCESS; syntax run 44411371909 SUCCESS. V5.40 version commit 65ae79e08061d823ad4748b3131a8e5b0e692c97; README commit 8223897b14095884c9098fbaa99d864b6e0f2143. Verify final CI and Render startup before calling V5.40 live.
+- Safety remains unchanged: ALPACA_PAPER_TRADING_ENABLED stays OFF; no paper or live orders are submitted by this work. This guard makes the already paper-only path more specific; it does not authorize execution.

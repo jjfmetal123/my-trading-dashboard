@@ -428,3 +428,6 @@ When the user says **“Resume the trading project”**:
 - Combined with the earlier four cases (missing snapshot, stale snapshot, missing position count, and complete fresh empty snapshot), the worker-level preflight matrix now covers seven critical gate paths.
 - Full unit suite and compile checks passed on commit 33e1927ed3430fd9e9df8c4393c8d94a66a14b0a: test run 44410890180 SUCCESS; syntax run 44410890066 SUCCESS. Dashboard handoff syntax run 44410892055 SUCCESS before this additional note.
 - README update commit f10a2fb0c2c97bf4ff0f76e1f3df1dc83dde4f51 documents the added preflight tests. The V5.39 worker code is already live; subsequent test/documentation-only commits do not change the execution engine. Keep paper execution OFF.
+
+
+- Additional audit-integrity guard: `reconcile_broker_order_audit` now compares the normalized broker order symbol with the matched Supabase audit-row symbol before writing lifecycle/protection data. Missing or mismatched symbols are skipped and logged, preventing a client-ID collision or malformed row from applying broker state to the wrong instrument. Code commit `a3ebbbe493bb0d6d508d8805dc5f519ddb124a8e`; regression test commit `40184b0cb17df2ccfec9f54c8494e9c813ea1af7`. Full worker suite: **175 tests passed**, compile passed, CI run `44411100239` SUCCESS.

@@ -498,3 +498,11 @@ When the user says **“Resume the trading project”**:
 - Added tests for malformed UUID and missing lifecycle status. Final worker test/compile run `44413500064` SUCCESS on test commit `9fd39b75fbc9d6dcae018b72daba56a82a356e46`; full suite passed **186 tests**.
 - V5.43 code/version commit `a1f5885d43f182b88a71a0f73075e01cea6521eb`; order ID/lifecycle validation commit `a3eb088bbf78b5a35d52bb0f87ebfdb56b82ccd9`; README commit `d9d8e2a6c5d31ee3e7b4aa4c5f4bf0ef3a9bb4fd`. Render deploy `dep-dbv2h39j7cmc73dfe5ig` is LIVE and startup confirms `WORKER_VERSION=5.43` at 22:38:26 UTC. Safety log confirms paper order submission remains disabled unless explicit opt-in is enabled.
 - Fresh read-only Alpaca snapshot at 22:38:28 UTC: ACTIVE, $100,000 equity, $200,000 buying power, zero brokerage positions, and all three account restriction flags false. Market was closed; entry evaluation skipped. No brokerage orders submitted.
+
+
+## V5.44 known lifecycle validation for existing-order idempotency (Nov 18, 2026)
+- Tightened _validate_existing_order: an idempotency lookup hit must contain a string lifecycle status from Alpaca's recognized order-status set. Missing, numeric, empty, or unknown status values fail closed. Recognized working and terminal states are accepted as proof that the client ID already exists, preventing a duplicate POST without implying the order remains open/protective.
+- Existing-order identity checks still require valid UUID, exact client order ID, symbol, side, type, order class, time-in-force, and exact quantity.
+- Adapter code commit 4c7e8926ca0cc0a1edf2d8624669ab418e81ba74; regression test commit 98aaa33268c2af9ec5ca16b18d2d2580da5bb01c. Worker CI run 44413731557 SUCCESS (compile + full unit suite).
+- Version bump commit 3fa574696ebda693729e7a1a6dae0e940f9867ac; README commit ad22c9f60d2d09d3368b0d6605265391ae46004e. Verify latest CI and Render startup before calling V5.44 live.
+- Safety unchanged: Alpaca fixed paper host only, explicit PA account match, all account restrictions must be false, paper execution switch OFF, and no brokerage orders submitted.

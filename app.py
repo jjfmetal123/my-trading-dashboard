@@ -593,6 +593,7 @@ with command_tab:
             if replay_row:
                 replay_result = replay_row.get("result") or {}
                 walk = replay_result.get("walk_forward") or {}
+                cost_sensitivity = replay_result.get("out_of_sample_cost_sensitivity") or {}
                 model_label = replay_row.get("model_version", "Unknown model")
                 as_of_label = replay_row.get("as_of_date", "Unknown date")
                 st.caption(f"{model_label} · Market data through {as_of_label} · Saved {replay_row.get('updated_at', 'time unavailable')}")
@@ -604,6 +605,41 @@ with command_tab:
                 dd = replay_row.get("max_drawdown_pct")
                 m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
                 m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
+                cost_rows = []
+                for key, label in (
+                    ("baseline", "Baseline"),
+                    ("moderate", "Moderate cost"),
+                    ("severe", "Severe cost"),
+                    ("fixed_share_moderate", "Fixed-share moderate"),
+                    ("fixed_share_severe", "Fixed-share severe"),
+                ):
+                    scenario = cost_sensitivity.get(key) or {}
+                    if scenario:
+                        cost_rows.append({
+                            "Scenario": label,
+                            "Spread bps": scenario.get("spread_bps"),
+                            "Slippage bps": scenario.get("slippage_bps"),
+                            "Return %": scenario.get("total_return_pct"),
+                            "Max drawdown %": scenario.get("max_drawdown_pct"),
+                            "Profit factor": scenario.get("profit_factor"),
+                        })
+                if cost_rows:
+                    st.markdown("##### Holdout execution-cost stress")
+                    cost_df = pd.DataFrame(cost_rows)
+                    st.dataframe(
+                        cost_df.style.format({
+                            "Spread bps": "{:.0f}",
+                            "Slippage bps": "{:.0f}",
+                            "Return %": "{:+.2f}%",
+                            "Max drawdown %": "{:.2f}%",
+                            "Profit factor": "{:.3f}",
+                        }, na_rep="—"),
+                        use_container_width=True, hide_index=True
+                    )
+                    st.caption(
+                        (cost_sensitivity.get("interpretation") or "") +
+                        " Fixed-share cases freeze baseline accepted quantities; they are not pure friction-only comparisons."
+                    )
                 fold_rows = walk.get("windows_detail") or []
                 sufficient_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
                 positive_sufficient_folds = sum(

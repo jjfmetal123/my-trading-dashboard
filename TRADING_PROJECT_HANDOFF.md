@@ -278,3 +278,13 @@ When the user says **“Resume the trading project”**:
 - Dashboard V3.29 code and version commit `91777feae5169329244465d3a5a86903409abfb9` passed GitHub Actions run `44400446548`. Dashboard README commit `f7b4fdb...` and handoff updates passed CI. Streamlit Community Cloud visual deployment remains unverified.
 - Worker README documents the new entry gate at commit `2eb186e23f6033ab130558bfeb4d38a3b0abfed3`; its Render docs-only deployment was still building at last check. The code commit `e50711a...` itself is already confirmed live.
 - Keep `ALPACA_PAPER_TRADING_ENABLED` OFF. Do not create production test positions. The new protection evaluator has unit coverage but no live open Alpaca position against which to exercise it yet.
+
+
+### V5.33 broker audit persistence regression coverage (Nov 18, 2026)
+- Extracted the worker's database reconciliation routine into `broker_audit.py` so it can be tested without importing the full worker runtime. The worker now calls this helper using its existing read-only Alpaca snapshot.
+- Added mocked Supabase-client tests for stable client-ID recovery, lifecycle/protection persistence, non-worker order filtering, missing audit rows, and idempotent repeated snapshots.
+- Added stale-state cleanup: closed positions become `NO_OPEN_POSITION`; older entry orders whose symbol's current position belongs to a newer worker entry become `NOT_CURRENT_POSITION_ENTRY`. Dashboard alert counts exclude these two informational states while still flagging actual protection exceptions.
+- Worker commits: broker audit extraction `fc58081098f5fbe41e20461151ac88095f6f60de`; audit regression tests `22873974a21d7dafc2a37715c7e2cab3e1055ff5`; worker integration `928b6ec2772f7967c35eb019db023129b719be16`; stale-state cleanup `6e36ed35d958247713dde43532e2c0f4a36e6984`; stale-state tests `9e534ffeb9aeece4f8b7a637d134246bbbd2adb7`.
+- GitHub Actions on worker commit `928b6ec2...`: Python tests run `44400925407` SUCCESS and Python checks run `44400925387` SUCCESS. Stale-state tests on `9e534ffe...`: Python tests run `44401025903` SUCCESS and Python checks run `44401025719` SUCCESS.
+- Dashboard commit `f4058cd78272d56809ec2dc65abf98b58f2fecb9` passed syntax CI run `44401049642`.
+- Render deployment for commit `928b6ec2...` was update-in-progress at the last check; the previous V5.33 commit `e50711a...` is live. The latest stale-state test commit `9e534ffe...` was queued for deployment. Verify the newest deployment and startup logs before calling this sub-batch live.

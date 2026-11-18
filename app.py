@@ -1083,22 +1083,33 @@ with cloud_tab:
                     lifecycle = decision.get("broker_lifecycle") if isinstance(decision.get("broker_lifecycle"), dict) else {}
                     legs = lifecycle.get("legs") if isinstance(lifecycle.get("legs"), list) else []
                     exit_states = [str(leg.get("lifecycle_state") or "UNKNOWN") for leg in legs if isinstance(leg, dict)]
+                    protection = decision.get("position_protection") if isinstance(decision.get("position_protection"), dict) else {}
+                    stop_leg = protection.get("stop") if isinstance(protection.get("stop"), dict) else {}
+                    target_leg = protection.get("target") if isinstance(protection.get("target"), dict) else {}
                     return pd.Series({
                         "broker_state": lifecycle.get("lifecycle_state"),
                         "filled_shares": lifecycle.get("filled_qty"),
                         "remaining_shares": lifecycle.get("remaining_qty"),
                         "exit_leg_states": ", ".join(exit_states),
+                        "position_protection_status": protection.get("status"),
+                        "position_qty": protection.get("position_qty"),
+                        "stop_exit_qty": stop_leg.get("qty"),
+                        "target_exit_qty": target_leg.get("qty"),
                     })
 
                 lifecycle_df = decision_df.apply(_lifecycle_columns, axis=1)
                 decision_df = pd.concat([decision_df, lifecycle_df], axis=1)
-                d1, d2, d3, d4 = st.columns(4)
+                protection_statuses = decision_df.get("position_protection_status", pd.Series(index=decision_df.index, dtype=object))
+                protection_alert_count = int((protection_statuses.notna() & ~protection_statuses.eq("PROTECTED")).sum())
+                d1, d2, d3, d4, d5 = st.columns(5)
                 d1.metric("Recent decisions", len(decision_df))
                 d2.metric("Ready (not submitted)", ready_count)
                 d3.metric("Broker orders / lifecycle", submitted_count)
                 d4.metric("Blocked by risk gates", blocked_count)
+                d5.metric("Protection audit alerts", protection_alert_count)
                 decision_columns = [
                     "symbol", "status", "broker_state", "filled_shares", "remaining_shares",
+                    "position_protection_status", "position_qty", "stop_exit_qty", "target_exit_qty",
                     "exit_leg_states", "reason", "quote_feed", "quote_timestamp",
                     "bid", "ask", "midpoint", "spread_pct", "quantity",
                     "estimated_notional", "estimated_risk_dollars",
@@ -1108,6 +1119,8 @@ with cloud_tab:
                 decision_df = decision_df[visible].rename(columns={
                     "symbol": "Symbol", "status": "Decision", "broker_state": "Broker state",
                     "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
+                    "position_protection_status": "Position protection", "position_qty": "Open shares",
+                    "stop_exit_qty": "Stop shares", "target_exit_qty": "Target shares",
                     "exit_leg_states": "Protective exit legs", "reason": "Gate result",
                     "quote_feed": "Quote feed", "quote_timestamp": "Quote timestamp (UTC)",
                     "bid": "Bid", "ask": "Ask", "midpoint": "Midpoint",
@@ -1125,7 +1138,7 @@ with cloud_tab:
                     decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
                     use_container_width=True, hide_index=True
                 )
-                st.caption("READY_NOT_SUBMITTED is not an order. Broker state, filled/remaining shares, and protective exit-leg states come from Alpaca read-only order snapshots. Quote timestamps are UTC.")
+                st.caption("READY_NOT_SUBMITTED is not an order. Position protection is marked PROTECTED only when both active bracket exits exactly match the broker-reported open share quantity; missing, inactive, mismatched, or unknown coverage is flagged for review. All broker data is read-only. Quote timestamps are UTC.")
             else:
                 st.info("No Alpaca paper decisions have been recorded yet. The dashboard's Supabase virtual paper account is separate.")
 

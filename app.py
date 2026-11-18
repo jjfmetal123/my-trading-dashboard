@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.15 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
+st.caption("Version 3.16 · ATR-based pullback/breakout setup diagnostics · Sector-aware cloud ranking · Automatic cloud AI review · Auto-refreshing cloud scanner · Intraday paper-exit monitor · Immediate portfolio refresh after trades · Clickable prioritized watchlist · AI-assisted trade analyst · Trade planning & invalidation · Expanded multi-market scanner · Account history · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -572,6 +572,21 @@ with cloud_tab:
                     "momentum_score": "Momentum score"
                 })
                 st.dataframe(rotation_df.style.format({c: "{:+.2f}" for c in ["1W %", "1M %", "3M %", "1M vs SPY (pp)", "3M vs SPY (pp)", "Momentum score"] if c in rotation_df.columns}), use_container_width=True, hide_index=True)
+
+            validation = (cloud_scan.get("ai_review") or {}).get("setup_validation") or {}
+            if validation:
+                st.divider()
+                st.markdown("### 🧪 Historical setup validation")
+                st.caption(validation.get("method", "Descriptive historical event study; not a forecast."))
+                setup_metrics = validation.get("setups") or {}
+                for setup_name, metrics in setup_metrics.items():
+                    st.markdown(f"**{setup_name.title()}**")
+                    vc = st.columns(4)
+                    vc[0].metric("Historical events", metrics.get("event_count", 0))
+                    vc[1].metric("5-day win rate", f"{metrics['win_rate_5d_pct']:.1f}%" if metrics.get("win_rate_5d_pct") is not None else "—")
+                    vc[2].metric("10-day average", f"{metrics['average_return_10d_pct']:+.2f}%" if metrics.get("average_return_10d_pct") is not None else "—")
+                    vc[3].metric("20-day average", f"{metrics['average_return_20d_pct']:+.2f}%" if metrics.get("average_return_20d_pct") is not None else "—")
+                st.caption("Historical observations are not live signals or evidence of future profitability. Events may overlap; returns exclude trading costs and survivorship-bias adjustments.")
 
             st.divider()
             st.markdown("### 🤖 Automatic AI second-stage review")
@@ -1743,4 +1758,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.15 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, historical backtesting, broker access, or real order execution. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay, ATR-based setup diagnostics and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")
+st.caption("Version 3.16 limitations: scanner uses daily Yahoo Finance bars; weekly trend is derived from those same daily bars. The optional AI analyst only reviews supplied indicators and reference levels; it does not have live intraday data, news, filings, broker access, or real order execution. The historical setup event study is descriptive and is not a validated backtest. The cloud worker saves rules-based scans with a bounded sector-aware ranking overlay, ATR-based setup diagnostics and an AI second-stage research review; the dashboard displays those reports and does not place trades. Snapshots update when the dashboard runs. Simulated trades exclude commissions, spread, slippage, and taxes. The expanded watchlist is a curated starter universe, not every listed asset or token.")

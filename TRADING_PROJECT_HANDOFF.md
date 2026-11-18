@@ -243,3 +243,18 @@ When the user says **“Resume the trading project”**:
 
 
 - Dashboard V3.28 syntax workflow run `44399244197` completed SUCCESS on handoff commit `8653ca1e6cedb88dda43b461bd37910d89419395`. The app code commit `6798e37a4a98eeea7fce3ecbf80020b498663d2e` and README commit `a64834b56e8f35323c9e74dfa7d27eddd07a842c` also passed syntax checks. Streamlit Community Cloud visual deployment is still unverified.
+
+
+## 13. V5.33 broker position protection audit and Dashboard V3.29 (Nov 18, 2026)
+- Added `broker_position_protection.py`, a pure audit helper. It links each actual Alpaca position to the newest matching worker-owned `scan-` entry order and checks its nested bracket stop/target legs.
+- `PROTECTED` requires both exit legs to be active and each exit quantity to exactly match the broker-reported open position quantity. Missing stop/target, inactive legs, quantity mismatch, unavailable quantities, and positions without a matching worker entry are distinct non-success states. Unknown/unlinked positions are never assumed protected.
+- Worker reconciliation now persists `decision.position_protection` in the matching `paper_trade_decisions` row and logs non-PROTECTED/unlinked states. This is read-only: it does not submit, cancel, replace, or close orders.
+- Worker helper/test commits: `48ef82e6858d907f8fb1de62ae1d0b2c0608fa97`, `b7dfef20b27bc1e07ede870913482e6d94bf99dc`, `de6d8725c4b2569d481d5f96e3386168134cca04`, `2cfccd58ffba30a8b6af97317b206d1c9705b9d4`; worker integration commit `77af76bc332096bc898efd1a52bcf2e8fbcb6e66`.
+- GitHub Actions for worker commit `77af76bc...`: Python tests run `44400154713` SUCCESS and Python checks run `44400154682` SUCCESS. Earlier helper and matching tests also passed (`44399954753`, `44399947528`, `44400112847`, `44400092435`).
+- Dashboard V3.29 displays protection status, open shares, stop shares, target shares, and counts non-PROTECTED audit states. App commit `cada87d5063e9ab774a6cc158682586498675666`; README update follows.
+- Worker README V5.33 documentation commit and dashboard README update are being recorded in this batch. Dashboard syntax CI and both Render/Streamlit deployments still require verification.
+- The verified Alpaca paper account still has zero positions, so the new position-protection path is unit-tested but has not yet been observed against a real open paper position. Do not create a test position in the production paper account.
+- `ALPACA_PAPER_TRADING_ENABLED` remains OFF. The daily-loss guardrail row remains at $100,000 starting/current equity, $0 P&L, 0% loss, not halted, for Alpaca paper account `PA34ODALY` on 2026-11-18. The separate Supabase virtual account remains untouched.
+- Historical strategy holdout remains negative under moderate execution costs. Do not claim profitability or loosen entry filters to force trades.
+
+**Next exact tasks:** verify latest Render deployment and logs for worker integration commit `77af76bc...`; verify Dashboard V3.29 syntax CI and Streamlit deployment; inspect protection audit after naturally occurring paper positions (without placing test orders); add an explicit fail-closed new-entry gate for any known unprotected Alpaca position before considering execution enablement; then add restart/partial-fill integration tests. Keep paper execution OFF pending full lifecycle validation and explicit user approval.

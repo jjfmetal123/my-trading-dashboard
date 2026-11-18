@@ -305,12 +305,27 @@ def load_latest_paper_trade_decisions():
     client = get_supabase_client()
     result = (
         client.table("paper_trade_decisions")
-        .select("symbol,status,reason,quote_timestamp,quote_feed,bid,ask,midpoint,spread_pct,quantity,estimated_notional,estimated_risk_dollars,current_reward_risk,broker_order_id,client_order_id,updated_at")
+        .select("symbol,status,reason,quote_timestamp,quote_feed,bid,ask,midpoint,spread_pct,quantity,estimated_notional,estimated_risk_dollars,current_reward_risk,broker_order_id,client_order_id,decision,updated_at")
         .order("updated_at", desc=True)
         .limit(100)
         .execute()
     )
     return result.data or []
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_latest_paper_execution_guardrail():
+    """Load the latest Alpaca paper-account daily-loss guardrail; read-only."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_execution_guardrails")
+        .select("trading_date,starting_equity,current_equity,daily_pnl,daily_loss_pct,halted,halt_reason,updated_at")
+        .order("trading_date", desc=True)
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -968,6 +983,7 @@ with cloud_tab:
         if refresh_cloud:
             load_latest_cloud_scan.clear()
             load_latest_paper_trade_decisions.clear()
+            load_latest_paper_execution_guardrail.clear()
         try:
             cloud_scan = load_latest_cloud_scan()
         except Exception as exc:
@@ -1035,26 +1051,64 @@ with cloud_tab:
                 decision_rows = []
                 st.warning("Paper decision history is not available yet.")
                 st.caption(f"Technical detail: {exc}")
+            try:
+                guardrail = load_latest_paper_execution_guardrail()
+            except Exception as exc:
+                guardrail = None
+                st.warning("Alpaca daily-loss guardrail status is unavailable.")
+                st.caption(f"Technical detail: {exc}")
+            if guardrail:
+                st.markdown("#### 🛡️ Alpaca paper risk guardrail")
+                g1, g2, g3, g4 = st.columns(4)
+                g1.metric("Daily P&L", f"${float(guardrail.get('daily_pnl') or 0):,.2f}")
+                g2.metric("Daily loss", f"{float(guardrail.get('daily_loss_pct') or 0):.2f}%")
+                g3.metric("Starting equity", f"${float(guardrail.get('starting_equity') or 0):,.2f}")
+                g4.metric("Entry circuit breaker", "HALTED" if guardrail.get("halted") else "CLEAR")
+                if guardrail.get("halted"):
+                    st.warning(f"New paper entries are blocked: {guardrail.get('halt_reason') or 'Daily loss guardrail active'}.")
+                st.caption(f"Trading date: {guardrail.get('trading_date')} · Updated: {guardrail.get('updated_at')}")
+            else:
+                st.info("No Alpaca daily-loss guardrail snapshot has been recorded yet.")
+
             if decision_rows:
                 decision_df = pd.DataFrame(decision_rows)
                 statuses = decision_df.get("status", pd.Series(dtype=str)).fillna("UNKNOWN")
                 ready_count = int(statuses.isin(["READY_NOT_SUBMITTED", "READY_FOR_PAPER_ORDER"]).sum())
-                submitted_count = int(statuses.isin(["ORDER_SUBMITTED", "ORDER_ALREADY_EXISTS"]).sum())
+                broker_lifecycle_count = int(statuses.str.startswith("BROKER_").sum())
+                submitted_count = int(statuses.isin(["ORDER_SUBMITTED", "ORDER_ALREADY_EXISTS"]).sum()) + broker_lifecycle_count
                 blocked_count = int(statuses.eq("BLOCKED").sum())
+
+                def _lifecycle_columns(item):
+                    decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
+                    lifecycle = decision.get("broker_lifecycle") if isinstance(decision.get("broker_lifecycle"), dict) else {}
+                    legs = lifecycle.get("legs") if isinstance(lifecycle.get("legs"), list) else []
+                    exit_states = [str(leg.get("lifecycle_state") or "UNKNOWN") for leg in legs if isinstance(leg, dict)]
+                    return pd.Series({
+                        "broker_state": lifecycle.get("lifecycle_state"),
+                        "filled_shares": lifecycle.get("filled_qty"),
+                        "remaining_shares": lifecycle.get("remaining_qty"),
+                        "exit_leg_states": ", ".join(exit_states),
+                    })
+
+                lifecycle_df = decision_df.apply(_lifecycle_columns, axis=1)
+                decision_df = pd.concat([decision_df, lifecycle_df], axis=1)
                 d1, d2, d3, d4 = st.columns(4)
                 d1.metric("Recent decisions", len(decision_df))
                 d2.metric("Ready (not submitted)", ready_count)
-                d3.metric("Broker orders", submitted_count)
+                d3.metric("Broker orders / lifecycle", submitted_count)
                 d4.metric("Blocked by risk gates", blocked_count)
                 decision_columns = [
-                    "symbol", "status", "reason", "quote_feed", "quote_timestamp",
+                    "symbol", "status", "broker_state", "filled_shares", "remaining_shares",
+                    "exit_leg_states", "reason", "quote_feed", "quote_timestamp",
                     "bid", "ask", "midpoint", "spread_pct", "quantity",
                     "estimated_notional", "estimated_risk_dollars",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]
                 decision_df = decision_df[visible].rename(columns={
-                    "symbol": "Symbol", "status": "Decision", "reason": "Gate result",
+                    "symbol": "Symbol", "status": "Decision", "broker_state": "Broker state",
+                    "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
+                    "exit_leg_states": "Protective exit legs", "reason": "Gate result",
                     "quote_feed": "Quote feed", "quote_timestamp": "Quote timestamp (UTC)",
                     "bid": "Bid", "ask": "Ask", "midpoint": "Midpoint",
                     "spread_pct": "Spread %", "quantity": "Shares",
@@ -1071,7 +1125,7 @@ with cloud_tab:
                     decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
                     use_container_width=True, hide_index=True
                 )
-                st.caption("A READY_NOT_SUBMITTED row is a simulated decision only; it is not an order or fill. Quote timestamps are UTC.")
+                st.caption("READY_NOT_SUBMITTED is not an order. Broker state, filled/remaining shares, and protective exit-leg states come from Alpaca read-only order snapshots. Quote timestamps are UTC.")
             else:
                 st.info("No Alpaca paper decisions have been recorded yet. The dashboard's Supabase virtual paper account is separate.")
 

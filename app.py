@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.30 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.31 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1077,6 +1077,7 @@ with cloud_tab:
                 broker_lifecycle_count = int((statuses.str.startswith("BROKER_") & ~statuses.eq("BROKER_UNKNOWN")).sum())
                 submitted_count = int(statuses.isin(["ORDER_SUBMITTED", "ORDER_ALREADY_EXISTS"]).sum()) + broker_lifecycle_count
                 blocked_count = int(statuses.eq("BLOCKED").sum())
+                invalid_broker_data_count = int(statuses.eq("BROKER_DATA_INVALID").sum())
 
                 def _lifecycle_columns(item):
                     decision = item.get("decision") if isinstance(item.get("decision"), dict) else {}
@@ -1084,10 +1085,12 @@ with cloud_tab:
                     legs = lifecycle.get("legs") if isinstance(lifecycle.get("legs"), list) else []
                     exit_states = [str(leg.get("lifecycle_state") or "UNKNOWN") for leg in legs if isinstance(leg, dict)]
                     protection = decision.get("position_protection") if isinstance(decision.get("position_protection"), dict) else {}
+                    quantity_validation = decision.get("broker_quantity_validation", "UNAVAILABLE")
                     stop_leg = protection.get("stop") if isinstance(protection.get("stop"), dict) else {}
                     target_leg = protection.get("target") if isinstance(protection.get("target"), dict) else {}
                     return pd.Series({
                         "broker_state": lifecycle.get("lifecycle_state"),
+                        "broker_quantity_validation": quantity_validation,
                         "filled_shares": lifecycle.get("filled_qty"),
                         "remaining_shares": lifecycle.get("remaining_qty"),
                         "exit_leg_states": ", ".join(exit_states),
@@ -1105,14 +1108,16 @@ with cloud_tab:
                     protection_statuses.notna()
                     & ~protection_statuses.isin(["PROTECTED", "NO_OPEN_POSITION", "NOT_CURRENT_POSITION_ENTRY"])
                 ).sum())
-                d1, d2, d3, d4, d5 = st.columns(5)
+                d1, d2, d3, d4, d5, d6 = st.columns(6)
                 d1.metric("Recent decisions", len(decision_df))
                 d2.metric("Ready (not submitted)", ready_count)
                 d3.metric("Broker orders / lifecycle", submitted_count)
                 d4.metric("Blocked by risk gates", blocked_count)
                 d5.metric("Protection audit alerts", protection_alert_count)
+                d6.metric("Invalid broker data", invalid_broker_data_count)
                 decision_columns = [
-                    "symbol", "status", "broker_state", "filled_shares", "remaining_shares",
+                    "symbol", "status", "broker_state", "broker_quantity_validation",
+                    "filled_shares", "remaining_shares",
                     "position_protection_status", "position_protection_reason",
                     "position_qty", "stop_exit_qty", "target_exit_qty",
                     "exit_leg_states", "reason", "quote_feed", "quote_timestamp",
@@ -1123,6 +1128,7 @@ with cloud_tab:
                 visible = [col for col in decision_columns if col in decision_df.columns]
                 decision_df = decision_df[visible].rename(columns={
                     "symbol": "Symbol", "status": "Decision", "broker_state": "Broker state",
+                    "broker_quantity_validation": "Broker quantity data",
                     "filled_shares": "Filled shares", "remaining_shares": "Remaining shares",
                     "position_protection_status": "Position protection",
                     "position_protection_reason": "Protection reason", "position_qty": "Open shares",
@@ -1144,7 +1150,7 @@ with cloud_tab:
                     decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
                     use_container_width=True, hide_index=True
                 )
-                st.caption("READY_NOT_SUBMITTED is not an order. Position protection is marked PROTECTED only when both active bracket exits exactly match the broker-reported open share quantity; missing, inactive, mismatched, or unknown coverage is flagged for review. All broker data is read-only. Quote timestamps are UTC.")
+                st.caption("READY_NOT_SUBMITTED is not an order. Invalid broker fill quantities are separately flagged as BROKER_DATA_INVALID; unavailable fill metadata is not treated as valid. Position protection is marked PROTECTED only when both active bracket exits exactly match the broker-reported open share quantity. All broker data is read-only. Quote timestamps are UTC.")
             else:
                 st.info("No Alpaca paper decisions have been recorded yet. The dashboard's Supabase virtual paper account is separate.")
 

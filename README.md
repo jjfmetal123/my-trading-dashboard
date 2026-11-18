@@ -55,3 +55,10 @@ The dashboard opens at http://localhost:8501.
 ## Validation
 
 GitHub Actions compiles `app.py` on pushes and pull requests. The cloud worker has its own deterministic unit-test workflows; its results are separate from the dashboard's syntax check.
+
+
+## Dashboard V3.28 broker lifecycle and risk guardrails
+- Cloud scanner's Alpaca panel now displays the latest paper-account daily-loss guardrail: starting equity, daily P&L, daily loss percentage, halt/clear state, and trading date.
+- Decision history now includes broker-confirmed lifecycle state, filled and remaining share quantities, and attached protective exit-leg states from the worker's nested read-only order snapshot.
+- Broker lifecycle statuses are included in the broker-order count. Unknown broker states are not counted as confirmed broker orders.
+- All additions are read-only. The dashboard continues to keep the Supabase virtual paper account separate from the Alpaca paper brokerage account.

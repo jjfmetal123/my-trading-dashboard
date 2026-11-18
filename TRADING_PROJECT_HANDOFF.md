@@ -400,3 +400,10 @@ When the user says **“Resume the trading project”**:
 - Dashboard handoff CI for the previous handoff passed; the additional V5.38 runtime/test details in this append require the new dashboard syntax run to finish.
 
 - V5.39 final verification: worker test and compile workflows passed on code/version commit `22d24f8727f1ead67f2e6d00d30adb3ac8ab49fa` (runs `44410291168` and `44410291166`) and the final README commit `541419268f5b6d1266b3d583708a41c23539c82d` passed full tests/compile (run `44410343137`). Render deploy `dep-dbv28cajnfac739htdpg` is LIVE on the V5.39 version commit. Startup log at 22:19:06 UTC confirms `WORKER_VERSION=5.39`; runtime safety log confirms order submission remains disabled unless the explicit paper flag is enabled. A follow-on README-only commit `54141926...` is also being deployed; it does not change worker code. Dashboard handoff CI run `44410380164` SUCCESS.
+
+
+### V5.39 additional fail-closed exit-fill checks
+- Tightened `inspect_bracket_protection` as well as the open-risk estimator: stop and target children require explicit finite `filled_qty` values between zero and total quantity. Missing, NaN, negative, or overfilled quantities no longer default to full remaining coverage. The broker position must explicitly state `long` or `short`; direct audit inspection no longer silently assumes long.
+- Added regression tests for missing/invalid child fill quantities and missing position side. Updated broker-audit fixtures to represent explicit broker fill quantities.
+- The first CI attempt exposed three audit fixtures that lacked child `filled_qty`; fixtures were corrected without weakening validation. Final worker full-suite run `44410426880` SUCCESS and syntax run `44410426868` SUCCESS on commit `e40b8e8cabfc0103408dfa76b77d53f90a16e862`.
+- Render deployment for `e40b8e8...` is queued/in progress; do not mark this latest V5.39 code live until Render confirms it.

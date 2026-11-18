@@ -225,3 +225,11 @@ When the user says **“Resume the trading project”**:
 - Historical validation caution: the recent shared-cash out-of-sample replay was negative under moderate costs (-2.1082%, profit factor 0.907); non-crypto moderate-cost P&L was -$2,888.68 / PF 0.887. Treat this as evidence that the strategy is not yet validated, not a profit claim. Keep paper execution disabled.
 
 **Next exact tasks:** verify V5.32 CI and Render deployment; add tests around order audit reconciliation; reconcile broker-filled quantity and protective exit-leg quantity to actual Alpaca positions; ensure daily-loss guardrail is called before any candidate evaluation; add dashboard display for broker lifecycle and daily halt state. Do not enable paper orders until the full end-to-end lifecycle is proven and the user explicitly approves.
+
+
+### V5.32 final verification correction
+- Latest worker commit `9c10e45ae3fdd6f5ebec1aef369dfb4c3ce77ba3` fixes the escaped-newline syntax issue in the worker guardrail call.
+- GitHub Actions on `9c10e45...`: Python tests run `44398837925` completed SUCCESS; Python checks run `44398837496` completed SUCCESS.
+- Render deploy `dep-dbv18u1j7cmc73de61bg` for `9c10e45...` is LIVE. Startup and runtime logs show V5.32 running, Alpaca paper account ACTIVE, and the guardrail table being read/upserted successfully. A prior intermediate deployment briefly crashed due to the escaped-newline syntax error; the corrected commit is live and the worker has resumed.
+- Verified live guardrail row for Alpaca paper account `PA34ODALY`, date `2026-11-18`: starting equity $100,000, current equity $100,000, daily P&L $0, daily loss 0%, halted=false. This is the Alpaca paper account only.
+- V5.32 worker uses the standalone `daily_loss_guardrail.py` helper; integration tests no longer import worker runtime. Paper execution switch remains OFF.

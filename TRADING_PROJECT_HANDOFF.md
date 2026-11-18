@@ -1,6 +1,6 @@
 # Trading Project Handoff
 
-**Last maintained:** 2026-11-18  
+**Last maintained:** 2026-11-18 (updated after V5.27 / V3.25 data-quality batch)  
 **Purpose:** Durable checkpoint for continuing the trading dashboard and observation-only cloud worker across ChatGPT conversations.
 
 > **Resume phrase:** “Resume the trading project.”  
@@ -136,8 +136,8 @@ When the user says **“Resume the trading project”**:
 
 ## 8. Immediate next checkpoint
 
-**Primary task:** Improve dashboard scan/data-quality visibility for missing symbols and stale prices, with tests and clear coverage reporting.
+**Completed batch:** Worker V5.27 records per-symbol missing-data reasons and potentially stale daily-price warnings; dashboard V3.25 displays missing/stale counts and detail tables.\n\n**Next task:** Run CI, verify Render deploy and a fresh Supabase scan report, then use the dashboard virtual paper account to evaluate and manually approve any simulated entries.
 
-**Parallel investigation:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage.
+**Still open:** Diagnose the repeated `UNI-USD` data failure without silently reducing crypto coverage. Confirm the freshness thresholds against exchange holidays and provider behavior.
 
-**Before editing:** Refresh current repository heads and inspect the actual dashboard/worker implementation. Confirm the existing architecture and avoid duplicating features that may already have landed since this checkpoint.
+**Latest code changes:** Worker V5.27 and dashboard V3.25 data-quality batch committed; exact SHAs and CI/deploy results are appended after verification.\n\n**Before further editing:** Refresh current repository heads and inspect actual source and deployment state.

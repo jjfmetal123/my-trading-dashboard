@@ -469,3 +469,11 @@ When the user says **“Resume the trading project”**:
 - Safety unchanged: ALPACA_PAPER_TRADING_ENABLED remains OFF. No paper or live orders submitted.
 
 - V5.41 final verification: worker tests/compile passed on account-flag test commit 71ff28c7c29207a8648ec481568cb81e13bce875 (run 44412195398 SUCCESS); version bump CI runs 44412352097 and 44412351850 SUCCESS; README CI runs 44412374163 and 44412373910 SUCCESS. Render deploy dep-dbv2ed3u2v8c73fe3h00 is LIVE on README commit 4a46f958eba6a01b408ff6cd5d0496e258b50482. Startup at 22:32:37 UTC confirms WORKER_VERSION=5.41 and safety mode. Fresh Alpaca paper read-only snapshot at 22:32:39 UTC: ACTIVE, $100,000 equity, $200,000 buying power, zero brokerage positions. Supabase virtual AAPL/MSFT holdings remain separate and unchanged. Dashboard handoff CI run 44412414579 SUCCESS.
+
+
+## V5.42 idempotent existing-order identity validation (Nov 18, 2026)
+- Hardened the successful client_order_id lookup path. An existing-order hit is now accepted as idempotent only if it contains a valid broker order ID and exactly matches the requested client_order_id, symbol, side, order type, order class, time-in-force, and quantity. A malformed response or a client-ID collision with a different order fails closed; it never triggers a second POST and is not mislabeled as the requested order.
+- Added regression tests for collisions in symbol, quantity, side, type, order_class, time_in_force, and client_order_id; preserved tests for malformed/null lookup responses and a legitimate matching existing order.
+- Code commit 587b9690d633f31eedb2a5e0c6f9c79c6be5287f; tests commit 05070d338d39731e22cc723af38ff03ece8d470d. Full worker suite and compile checks passed: run 44412777496 SUCCESS; syntax run 44412777457 SUCCESS.
+- Version bump V5.42 commit 233d58d8a56df822a6ff8ea0006bdc1260d6f3e6; README commit 5d515d6c2f0ff56171926c6c4ee8b8bb08d8d2c9. Verify final CI and Render startup before calling V5.42 live.
+- Safety unchanged: order gateway remains fixed to Alpaca paper host, exact PA account identity required, all account restriction flags must be explicitly false, malformed idempotency lookup blocks, and ALPACA_PAPER_TRADING_ENABLED remains OFF.

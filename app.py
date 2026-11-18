@@ -1135,6 +1135,11 @@ with cloud_tab:
                         "most_correlated_higher_ranked_symbol": decision.get("most_correlated_higher_ranked_symbol"),
                         "candidate_correlation_observations": decision.get("candidate_correlation_observations"),
                         "high_correlation_flag": decision.get("high_correlation_flag"),
+                        "held_position_correlation_status": decision.get("held_position_correlation_status"),
+                        "highest_held_position_correlation": decision.get("highest_held_position_correlation"),
+                        "most_correlated_held_symbol": decision.get("most_correlated_held_symbol"),
+                        "held_position_correlation_observations": decision.get("held_position_correlation_observations"),
+                        "high_held_correlation_flag": decision.get("high_held_correlation_flag"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1173,6 +1178,9 @@ with cloud_tab:
                     "candidate_correlation_status", "highest_ranked_candidate_correlation",
                     "most_correlated_higher_ranked_symbol", "candidate_correlation_observations",
                     "high_correlation_flag",
+                    "held_position_correlation_status", "highest_held_position_correlation",
+                    "most_correlated_held_symbol", "held_position_correlation_observations",
+                    "high_held_correlation_flag",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]

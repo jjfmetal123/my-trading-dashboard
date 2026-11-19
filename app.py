@@ -1340,6 +1340,98 @@ with cloud_tab:
                     "Correlation vs higher rank": "{:.2f}",
                     "Current R:R": "{:.2f}"
                 }
+                # Portfolio regime diagnostics are repeated on each candidate decision row;
+                # render the shared snapshot once, outside the per-symbol audit table.
+                regime_row = next((
+                    item for item in decision_rows
+                    if isinstance(item, dict)
+                    and isinstance(item.get("decision"), dict)
+                    and item["decision"].get("regime_status") == "AVAILABLE"
+                ), None)
+                if regime_row:
+                    regime_data = regime_row["decision"]
+                    st.markdown("#### 🌦️ Portfolio performance by market regime")
+                    st.caption(
+                        "Historical portfolio behavior grouped by SPY trend and volatility. "
+                        "Descriptive only; these readings do not change candidate rankings, sizing, or order decisions."
+                    )
+                    trend_label = str(regime_data.get("current_market_trend_regime") or "Unavailable")
+                    vol_label = str(regime_data.get("current_market_volatility_regime") or "Unavailable")
+                    regime_label = str(regime_data.get("current_market_regime") or "Unavailable")
+                    realized_vol = regime_data.get("current_spy_realized_volatility_pct")
+                    regime_observations = regime_data.get("regime_observations")
+                    q1, q2, q3, q4 = st.columns(4)
+                    q1.metric("Current SPY trend", trend_label)
+                    q2.metric("Current SPY volatility", vol_label)
+                    q3.metric("Current combined regime", regime_label)
+                    q4.metric(
+                        "SPY 20-day realized vol",
+                        f"{realized_vol:.1f}%" if isinstance(realized_vol, (int, float)) else "Unavailable",
+                    )
+                    st.caption(
+                        f"Usable aligned sessions: {regime_observations if regime_observations is not None else 'Unavailable'}"
+                    )
+                    regime_rows = regime_data.get("regime_performance")
+                    if isinstance(regime_rows, list) and regime_rows:
+                        regime_table = pd.DataFrame([
+                            row for row in regime_rows if isinstance(row, dict)
+                        ])
+                        if not regime_table.empty:
+                            regime_table = regime_table.rename(columns={
+                                "regime": "Market regime",
+                                "trend_regime": "Trend",
+                                "volatility_regime": "Volatility",
+                                "observations": "Sessions",
+                                "portfolio_avg_daily_return_pct": "Portfolio avg daily %",
+                                "benchmark_avg_daily_return_pct": "SPY avg daily %",
+                                "average_daily_excess_return_pct": "Avg daily excess %",
+                                "portfolio_win_rate_pct": "Portfolio up days %",
+                                "portfolio_worst_day_pct": "Worst portfolio day %",
+                            })
+                            regime_formats = {
+                                col: "{:.3f}%" for col in [
+                                    "Portfolio avg daily %", "SPY avg daily %",
+                                    "Avg daily excess %", "Portfolio up days %",
+                                    "Worst portfolio day %",
+                                ] if col in regime_table.columns
+                            }
+                            st.dataframe(
+                                regime_table.style.format(regime_formats),
+                                use_container_width=True, hide_index=True
+                            )
+                    holding_rows = regime_data.get("regime_holding_diagnostics")
+                    if isinstance(holding_rows, list) and holding_rows:
+                        with st.expander("Per-holding performance inside each regime"):
+                            holding_table = pd.DataFrame([
+                                row for row in holding_rows if isinstance(row, dict)
+                            ])
+                            if not holding_table.empty:
+                                holding_table = holding_table.rename(columns={
+                                    "regime": "Market regime",
+                                    "symbol": "Symbol",
+                                    "side": "Side",
+                                    "observations": "Sessions",
+                                    "holding_avg_daily_return_pct": "Holding avg daily %",
+                                    "weighted_portfolio_contribution_pct": "Weighted contribution %",
+                                })
+                                holding_formats = {
+                                    col: "{:.3f}%" for col in [
+                                        "Holding avg daily %", "Weighted contribution %"
+                                    ] if col in holding_table.columns
+                                }
+                                st.dataframe(
+                                    holding_table.style.format(holding_formats),
+                                    use_container_width=True, hide_index=True
+                                )
+                elif decision_rows:
+                    regime_status = next((
+                        item.get("decision", {}).get("regime_status")
+                        for item in decision_rows if isinstance(item, dict)
+                        and isinstance(item.get("decision"), dict)
+                        and item["decision"].get("regime_status")
+                    ), "UNAVAILABLE")
+                    st.markdown("#### 🌦️ Portfolio performance by market regime")
+                    st.info(f"Regime diagnostics: {str(regime_status).replace('_', ' ').lower()}.")
                 st.dataframe(
                     decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
                     use_container_width=True, hide_index=True

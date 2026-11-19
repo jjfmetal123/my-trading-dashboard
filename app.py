@@ -8,7 +8,8 @@ from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
 
-st.markdown("""<style>\n
+st.markdown("""<style>
+
 # MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header[data-testid="stHeader"] {background: rgba(10, 17, 30, .82);}
@@ -103,7 +104,8 @@ hr { border-color: rgba(148, 163, 184, .16); }
   [data-testid="stMetricValue"] { font-size: 1.18rem; }
   [data-testid="stCaptionContainer"] { font-size: .82rem; }
 }
-\n</style>""", unsafe_allow_html=True)
+
+</style>""", unsafe_allow_html=True)
 
 # Simple app-level password gate. The password is stored in Streamlit Secrets,
 # never in the GitHub source code. This protects the app UI, not the database
@@ -688,494 +690,495 @@ with command_tab:
                 st.caption("AI ranks setup quality from the worker's supplied daily-bar facts. This is a research queue, not a buy signal. Review current quotes and the individual chart before acting.")
             else:
                 st.info("No AI shortlist was saved with the latest scan.")
-            p1, p2 = st.columns([1, 1])
-            with p1:
-                st.markdown("#### 🛡️ Portfolio concentration")
-                sector_weights = portfolio.get("sector_weights_pct") or {}
-                if sector_weights:
-                    sector_df = pd.DataFrame([{"Sector":k,"Weight %":v} for k,v in sector_weights.items()]).sort_values("Weight %",ascending=False)
-                    st.dataframe(sector_df.style.format({"Weight %":"{:.1f}%"}), use_container_width=True, hide_index=True)
-                    st.metric("Largest sector weight", f"{float(portfolio.get('largest_sector_weight_pct',0)):.1f}%")
-                else:
-                    st.info("No portfolio concentration snapshot is available.")
+            with st.expander("Deep diagnostics · portfolio risk, historical replay & walk-forward evidence", expanded=False):
+                p1, p2 = st.columns([1, 1])
+                with p1:
+                    st.markdown("#### 🛡️ Portfolio concentration")
+                    sector_weights = portfolio.get("sector_weights_pct") or {}
+                    if sector_weights:
+                        sector_df = pd.DataFrame([{"Sector":k,"Weight %":v} for k,v in sector_weights.items()]).sort_values("Weight %",ascending=False)
+                        st.dataframe(sector_df.style.format({"Weight %":"{:.1f}%"}), use_container_width=True, hide_index=True)
+                        st.metric("Largest sector weight", f"{float(portfolio.get('largest_sector_weight_pct',0)):.1f}%")
+                    else:
+                        st.info("No portfolio concentration snapshot is available.")
 
-                held_rows = portfolio.get("positions") or []
-                if held_rows:
-                    st.markdown("**Current holdings · estimated weights**")
-                    held_df = pd.DataFrame(held_rows)
-                    held_columns = [c for c in ["symbol", "sector_group", "market_value", "weight_pct", "annualized_volatility_pct"] if c in held_df.columns]
-                    held_df = held_df[held_columns].rename(columns={
-                        "symbol": "Symbol", "sector_group": "Sector",
-                        "market_value": "Market value $", "weight_pct": "Portfolio weight %",
-                        "annualized_volatility_pct": "60D annualized volatility %",
-                    })
-                    st.dataframe(held_df.style.format({
-                        "Market value $": "${:,.2f}",
-                        "Portfolio weight %": "{:.2f}%",
-                        "60D annualized volatility %": "{:.1f}%",
-                    }, na_rep="—"), use_container_width=True, hide_index=True)
+                    held_rows = portfolio.get("positions") or []
+                    if held_rows:
+                        st.markdown("**Current holdings · estimated weights**")
+                        held_df = pd.DataFrame(held_rows)
+                        held_columns = [c for c in ["symbol", "sector_group", "market_value", "weight_pct", "annualized_volatility_pct"] if c in held_df.columns]
+                        held_df = held_df[held_columns].rename(columns={
+                            "symbol": "Symbol", "sector_group": "Sector",
+                            "market_value": "Market value $", "weight_pct": "Portfolio weight %",
+                            "annualized_volatility_pct": "60D annualized volatility %",
+                        })
+                        st.dataframe(held_df.style.format({
+                            "Market value $": "${:,.2f}",
+                            "Portfolio weight %": "{:.2f}%",
+                            "60D annualized volatility %": "{:.1f}%",
+                        }, na_rep="—"), use_container_width=True, hide_index=True)
 
-                correlated = portfolio.get("top_correlated_pairs") or []
-                if correlated:
-                    st.markdown("**Most correlated holdings · 60 trading days**")
-                    corr_df = pd.DataFrame(correlated[:5]).rename(columns={
-                        "pair": "Pair", "correlation_60d": "Correlation",
-                        "overlapping_sessions": "Overlapping sessions",
-                    })
-                    st.dataframe(corr_df.style.format({"Correlation": "{:+.2f}", "Overlapping sessions": "{:.0f}"}), use_container_width=True, hide_index=True)
-                    high_pairs = [x for x in correlated if abs(float(x.get("correlation_60d") or 0)) >= 0.80]
-                    if high_pairs:
-                        st.warning(f"{len(high_pairs)} holding pair(s) have absolute 60-day correlation of at least 0.80. Different tickers may still behave like one concentrated bet.")
-                if portfolio.get("data_note"):
-                    st.caption(portfolio["data_note"])
-            with p2:
-                st.markdown("#### 🧪 Historical setup behavior")
-                setups = setup.get("setups") or {}
-                if setups:
-                    rows = []
-                    for name, metrics in setups.items():
-                        train = metrics.get("training") or {}
-                        test = metrics.get("out_of_sample") or {}
-                        rows.append({
-                            "Setup": name.title(),
-                            "De-overlapped events": metrics.get("event_count", 0),
-                            "Train 5D win rate": train.get("win_rate_5d_pct"),
-                            "OOS 5D win rate": test.get("win_rate_5d_pct"),
-                            "Train 5D expectancy": train.get("expectancy_5d_pct"),
-                            "OOS 5D expectancy": test.get("expectancy_5d_pct"),
-                            "OOS 20D win rate": test.get("win_rate_20d_pct"),
-                            "OOS 20D expectancy": test.get("expectancy_20d_pct"),
+                    correlated = portfolio.get("top_correlated_pairs") or []
+                    if correlated:
+                        st.markdown("**Most correlated holdings · 60 trading days**")
+                        corr_df = pd.DataFrame(correlated[:5]).rename(columns={
+                            "pair": "Pair", "correlation_60d": "Correlation",
+                            "overlapping_sessions": "Overlapping sessions",
                         })
-                    hist_df = pd.DataFrame(rows)
-                    st.dataframe(hist_df.style.format({c:"{:+.2f}%" if "expectancy" in c.lower() else "{:.1f}%" for c in hist_df.columns if c not in ["Setup","De-overlapped events"]}, na_rep="—"), use_container_width=True, hide_index=True)
-                    st.caption(f"Chronological 70/30 per-symbol split · {setup.get('de_overlapped_event_count', 0):,} non-overlapping events from {setup.get('raw_event_count', 0):,} raw candidates · 20-session cooldown across setup types.")
-                    st.caption("Out-of-sample is the later 30% of each symbol's history. This is a historical holdout, not a rolling walk-forward or proof of future performance; transaction costs and survivorship-bias adjustments are not included.")
-                else:
-                    st.info("Historical setup study is unavailable.")
-            st.divider()
-            st.markdown("#### 🧮 Shared-capital historical portfolio replay")
-            try:
-                replay_row = load_latest_historical_portfolio_replay()
-            except Exception as exc:
-                replay_row = None
-                st.warning(f"Historical portfolio replay could not be loaded: {exc}")
-            if replay_row:
-                replay_result = replay_row.get("result") or {}
-                walk = replay_result.get("walk_forward") or {}
-                cost_sensitivity = replay_result.get("out_of_sample_cost_sensitivity") or {}
-                model_label = replay_row.get("model_version", "Unknown model")
-                as_of_label = replay_row.get("as_of_date", "Unknown date")
-                st.caption(f"{model_label} · Market data through {as_of_label} · Saved {replay_row.get('updated_at', 'time unavailable')}")
-                m1, m2, m3, m4 = st.columns(4)
-                ret = replay_row.get("total_return_pct")
-                m1.metric("Historical holdout", f"{float(ret):+.2f}%" if ret is not None else "—")
-                equity_value = replay_row.get("final_equity")
-                m2.metric("Ending equity", f"${float(equity_value):,.2f}" if equity_value is not None else "—")
-                dd = replay_row.get("max_drawdown_pct")
-                m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
-                m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
-                drawdown_rows = []
-                for label, key in (
-                    ("Current drawdown", "current_drawdown_pct"),
-                    ("Current underwater sessions", "current_underwater_sessions"),
-                    ("Longest underwater stretch (sessions)", "longest_underwater_sessions"),
-                    ("Maximum drawdown peak date", "max_drawdown_peak_date"),
-                    ("Maximum drawdown trough date", "max_drawdown_trough_date"),
-                ):
-                    value = replay_result.get(key)
-                    if value is not None:
-                        if key.endswith("_pct"):
-                            display_value = f"{float(value):.2f}%"
-                        elif key.endswith("_sessions"):
-                            display_value = f"{int(value):,}"
-                        else:
-                            display_value = str(value)
-                        drawdown_rows.append({"Drawdown diagnostic": label, "Value": display_value})
-                recovered = replay_result.get("is_recovered_to_prior_peak")
-                if recovered is not None:
-                    drawdown_rows.append({
-                        "Drawdown diagnostic": "Recovered to prior equity peak",
-                        "Value": "Yes" if recovered else "No",
-                    })
-                if drawdown_rows:
-                    st.markdown("##### Drawdown duration & recovery")
-                    st.dataframe(pd.DataFrame(drawdown_rows), use_container_width=True, hide_index=True)
-                    st.caption("Drawdown depth and duration use daily closing equity marks; intraday peak-to-trough movement may be larger.")
-                exposure = replay_result.get("exposure_quality") or {}
-                exposure_rows = []
-                for label, key, suffix in (
-                    ("Peak single-stock exposure", "max_single_symbol_exposure_pct", "%"),
-                    ("Peak single-sector exposure", "max_single_sector_exposure_pct", "%"),
-                    ("Peak top-three stock exposure", "max_top_three_symbols_exposure_pct", "%"),
-                    ("Peak single-stock concentration (HHI)", "max_symbol_exposure_hhi_pct2", " pct²"),
-                    ("Exposure-weighted average pair correlation", "max_weighted_average_pair_correlation", ""),
-                    ("High-correlation pair-weight share", "max_high_correlation_pair_weight_share_pct", "%"),
-                    ("Date of peak single-stock exposure", "max_single_symbol_exposure_date", ""),
-                    ("Date of peak sector exposure", "max_single_sector_exposure_date", ""),
-                ):
-                    value = exposure.get(key)
-                    if value is not None:
-                        display_value = f"{float(value):.2f}{suffix}" if key.endswith("_pct") or key.endswith("_pct2") else str(value)
-                        exposure_rows.append({"Exposure diagnostic": label, "Value": display_value})
-                if exposure_rows:
-                    st.markdown("##### Portfolio concentration")
-                    st.dataframe(pd.DataFrame(exposure_rows), use_container_width=True, hide_index=True)
-                    st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages. Correlation uses trailing aligned daily returns for concurrently held symbols; high-correlation pair share is the portion of pairwise exposure-product weight with correlation at or above 0.70. Insufficient history is reported as unavailable, not zero.")
-                stress = replay_result.get("market_stress_quality") or {}
-                if stress:
-                    stress_rows = []
-                    for label, key in (
-                        ("SPY down at least 1% (daily)", "daily_benchmark_down_1pct"),
-                        ("SPY down at least 2% (daily)", "daily_benchmark_down_2pct"),
-                        ("SPY down at least 5% (rolling 5 sessions)", "rolling_5_session_benchmark_down_5pct"),
-                    ):
-                        scenario = stress.get(key) or {}
-                        stress_rows.append({
-                            "Historical stress condition": label,
-                            "Sessions": scenario.get("sessions", 0),
-                            "Portfolio loss sessions": scenario.get("portfolio_loss_sessions", 0),
-                            "Average portfolio return": (
-                                f"{float(scenario['average_portfolio_return_pct']):+.2f}%"
-                                if scenario.get("average_portfolio_return_pct") is not None else "—"
-                            ),
-                            "Worst portfolio return": (
-                                f"{float(scenario['worst_portfolio_return_pct']):+.2f}%"
-                                if scenario.get("worst_portfolio_return_pct") is not None else "—"
-                            ),
-                            "Average vs. SPY": (
-                                f"{float(scenario['average_portfolio_minus_benchmark_pct']):+.2f} pp"
-                                if scenario.get("average_portfolio_minus_benchmark_pct") is not None else "—"
-                            ),
-                        })
-                    st.markdown("##### Historical market selloff behavior")
-                    st.dataframe(pd.DataFrame(stress_rows), use_container_width=True, hide_index=True)
-                    st.caption("Conditional historical observations using the supplied SPY history. Five-session selloff windows may overlap. These results are not a forecast or a simulated sudden correlation/liquidity shock.")
-                risk_budget = replay_result.get("portfolio_risk_budget") or {}
-                if risk_budget.get("status") == "COMPLETED":
-                    utilization = float(risk_budget.get("peak_utilization_pct") or 0)
-                    budget_rows = [
-                        {"Portfolio risk budget": "Configured stop-risk budget", "Value": f"{float(risk_budget.get('risk_budget_pct_equity') or 0):.2f}% of equity"},
-                        {"Portfolio risk budget": "Peak planned open risk", "Value": f"{float(risk_budget.get('peak_open_risk_pct_equity') or 0):.2f}% of equity"},
-                        {"Portfolio risk budget": "Peak budget utilization", "Value": f"{utilization:.1f}%"},
-                        {"Portfolio risk budget": "Remaining budget at peak", "Value": f"{float(risk_budget.get('remaining_budget_pct_equity') or 0):+.2f}% of equity"},
-                        {"Portfolio risk budget": "Peak date", "Value": risk_budget.get("peak_date") or "—"},
-                        {"Portfolio risk budget": "Snapshots above budget", "Value": int(risk_budget.get("over_budget_snapshots") or 0)},
-                    ]
-                    st.markdown("##### Portfolio stop-risk budget")
-                    st.dataframe(pd.DataFrame(budget_rows), use_container_width=True, hide_index=True)
-                    risk_contributors = risk_budget.get("symbol_contributions_at_peak_risk") or []
-                    if risk_contributors:
-                        st.markdown("**Largest contributors at peak portfolio stop-risk**")
-                        st.dataframe(pd.DataFrame([{
-                            "Symbol": row.get("symbol"),
-                            "Planned stop-risk": f"{float(row.get('planned_open_risk_pct_equity') or 0):.3f}%",
-                            "Share of budget": f"{float(row.get('risk_budget_share_pct') or 0):.1f}%",
-                            "Share of open risk": f"{float(row.get('share_of_portfolio_open_risk_pct') or 0):.1f}%",
-                        } for row in risk_contributors]), use_container_width=True, hide_index=True)
-                    st.caption(risk_budget.get("interpretation") or "Historical replay diagnostic only; not a live order gate.")
-                elif risk_budget.get("status"):
-                    st.caption(f"Portfolio risk budget: {risk_budget.get('status')}")
-                shock = replay_result.get("portfolio_shock_scenarios") or {}
-                if shock.get("scenarios"):
-                    shock_rows = []
-                    for scenario in shock.get("scenarios", []):
-                        shock_rows.append({
-                            "Scenario": scenario.get("name"),
-                            "Estimated equity loss": f"{float(scenario.get('estimated_equity_loss_pct') or 0):.2f}%",
-                            "Loss per $10,000": f"${float(scenario.get('estimated_equity_loss_per_10000') or 0):,.2f}",
-                            "Exposure snapshot": scenario.get("exposure_date") or "—",
-                        })
-                    st.markdown("##### Deterministic portfolio shock scenarios")
-                    st.dataframe(pd.DataFrame(shock_rows), use_container_width=True, hide_index=True)
-                    st.caption(shock.get("interpretation") or "Independent sensitivity scenarios; not forecasts. Do not add scenario losses together.")
-                    contributors = shock.get("symbol_contributions_at_peak_gross_exposure") or []
-                    if contributors:
-                        st.markdown("**Largest individual shock contributors at peak gross exposure**")
-                        contributor_rows = [{
-                            "Symbol": row.get("symbol"),
-                            "Exposure": f"{float(row.get('exposure_pct') or 0):.2f}%",
-                            "Planned open risk": f"{float(row.get('planned_open_risk_pct') or 0):.2f}%",
-                            "Loss at -10%": f"{float(row.get('loss_at_10pct_drop_pct') or 0):.2f}%",
-                            "Loss at -20%": f"{float(row.get('loss_at_20pct_drop_pct') or 0):.2f}%",
-                        } for row in contributors]
-                        st.dataframe(pd.DataFrame(contributor_rows), use_container_width=True, hide_index=True)
-                        st.caption("Per-symbol price-shock contributions use each symbol's exposure at the same peak-gross-exposure snapshot; planned open risk is the modeled distance to stop after assumed baseline execution costs.")
-
-                quality = replay_result.get("trade_quality") or {}
-                quality_rows = []
-                for label, key, suffix in (
-                    ("Maximum consecutive losses", "max_consecutive_losses", ""),
-                    ("Worst losing-streak P&L", "worst_losing_streak_net_pnl", "$"),
-                    ("Maximum consecutive wins", "max_consecutive_wins", ""),
-                    ("Top winner share of gross profits", "top_winner_share_of_gross_profit_pct", "%"),
-                    ("Top 3 winners share of gross profits", "top_three_winners_share_of_gross_profit_pct", "%"),
-                    ("Average win / average loss", "average_win_to_average_loss", "x"),
-                    ("Trades with valid P&L", "trades_with_valid_net_pnl", ""),
-                ):
-                    value = quality.get(key)
-                    if value is not None:
-                        if key.endswith("_pnl"):
-                            display_value = f"{suffix}{float(value):,.2f}"
-                        elif key.endswith("_pct"):
-                            display_value = f"{float(value):.1f}{suffix}"
-                        elif key.endswith("_ratio"):
-                            display_value = f"{float(value):.2f}{suffix}"
-                        else:
-                            display_value = f"{int(value):,}{suffix}"
-                        quality_rows.append({"Trade quality diagnostic": label, "Value": display_value})
-                if quality_rows:
-                    st.markdown("##### Losing streaks & profit concentration")
-                    st.dataframe(pd.DataFrame(quality_rows), use_container_width=True, hide_index=True)
-                    st.caption("Profit concentration measures the share of gross winning-trade profits contributed by the largest winners. Streaks are ordered by exit date; these are historical diagnostics, not predictive guarantees.")
-                cost_rows = []
-                for key, label in (
-                    ("baseline", "Baseline"),
-                    ("moderate", "Moderate cost"),
-                    ("severe", "Severe cost"),
-                    ("fixed_share_moderate", "Fixed-share moderate"),
-                    ("fixed_share_severe", "Fixed-share severe"),
-                ):
-                    scenario = cost_sensitivity.get(key) or {}
-                    if scenario:
-                        cost_rows.append({
-                            "Scenario": label,
-                            "Spread bps": scenario.get("spread_bps"),
-                            "Slippage bps": scenario.get("slippage_bps"),
-                            "Return %": scenario.get("total_return_pct"),
-                            "Max drawdown %": scenario.get("max_drawdown_pct"),
-                            "Profit factor": scenario.get("profit_factor"),
-                        })
-                if cost_rows:
-                    st.markdown("##### Holdout execution-cost stress")
-                    cost_df = pd.DataFrame(cost_rows)
-                    st.dataframe(
-                        cost_df.style.format({
-                            "Spread bps": "{:.0f}",
-                            "Slippage bps": "{:.0f}",
-                            "Return %": "{:+.2f}%",
-                            "Max drawdown %": "{:.2f}%",
-                            "Profit factor": "{:.3f}",
-                        }, na_rep="—"),
-                        use_container_width=True, hide_index=True
-                    )
-                    st.caption(
-                        (cost_sensitivity.get("interpretation") or "") +
-                        " Fixed-share cases freeze baseline accepted quantities; they are not pure friction-only comparisons."
-                    )
-                fold_rows = walk.get("windows_detail") or []
-                sufficient_training_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
-                positive_training_folds = sum(
-                    1 for row in sufficient_training_folds if float(row.get("test_return_pct") or 0) > 0
-                )
-                supported_test_folds = int(walk.get("windows_with_at_least_10_closed_trades") or 0)
-                thin_test_folds = int(walk.get("windows_with_insufficient_closed_trade_evidence") or 0)
-                supported_cost_folds = int(walk.get("supported_windows_at_moderate_cost") or 0)
-                positive_supported_cost_folds = int(walk.get("supported_windows_positive_at_moderate_cost") or 0)
-                median_cost_fold = walk.get("median_test_return_at_moderate_cost_pct")
-                worst_cost_fold = walk.get("worst_test_return_at_moderate_cost_pct")
-                wf_cols = st.columns(4)
-                wf_cols[0].metric(
-                    "Test periods with ≥10 trades",
-                    f"{supported_test_folds}/{int(walk.get('windows') or 0)}"
-                )
-                wf_cols[1].metric(
-                    "Positive supported periods after costs",
-                    f"{positive_supported_cost_folds}/{supported_cost_folds}"
-                )
-                wf_cols[2].metric(
-                    "Median fold return after costs",
-                    f"{float(median_cost_fold):+.2f}%" if median_cost_fold is not None else "—"
-                )
-                wf_cols[3].metric("Thin-evidence periods", f"{thin_test_folds:,}")
-                st.caption(
-                    f"Walk-forward design: {int(walk.get('training_sessions') or 126)} training sessions / "
-                    f"{int(walk.get('test_sessions') or 63)} unseen test sessions per fold · "
-                    f"{int(walk.get('total_test_closed_trades') or 0):,} closed test trades total. "
-                    "A fold needs at least 10 closed trades to count as supported evidence."
-                )
-                moderate_cost_return = (cost_sensitivity.get("moderate") or {}).get("total_return_pct")
-                enough_supported_folds = supported_cost_folds >= 3
-                majority_positive_after_costs = (
-                    enough_supported_folds and positive_supported_cost_folds * 2 > supported_cost_folds
-                )
-                if not enough_supported_folds:
-                    st.warning(
-                        "UNPROVEN: fewer than three walk-forward test periods have at least 10 closed trades. "
-                        "The available results are exploratory, not evidence of a dependable edge."
-                    )
-                elif majority_positive_after_costs and median_cost_fold is not None and float(median_cost_fold) > 0:
-                    st.success(
-                        "POSITIVE HISTORICAL EVIDENCE: a majority of adequately sampled unseen periods were positive "
-                        "after moderate assumed costs. This is not proof of future profitability or permission to trade live."
-                    )
-                else:
-                    st.warning(
-                        "WEAK OR NEGATIVE EVIDENCE: adequately sampled unseen periods do not show consistent positive "
-                        "returns after moderate assumed costs. Keep the strategy simulation-only while investigating."
-                    )
-                if moderate_cost_return is not None and float(moderate_cost_return) <= 0:
-                    st.caption(
-                        "The separate 70/30 moderate-cost holdout is non-positive; do not let positive individual folds "
-                        "override that conflicting result."
-                    )
-                if worst_cost_fold is not None:
-                    st.caption(f"Worst adequately sampled moderate-cost fold: {float(worst_cost_fold):+.2f}%.")
+                        st.dataframe(corr_df.style.format({"Correlation": "{:+.2f}", "Overlapping sessions": "{:.0f}"}), use_container_width=True, hide_index=True)
+                        high_pairs = [x for x in correlated if abs(float(x.get("correlation_60d") or 0)) >= 0.80]
+                        if high_pairs:
+                            st.warning(f"{len(high_pairs)} holding pair(s) have absolute 60-day correlation of at least 0.80. Different tickers may still behave like one concentrated bet.")
+                    if portfolio.get("data_note"):
+                        st.caption(portfolio["data_note"])
+                with p2:
+                    st.markdown("#### 🧪 Historical setup behavior")
+                    setups = setup.get("setups") or {}
+                    if setups:
+                        rows = []
+                        for name, metrics in setups.items():
+                            train = metrics.get("training") or {}
+                            test = metrics.get("out_of_sample") or {}
+                            rows.append({
+                                "Setup": name.title(),
+                                "De-overlapped events": metrics.get("event_count", 0),
+                                "Train 5D win rate": train.get("win_rate_5d_pct"),
+                                "OOS 5D win rate": test.get("win_rate_5d_pct"),
+                                "Train 5D expectancy": train.get("expectancy_5d_pct"),
+                                "OOS 5D expectancy": test.get("expectancy_5d_pct"),
+                                "OOS 20D win rate": test.get("win_rate_20d_pct"),
+                                "OOS 20D expectancy": test.get("expectancy_20d_pct"),
+                            })
+                        hist_df = pd.DataFrame(rows)
+                        st.dataframe(hist_df.style.format({c:"{:+.2f}%" if "expectancy" in c.lower() else "{:.1f}%" for c in hist_df.columns if c not in ["Setup","De-overlapped events"]}, na_rep="—"), use_container_width=True, hide_index=True)
+                        st.caption(f"Chronological 70/30 per-symbol split · {setup.get('de_overlapped_event_count', 0):,} non-overlapping events from {setup.get('raw_event_count', 0):,} raw candidates · 20-session cooldown across setup types.")
+                        st.caption("Out-of-sample is the later 30% of each symbol's history. This is a historical holdout, not a rolling walk-forward or proof of future performance; transaction costs and survivorship-bias adjustments are not included.")
+                    else:
+                        st.info("Historical setup study is unavailable.")
+                st.divider()
+                st.markdown("#### 🧮 Shared-capital historical portfolio replay")
                 try:
-                    prior_row = load_prior_historical_portfolio_replay()
-                    current_fingerprint = replay_result.get("history_fingerprint")
-                    prior_fingerprint = (prior_row.get("result") or {}).get("history_fingerprint") if prior_row else None
-                    if current_fingerprint and prior_fingerprint and current_fingerprint != prior_fingerprint:
-                        st.warning(
-                            "Market-history fingerprint changed since V6. The V6-to-V7 return difference is not a clean code-only comparison; "
-                            "the underlying historical price data was revised."
-                        )
+                    replay_row = load_latest_historical_portfolio_replay()
                 except Exception as exc:
-                    st.caption(f"Prior replay fingerprint comparison unavailable: {exc}")
-                if walk.get("windows_with_insufficient_training_events"):
-                    st.caption(
-                        f"{int(walk.get('windows_with_insufficient_training_events'))} walk-forward period(s) had too few training events; "
-                        "the first fold had no training events and should not count as evidence of a validated edge."
-                    )
+                    replay_row = None
+                    st.warning(f"Historical portfolio replay could not be loaded: {exc}")
+                if replay_row:
+                    replay_result = replay_row.get("result") or {}
+                    walk = replay_result.get("walk_forward") or {}
+                    cost_sensitivity = replay_result.get("out_of_sample_cost_sensitivity") or {}
+                    model_label = replay_row.get("model_version", "Unknown model")
+                    as_of_label = replay_row.get("as_of_date", "Unknown date")
+                    st.caption(f"{model_label} · Market data through {as_of_label} · Saved {replay_row.get('updated_at', 'time unavailable')}")
+                    m1, m2, m3, m4 = st.columns(4)
+                    ret = replay_row.get("total_return_pct")
+                    m1.metric("Historical holdout", f"{float(ret):+.2f}%" if ret is not None else "—")
+                    equity_value = replay_row.get("final_equity")
+                    m2.metric("Ending equity", f"${float(equity_value):,.2f}" if equity_value is not None else "—")
+                    dd = replay_row.get("max_drawdown_pct")
+                    m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
+                    m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
+                    drawdown_rows = []
+                    for label, key in (
+                        ("Current drawdown", "current_drawdown_pct"),
+                        ("Current underwater sessions", "current_underwater_sessions"),
+                        ("Longest underwater stretch (sessions)", "longest_underwater_sessions"),
+                        ("Maximum drawdown peak date", "max_drawdown_peak_date"),
+                        ("Maximum drawdown trough date", "max_drawdown_trough_date"),
+                    ):
+                        value = replay_result.get(key)
+                        if value is not None:
+                            if key.endswith("_pct"):
+                                display_value = f"{float(value):.2f}%"
+                            elif key.endswith("_sessions"):
+                                display_value = f"{int(value):,}"
+                            else:
+                                display_value = str(value)
+                            drawdown_rows.append({"Drawdown diagnostic": label, "Value": display_value})
+                    recovered = replay_result.get("is_recovered_to_prior_peak")
+                    if recovered is not None:
+                        drawdown_rows.append({
+                            "Drawdown diagnostic": "Recovered to prior equity peak",
+                            "Value": "Yes" if recovered else "No",
+                        })
+                    if drawdown_rows:
+                        st.markdown("##### Drawdown duration & recovery")
+                        st.dataframe(pd.DataFrame(drawdown_rows), use_container_width=True, hide_index=True)
+                        st.caption("Drawdown depth and duration use daily closing equity marks; intraday peak-to-trough movement may be larger.")
+                    exposure = replay_result.get("exposure_quality") or {}
+                    exposure_rows = []
+                    for label, key, suffix in (
+                        ("Peak single-stock exposure", "max_single_symbol_exposure_pct", "%"),
+                        ("Peak single-sector exposure", "max_single_sector_exposure_pct", "%"),
+                        ("Peak top-three stock exposure", "max_top_three_symbols_exposure_pct", "%"),
+                        ("Peak single-stock concentration (HHI)", "max_symbol_exposure_hhi_pct2", " pct²"),
+                        ("Exposure-weighted average pair correlation", "max_weighted_average_pair_correlation", ""),
+                        ("High-correlation pair-weight share", "max_high_correlation_pair_weight_share_pct", "%"),
+                        ("Date of peak single-stock exposure", "max_single_symbol_exposure_date", ""),
+                        ("Date of peak sector exposure", "max_single_sector_exposure_date", ""),
+                    ):
+                        value = exposure.get(key)
+                        if value is not None:
+                            display_value = f"{float(value):.2f}{suffix}" if key.endswith("_pct") or key.endswith("_pct2") else str(value)
+                            exposure_rows.append({"Exposure diagnostic": label, "Value": display_value})
+                    if exposure_rows:
+                        st.markdown("##### Portfolio concentration")
+                        st.dataframe(pd.DataFrame(exposure_rows), use_container_width=True, hide_index=True)
+                        st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages. Correlation uses trailing aligned daily returns for concurrently held symbols; high-correlation pair share is the portion of pairwise exposure-product weight with correlation at or above 0.70. Insufficient history is reported as unavailable, not zero.")
+                    stress = replay_result.get("market_stress_quality") or {}
+                    if stress:
+                        stress_rows = []
+                        for label, key in (
+                            ("SPY down at least 1% (daily)", "daily_benchmark_down_1pct"),
+                            ("SPY down at least 2% (daily)", "daily_benchmark_down_2pct"),
+                            ("SPY down at least 5% (rolling 5 sessions)", "rolling_5_session_benchmark_down_5pct"),
+                        ):
+                            scenario = stress.get(key) or {}
+                            stress_rows.append({
+                                "Historical stress condition": label,
+                                "Sessions": scenario.get("sessions", 0),
+                                "Portfolio loss sessions": scenario.get("portfolio_loss_sessions", 0),
+                                "Average portfolio return": (
+                                    f"{float(scenario['average_portfolio_return_pct']):+.2f}%"
+                                    if scenario.get("average_portfolio_return_pct") is not None else "—"
+                                ),
+                                "Worst portfolio return": (
+                                    f"{float(scenario['worst_portfolio_return_pct']):+.2f}%"
+                                    if scenario.get("worst_portfolio_return_pct") is not None else "—"
+                                ),
+                                "Average vs. SPY": (
+                                    f"{float(scenario['average_portfolio_minus_benchmark_pct']):+.2f} pp"
+                                    if scenario.get("average_portfolio_minus_benchmark_pct") is not None else "—"
+                                ),
+                            })
+                        st.markdown("##### Historical market selloff behavior")
+                        st.dataframe(pd.DataFrame(stress_rows), use_container_width=True, hide_index=True)
+                        st.caption("Conditional historical observations using the supplied SPY history. Five-session selloff windows may overlap. These results are not a forecast or a simulated sudden correlation/liquidity shock.")
+                    risk_budget = replay_result.get("portfolio_risk_budget") or {}
+                    if risk_budget.get("status") == "COMPLETED":
+                        utilization = float(risk_budget.get("peak_utilization_pct") or 0)
+                        budget_rows = [
+                            {"Portfolio risk budget": "Configured stop-risk budget", "Value": f"{float(risk_budget.get('risk_budget_pct_equity') or 0):.2f}% of equity"},
+                            {"Portfolio risk budget": "Peak planned open risk", "Value": f"{float(risk_budget.get('peak_open_risk_pct_equity') or 0):.2f}% of equity"},
+                            {"Portfolio risk budget": "Peak budget utilization", "Value": f"{utilization:.1f}%"},
+                            {"Portfolio risk budget": "Remaining budget at peak", "Value": f"{float(risk_budget.get('remaining_budget_pct_equity') or 0):+.2f}% of equity"},
+                            {"Portfolio risk budget": "Peak date", "Value": risk_budget.get("peak_date") or "—"},
+                            {"Portfolio risk budget": "Snapshots above budget", "Value": int(risk_budget.get("over_budget_snapshots") or 0)},
+                        ]
+                        st.markdown("##### Portfolio stop-risk budget")
+                        st.dataframe(pd.DataFrame(budget_rows), use_container_width=True, hide_index=True)
+                        risk_contributors = risk_budget.get("symbol_contributions_at_peak_risk") or []
+                        if risk_contributors:
+                            st.markdown("**Largest contributors at peak portfolio stop-risk**")
+                            st.dataframe(pd.DataFrame([{
+                                "Symbol": row.get("symbol"),
+                                "Planned stop-risk": f"{float(row.get('planned_open_risk_pct_equity') or 0):.3f}%",
+                                "Share of budget": f"{float(row.get('risk_budget_share_pct') or 0):.1f}%",
+                                "Share of open risk": f"{float(row.get('share_of_portfolio_open_risk_pct') or 0):.1f}%",
+                            } for row in risk_contributors]), use_container_width=True, hide_index=True)
+                        st.caption(risk_budget.get("interpretation") or "Historical replay diagnostic only; not a live order gate.")
+                    elif risk_budget.get("status"):
+                        st.caption(f"Portfolio risk budget: {risk_budget.get('status')}")
+                    shock = replay_result.get("portfolio_shock_scenarios") or {}
+                    if shock.get("scenarios"):
+                        shock_rows = []
+                        for scenario in shock.get("scenarios", []):
+                            shock_rows.append({
+                                "Scenario": scenario.get("name"),
+                                "Estimated equity loss": f"{float(scenario.get('estimated_equity_loss_pct') or 0):.2f}%",
+                                "Loss per $10,000": f"${float(scenario.get('estimated_equity_loss_per_10000') or 0):,.2f}",
+                                "Exposure snapshot": scenario.get("exposure_date") or "—",
+                            })
+                        st.markdown("##### Deterministic portfolio shock scenarios")
+                        st.dataframe(pd.DataFrame(shock_rows), use_container_width=True, hide_index=True)
+                        st.caption(shock.get("interpretation") or "Independent sensitivity scenarios; not forecasts. Do not add scenario losses together.")
+                        contributors = shock.get("symbol_contributions_at_peak_gross_exposure") or []
+                        if contributors:
+                            st.markdown("**Largest individual shock contributors at peak gross exposure**")
+                            contributor_rows = [{
+                                "Symbol": row.get("symbol"),
+                                "Exposure": f"{float(row.get('exposure_pct') or 0):.2f}%",
+                                "Planned open risk": f"{float(row.get('planned_open_risk_pct') or 0):.2f}%",
+                                "Loss at -10%": f"{float(row.get('loss_at_10pct_drop_pct') or 0):.2f}%",
+                                "Loss at -20%": f"{float(row.get('loss_at_20pct_drop_pct') or 0):.2f}%",
+                            } for row in contributors]
+                            st.dataframe(pd.DataFrame(contributor_rows), use_container_width=True, hide_index=True)
+                            st.caption("Per-symbol price-shock contributions use each symbol's exposure at the same peak-gross-exposure snapshot; planned open risk is the modeled distance to stop after assumed baseline execution costs.")
 
-                standalone = replay_result.get("out_of_sample_asset_class_only") or {}
-                accepted = replay_result.get("out_of_sample_by_asset_class") or {}
-                pooled = walk.get("aggregate_test_by_asset_class") or {}
-                pooled_cost = walk.get("aggregate_moderate_cost_test_by_asset_class") or {}
-                asset_rows = []
-                for key, label in (("CRYPTO", "Crypto"), ("NON_CRYPTO", "Stocks / ETFs / other")):
-                    solo = standalone.get(key) or {}
-                    mixed = accepted.get(key) or {}
-                    wf_asset = pooled.get(key) or {}
-                    wf_cost = pooled_cost.get(key) or {}
-                    asset_rows.append({
-                        "Asset class": label,
-                        "Standalone OOS return %": solo.get("total_return_pct"),
-                        "Standalone max DD %": solo.get("max_drawdown_pct"),
-                        "Standalone trades": solo.get("closed_trades"),
-                        "Mixed-portfolio trades": mixed.get("trades"),
-                        "Mixed-portfolio trade P&L $": mixed.get("total_net_pnl"),
-                        "Walk-forward pooled P&L $": wf_asset.get("total_net_pnl"),
-                        "Walk-forward moderate-cost P&L $": wf_cost.get("total_net_pnl"),
-                    })
-                asset_df = pd.DataFrame(asset_rows)
-                st.dataframe(
-                    asset_df.style.format({
-                        "Standalone OOS return %": "{:+.2f}%",
-                        "Standalone max DD %": "{:.2f}%",
-                        "Standalone trades": "{:,.0f}",
-                        "Mixed-portfolio trades": "{:,.0f}",
-                        "Mixed-portfolio trade P&L $": "${:+,.2f}",
-                        "Walk-forward pooled P&L $": "${:+,.2f}",
-                        "Walk-forward moderate-cost P&L $": "${:+,.2f}",
-                    }, na_rep="—"),
-                    use_container_width=True, hide_index=True
-                )
-                st.caption(
-                    "Standalone rows each start with separate fresh capital. Mixed-portfolio P&L is the closed-trade contribution "
-                    "from trades accepted in the combined shared-cash run. Walk-forward pooled P&L sums closed trades across test folds; "
-                    "it is not a compounded portfolio return. Moderate costs assume 20 bps spread and 10 bps slippage."
-                )
-                # Compare entry setups across the chronological test folds, not just the overall portfolio.
-                setup_pooled = walk.get("aggregate_test_by_setup") or {}
-                setup_pooled_cost = walk.get("aggregate_moderate_cost_test_by_setup") or {}
-                setup_rows = []
-                for setup_key in sorted(set(setup_pooled) | set(setup_pooled_cost)):
-                    base_setup = setup_pooled.get(setup_key) or {}
-                    cost_setup = setup_pooled_cost.get(setup_key) or {}
-                    setup_positive_folds = 0
-                    setup_adequate_folds = 0
-                    for fold in fold_rows:
-                        if not fold.get("training_sample_sufficient"):
-                            continue
-                        fold_setup = (fold.get("test_by_setup") or {}).get(setup_key) or {}
-                        fold_cost_setup = (fold.get("test_moderate_cost_by_setup") or {}).get(setup_key) or {}
-                        if int(fold_setup.get("trades") or 0) > 0:
-                            setup_adequate_folds += 1
-                            fold_pnl = float(fold_setup.get("total_net_pnl") or 0)
-                            if fold_pnl > 0:
-                                setup_positive_folds += 1
-                    setup_rows.append({
-                        "Entry setup": setup_key.title(),
-                        "Baseline trades": base_setup.get("trades"),
-                        "Baseline P&L $": base_setup.get("total_net_pnl"),
-                        "Baseline PF": base_setup.get("profit_factor"),
-                        "Moderate-cost trades": cost_setup.get("trades"),
-                        "Moderate-cost P&L $": cost_setup.get("total_net_pnl"),
-                        "Moderate-cost PF": cost_setup.get("profit_factor"),
-                        "Positive adequate folds": f"{setup_positive_folds}/{setup_adequate_folds}",
-                    })
-                if setup_rows:
-                    st.markdown("##### Entry-setup walk-forward attribution")
-                    setup_df = pd.DataFrame(setup_rows)
+                    quality = replay_result.get("trade_quality") or {}
+                    quality_rows = []
+                    for label, key, suffix in (
+                        ("Maximum consecutive losses", "max_consecutive_losses", ""),
+                        ("Worst losing-streak P&L", "worst_losing_streak_net_pnl", "$"),
+                        ("Maximum consecutive wins", "max_consecutive_wins", ""),
+                        ("Top winner share of gross profits", "top_winner_share_of_gross_profit_pct", "%"),
+                        ("Top 3 winners share of gross profits", "top_three_winners_share_of_gross_profit_pct", "%"),
+                        ("Average win / average loss", "average_win_to_average_loss", "x"),
+                        ("Trades with valid P&L", "trades_with_valid_net_pnl", ""),
+                    ):
+                        value = quality.get(key)
+                        if value is not None:
+                            if key.endswith("_pnl"):
+                                display_value = f"{suffix}{float(value):,.2f}"
+                            elif key.endswith("_pct"):
+                                display_value = f"{float(value):.1f}{suffix}"
+                            elif key.endswith("_ratio"):
+                                display_value = f"{float(value):.2f}{suffix}"
+                            else:
+                                display_value = f"{int(value):,}{suffix}"
+                            quality_rows.append({"Trade quality diagnostic": label, "Value": display_value})
+                    if quality_rows:
+                        st.markdown("##### Losing streaks & profit concentration")
+                        st.dataframe(pd.DataFrame(quality_rows), use_container_width=True, hide_index=True)
+                        st.caption("Profit concentration measures the share of gross winning-trade profits contributed by the largest winners. Streaks are ordered by exit date; these are historical diagnostics, not predictive guarantees.")
+                    cost_rows = []
+                    for key, label in (
+                        ("baseline", "Baseline"),
+                        ("moderate", "Moderate cost"),
+                        ("severe", "Severe cost"),
+                        ("fixed_share_moderate", "Fixed-share moderate"),
+                        ("fixed_share_severe", "Fixed-share severe"),
+                    ):
+                        scenario = cost_sensitivity.get(key) or {}
+                        if scenario:
+                            cost_rows.append({
+                                "Scenario": label,
+                                "Spread bps": scenario.get("spread_bps"),
+                                "Slippage bps": scenario.get("slippage_bps"),
+                                "Return %": scenario.get("total_return_pct"),
+                                "Max drawdown %": scenario.get("max_drawdown_pct"),
+                                "Profit factor": scenario.get("profit_factor"),
+                            })
+                    if cost_rows:
+                        st.markdown("##### Holdout execution-cost stress")
+                        cost_df = pd.DataFrame(cost_rows)
+                        st.dataframe(
+                            cost_df.style.format({
+                                "Spread bps": "{:.0f}",
+                                "Slippage bps": "{:.0f}",
+                                "Return %": "{:+.2f}%",
+                                "Max drawdown %": "{:.2f}%",
+                                "Profit factor": "{:.3f}",
+                            }, na_rep="—"),
+                            use_container_width=True, hide_index=True
+                        )
+                        st.caption(
+                            (cost_sensitivity.get("interpretation") or "") +
+                            " Fixed-share cases freeze baseline accepted quantities; they are not pure friction-only comparisons."
+                        )
+                    fold_rows = walk.get("windows_detail") or []
+                    sufficient_training_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
+                    positive_training_folds = sum(
+                        1 for row in sufficient_training_folds if float(row.get("test_return_pct") or 0) > 0
+                    )
+                    supported_test_folds = int(walk.get("windows_with_at_least_10_closed_trades") or 0)
+                    thin_test_folds = int(walk.get("windows_with_insufficient_closed_trade_evidence") or 0)
+                    supported_cost_folds = int(walk.get("supported_windows_at_moderate_cost") or 0)
+                    positive_supported_cost_folds = int(walk.get("supported_windows_positive_at_moderate_cost") or 0)
+                    median_cost_fold = walk.get("median_test_return_at_moderate_cost_pct")
+                    worst_cost_fold = walk.get("worst_test_return_at_moderate_cost_pct")
+                    wf_cols = st.columns(4)
+                    wf_cols[0].metric(
+                        "Test periods with ≥10 trades",
+                        f"{supported_test_folds}/{int(walk.get('windows') or 0)}"
+                    )
+                    wf_cols[1].metric(
+                        "Positive supported periods after costs",
+                        f"{positive_supported_cost_folds}/{supported_cost_folds}"
+                    )
+                    wf_cols[2].metric(
+                        "Median fold return after costs",
+                        f"{float(median_cost_fold):+.2f}%" if median_cost_fold is not None else "—"
+                    )
+                    wf_cols[3].metric("Thin-evidence periods", f"{thin_test_folds:,}")
+                    st.caption(
+                        f"Walk-forward design: {int(walk.get('training_sessions') or 126)} training sessions / "
+                        f"{int(walk.get('test_sessions') or 63)} unseen test sessions per fold · "
+                        f"{int(walk.get('total_test_closed_trades') or 0):,} closed test trades total. "
+                        "A fold needs at least 10 closed trades to count as supported evidence."
+                    )
+                    moderate_cost_return = (cost_sensitivity.get("moderate") or {}).get("total_return_pct")
+                    enough_supported_folds = supported_cost_folds >= 3
+                    majority_positive_after_costs = (
+                        enough_supported_folds and positive_supported_cost_folds * 2 > supported_cost_folds
+                    )
+                    if not enough_supported_folds:
+                        st.warning(
+                            "UNPROVEN: fewer than three walk-forward test periods have at least 10 closed trades. "
+                            "The available results are exploratory, not evidence of a dependable edge."
+                        )
+                    elif majority_positive_after_costs and median_cost_fold is not None and float(median_cost_fold) > 0:
+                        st.success(
+                            "POSITIVE HISTORICAL EVIDENCE: a majority of adequately sampled unseen periods were positive "
+                            "after moderate assumed costs. This is not proof of future profitability or permission to trade live."
+                        )
+                    else:
+                        st.warning(
+                            "WEAK OR NEGATIVE EVIDENCE: adequately sampled unseen periods do not show consistent positive "
+                            "returns after moderate assumed costs. Keep the strategy simulation-only while investigating."
+                        )
+                    if moderate_cost_return is not None and float(moderate_cost_return) <= 0:
+                        st.caption(
+                            "The separate 70/30 moderate-cost holdout is non-positive; do not let positive individual folds "
+                            "override that conflicting result."
+                        )
+                    if worst_cost_fold is not None:
+                        st.caption(f"Worst adequately sampled moderate-cost fold: {float(worst_cost_fold):+.2f}%.")
+                    try:
+                        prior_row = load_prior_historical_portfolio_replay()
+                        current_fingerprint = replay_result.get("history_fingerprint")
+                        prior_fingerprint = (prior_row.get("result") or {}).get("history_fingerprint") if prior_row else None
+                        if current_fingerprint and prior_fingerprint and current_fingerprint != prior_fingerprint:
+                            st.warning(
+                                "Market-history fingerprint changed since V6. The V6-to-V7 return difference is not a clean code-only comparison; "
+                                "the underlying historical price data was revised."
+                            )
+                    except Exception as exc:
+                        st.caption(f"Prior replay fingerprint comparison unavailable: {exc}")
+                    if walk.get("windows_with_insufficient_training_events"):
+                        st.caption(
+                            f"{int(walk.get('windows_with_insufficient_training_events'))} walk-forward period(s) had too few training events; "
+                            "the first fold had no training events and should not count as evidence of a validated edge."
+                        )
+
+                    standalone = replay_result.get("out_of_sample_asset_class_only") or {}
+                    accepted = replay_result.get("out_of_sample_by_asset_class") or {}
+                    pooled = walk.get("aggregate_test_by_asset_class") or {}
+                    pooled_cost = walk.get("aggregate_moderate_cost_test_by_asset_class") or {}
+                    asset_rows = []
+                    for key, label in (("CRYPTO", "Crypto"), ("NON_CRYPTO", "Stocks / ETFs / other")):
+                        solo = standalone.get(key) or {}
+                        mixed = accepted.get(key) or {}
+                        wf_asset = pooled.get(key) or {}
+                        wf_cost = pooled_cost.get(key) or {}
+                        asset_rows.append({
+                            "Asset class": label,
+                            "Standalone OOS return %": solo.get("total_return_pct"),
+                            "Standalone max DD %": solo.get("max_drawdown_pct"),
+                            "Standalone trades": solo.get("closed_trades"),
+                            "Mixed-portfolio trades": mixed.get("trades"),
+                            "Mixed-portfolio trade P&L $": mixed.get("total_net_pnl"),
+                            "Walk-forward pooled P&L $": wf_asset.get("total_net_pnl"),
+                            "Walk-forward moderate-cost P&L $": wf_cost.get("total_net_pnl"),
+                        })
+                    asset_df = pd.DataFrame(asset_rows)
                     st.dataframe(
-                        setup_df.style.format({
-                            "Baseline trades": "{:,.0f}",
-                            "Baseline P&L $": "${:+,.2f}",
-                            "Baseline PF": "{:.3f}",
-                            "Moderate-cost trades": "{:,.0f}",
-                            "Moderate-cost P&L $": "${:+,.2f}",
-                            "Moderate-cost PF": "{:.3f}",
+                        asset_df.style.format({
+                            "Standalone OOS return %": "{:+.2f}%",
+                            "Standalone max DD %": "{:.2f}%",
+                            "Standalone trades": "{:,.0f}",
+                            "Mixed-portfolio trades": "{:,.0f}",
+                            "Mixed-portfolio trade P&L $": "${:+,.2f}",
+                            "Walk-forward pooled P&L $": "${:+,.2f}",
+                            "Walk-forward moderate-cost P&L $": "${:+,.2f}",
                         }, na_rep="—"),
                         use_container_width=True, hide_index=True
                     )
                     st.caption(
-                        "P&L and profit factor are pooled across non-overlapping test folds. "
-                        "Positive-fold counts include only folds with adequate training and at least one closed trade for that setup. "
-                        "This is diagnostic attribution, not a recommendation to disable either setup."
+                        "Standalone rows each start with separate fresh capital. Mixed-portfolio P&L is the closed-trade contribution "
+                        "from trades accepted in the combined shared-cash run. Walk-forward pooled P&L sums closed trades across test folds; "
+                        "it is not a compounded portfolio return. Moderate costs assume 20 bps spread and 10 bps slippage."
                     )
-                fold_detail_rows = []
-                for fold in walk.get("windows_detail") or []:
-                    by_class = fold.get("test_by_asset_class") or {}
-                    by_class_cost = fold.get("test_moderate_cost_by_asset_class") or {}
-                    crypto_pnl = (by_class.get("CRYPTO") or {}).get("total_net_pnl")
-                    noncrypto_pnl = (by_class.get("NON_CRYPTO") or {}).get("total_net_pnl")
-                    crypto_cost_pnl = (by_class_cost.get("CRYPTO") or {}).get("total_net_pnl")
-                    noncrypto_cost_pnl = (by_class_cost.get("NON_CRYPTO") or {}).get("total_net_pnl")
-                    fold_detail_rows.append({
-                        "Fold": fold.get("window"),
-                        "Test period": f"{fold.get('test_start', '—')} to {fold.get('test_end', '—')}",
-                        "Training events": fold.get("training_events"),
-                        "Training boundary signals excluded": fold.get("training_boundary_signals_excluded", 0),
-                        "Training adequate": "Yes" if fold.get("training_sample_sufficient") else "No",
-                        "Test events": fold.get("test_events"),
-                        "Test boundary signals excluded": fold.get("test_boundary_signals_excluded", 0),
-                        "Closed test trades": fold.get("test_closed_trades"),
-                        "Combined return %": fold.get("test_return_pct"),
-                        "Moderate-cost return %": fold.get("test_moderate_cost_return_pct"),
-                        "Crypto P&L $": crypto_pnl,
-                        "Non-crypto P&L $": noncrypto_pnl,
-                        "Crypto moderate-cost P&L $": crypto_cost_pnl,
-                        "Non-crypto moderate-cost P&L $": noncrypto_cost_pnl,
-                    })
-                if fold_detail_rows:
-                    st.markdown("##### Walk-forward fold detail")
-                    fold_df = pd.DataFrame(fold_detail_rows)
-                    st.dataframe(
-                        fold_df.style.format({
-                            "Combined return %": "{:+.2f}%",
-                            "Moderate-cost return %": "{:+.2f}%",
-                            "Crypto P&L $": "${:+,.2f}",
-                            "Non-crypto P&L $": "${:+,.2f}",
-                            "Crypto moderate-cost P&L $": "${:+,.2f}",
-                            "Non-crypto moderate-cost P&L $": "${:+,.2f}",
-                        }, na_rep="—"),
-                        use_container_width=True, hide_index=True
-                    )
-                if model_label.endswith("_V6"):
-                    st.info("V7 adds isolated crypto/non-crypto portfolios and pooled asset-class walk-forward attribution. The dashboard will switch to V7 when that run is saved.")
-            else:
-                st.info("No historical portfolio replay is saved yet. The cloud worker will populate this panel after its historical simulation completes.")
+                    # Compare entry setups across the chronological test folds, not just the overall portfolio.
+                    setup_pooled = walk.get("aggregate_test_by_setup") or {}
+                    setup_pooled_cost = walk.get("aggregate_moderate_cost_test_by_setup") or {}
+                    setup_rows = []
+                    for setup_key in sorted(set(setup_pooled) | set(setup_pooled_cost)):
+                        base_setup = setup_pooled.get(setup_key) or {}
+                        cost_setup = setup_pooled_cost.get(setup_key) or {}
+                        setup_positive_folds = 0
+                        setup_adequate_folds = 0
+                        for fold in fold_rows:
+                            if not fold.get("training_sample_sufficient"):
+                                continue
+                            fold_setup = (fold.get("test_by_setup") or {}).get(setup_key) or {}
+                            fold_cost_setup = (fold.get("test_moderate_cost_by_setup") or {}).get(setup_key) or {}
+                            if int(fold_setup.get("trades") or 0) > 0:
+                                setup_adequate_folds += 1
+                                fold_pnl = float(fold_setup.get("total_net_pnl") or 0)
+                                if fold_pnl > 0:
+                                    setup_positive_folds += 1
+                        setup_rows.append({
+                            "Entry setup": setup_key.title(),
+                            "Baseline trades": base_setup.get("trades"),
+                            "Baseline P&L $": base_setup.get("total_net_pnl"),
+                            "Baseline PF": base_setup.get("profit_factor"),
+                            "Moderate-cost trades": cost_setup.get("trades"),
+                            "Moderate-cost P&L $": cost_setup.get("total_net_pnl"),
+                            "Moderate-cost PF": cost_setup.get("profit_factor"),
+                            "Positive adequate folds": f"{setup_positive_folds}/{setup_adequate_folds}",
+                        })
+                    if setup_rows:
+                        st.markdown("##### Entry-setup walk-forward attribution")
+                        setup_df = pd.DataFrame(setup_rows)
+                        st.dataframe(
+                            setup_df.style.format({
+                                "Baseline trades": "{:,.0f}",
+                                "Baseline P&L $": "${:+,.2f}",
+                                "Baseline PF": "{:.3f}",
+                                "Moderate-cost trades": "{:,.0f}",
+                                "Moderate-cost P&L $": "${:+,.2f}",
+                                "Moderate-cost PF": "{:.3f}",
+                            }, na_rep="—"),
+                            use_container_width=True, hide_index=True
+                        )
+                        st.caption(
+                            "P&L and profit factor are pooled across non-overlapping test folds. "
+                            "Positive-fold counts include only folds with adequate training and at least one closed trade for that setup. "
+                            "This is diagnostic attribution, not a recommendation to disable either setup."
+                        )
+                    fold_detail_rows = []
+                    for fold in walk.get("windows_detail") or []:
+                        by_class = fold.get("test_by_asset_class") or {}
+                        by_class_cost = fold.get("test_moderate_cost_by_asset_class") or {}
+                        crypto_pnl = (by_class.get("CRYPTO") or {}).get("total_net_pnl")
+                        noncrypto_pnl = (by_class.get("NON_CRYPTO") or {}).get("total_net_pnl")
+                        crypto_cost_pnl = (by_class_cost.get("CRYPTO") or {}).get("total_net_pnl")
+                        noncrypto_cost_pnl = (by_class_cost.get("NON_CRYPTO") or {}).get("total_net_pnl")
+                        fold_detail_rows.append({
+                            "Fold": fold.get("window"),
+                            "Test period": f"{fold.get('test_start', '—')} to {fold.get('test_end', '—')}",
+                            "Training events": fold.get("training_events"),
+                            "Training boundary signals excluded": fold.get("training_boundary_signals_excluded", 0),
+                            "Training adequate": "Yes" if fold.get("training_sample_sufficient") else "No",
+                            "Test events": fold.get("test_events"),
+                            "Test boundary signals excluded": fold.get("test_boundary_signals_excluded", 0),
+                            "Closed test trades": fold.get("test_closed_trades"),
+                            "Combined return %": fold.get("test_return_pct"),
+                            "Moderate-cost return %": fold.get("test_moderate_cost_return_pct"),
+                            "Crypto P&L $": crypto_pnl,
+                            "Non-crypto P&L $": noncrypto_pnl,
+                            "Crypto moderate-cost P&L $": crypto_cost_pnl,
+                            "Non-crypto moderate-cost P&L $": noncrypto_cost_pnl,
+                        })
+                    if fold_detail_rows:
+                        st.markdown("##### Walk-forward fold detail")
+                        fold_df = pd.DataFrame(fold_detail_rows)
+                        st.dataframe(
+                            fold_df.style.format({
+                                "Combined return %": "{:+.2f}%",
+                                "Moderate-cost return %": "{:+.2f}%",
+                                "Crypto P&L $": "${:+,.2f}",
+                                "Non-crypto P&L $": "${:+,.2f}",
+                                "Crypto moderate-cost P&L $": "${:+,.2f}",
+                                "Non-crypto moderate-cost P&L $": "${:+,.2f}",
+                            }, na_rep="—"),
+                            use_container_width=True, hide_index=True
+                        )
+                    if model_label.endswith("_V6"):
+                        st.info("V7 adds isolated crypto/non-crypto portfolios and pooled asset-class walk-forward attribution. The dashboard will switch to V7 when that run is saved.")
+                else:
+                    st.info("No historical portfolio replay is saved yet. The cloud worker will populate this panel after its historical simulation completes.")
 
-            missing = health.get("missing_symbols") or []
-            stale = health.get("stale_symbols") or []
-            if missing or stale:
-                st.warning(f"Data quality: {len(missing)} missing symbol(s) · {len(stale)} potentially stale price(s). Review the cloud scanner's Scan health panel before acting on rankings.")
-            limitations = report.get("data_limitations") or []
-            if limitations:
-                with st.expander("Data limitations"):
-                    for item in limitations:
-                        st.markdown(f"- {item}")
-            st.caption(f"Scan ID: {scan.get('id','—')} · Saved: {scan_label} · Data: {scan.get('data_source','unspecified')} · Read-only research snapshot.")
+                missing = health.get("missing_symbols") or []
+                stale = health.get("stale_symbols") or []
+                if missing or stale:
+                    st.warning(f"Data quality: {len(missing)} missing symbol(s) · {len(stale)} potentially stale price(s). Review the cloud scanner's Scan health panel before acting on rankings.")
+                limitations = report.get("data_limitations") or []
+                if limitations:
+                    with st.expander("Data limitations"):
+                        for item in limitations:
+                            st.markdown(f"- {item}")
+                st.caption(f"Scan ID: {scan.get('id','—')} · Saved: {scan_label} · Data: {scan.get('data_source','unspecified')} · Read-only research snapshot.")
     render_command_center()
 
 

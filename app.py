@@ -692,6 +692,32 @@ with command_tab:
                     st.markdown("##### Drawdown duration & recovery")
                     st.dataframe(pd.DataFrame(drawdown_rows), use_container_width=True, hide_index=True)
                     st.caption("Drawdown depth and duration use daily closing equity marks; intraday peak-to-trough movement may be larger.")
+                quality = replay_result.get("trade_quality") or {}
+                quality_rows = []
+                for label, key, suffix in (
+                    ("Maximum consecutive losses", "max_consecutive_losses", ""),
+                    ("Worst losing-streak P&L", "worst_losing_streak_net_pnl", "$"),
+                    ("Maximum consecutive wins", "max_consecutive_wins", ""),
+                    ("Top winner share of gross profits", "top_winner_share_of_gross_profit_pct", "%"),
+                    ("Top 3 winners share of gross profits", "top_three_winners_share_of_gross_profit_pct", "%"),
+                    ("Average win / average loss", "average_win_to_average_loss", "x"),
+                    ("Trades with valid P&L", "trades_with_valid_net_pnl", ""),
+                ):
+                    value = quality.get(key)
+                    if value is not None:
+                        if key.endswith("_pnl"):
+                            display_value = f"{suffix}{float(value):,.2f}"
+                        elif key.endswith("_pct"):
+                            display_value = f"{float(value):.1f}{suffix}"
+                        elif key.endswith("_ratio"):
+                            display_value = f"{float(value):.2f}{suffix}"
+                        else:
+                            display_value = f"{int(value):,}{suffix}"
+                        quality_rows.append({"Trade quality diagnostic": label, "Value": display_value})
+                if quality_rows:
+                    st.markdown("##### Losing streaks & profit concentration")
+                    st.dataframe(pd.DataFrame(quality_rows), use_container_width=True, hide_index=True)
+                    st.caption("Profit concentration measures the share of gross winning-trade profits contributed by the largest winners. Streaks are ordered by exit date; these are historical diagnostics, not predictive guarantees.")
                 cost_rows = []
                 for key, label in (
                     ("baseline", "Baseline"),

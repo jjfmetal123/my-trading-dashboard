@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.43 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.44 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -950,6 +950,98 @@ with validation_tab:
                 "Avg_MAE_pct":"{:+.2f}%", "Avg_excess_vs_SPY_pp":"{:+.2f}%",
                 "Rule_avg_return_pct":"{:+.2f}%"
             }, na_rep="—"), use_container_width=True, hide_index=True)
+
+            # Evidence-qualified edge view: de-overlap each symbol/setup stream
+            # by 20 business sessions, then score stock returns and matched-SPY
+            # excess independently. These are still close-to-close diagnostics.
+            evidence_events = []
+            last_kept_session = {}
+            ordered_events = sorted(
+                validation_events,
+                key=lambda e: (str(e.get("symbol") or ""), str(e.get("setup_type") or ""),
+                               str(e.get("signal_date") or "")),
+            )
+            for event in ordered_events:
+                try:
+                    event_date = pd.Timestamp(event.get("signal_date")).normalize()
+                    if pd.isna(event_date):
+                        continue
+                except Exception:
+                    continue
+                key = (str(event.get("symbol") or "").upper(),
+                       str(event.get("setup_type") or "").upper())
+                prior_date = last_kept_session.get(key)
+                if prior_date is not None and len(pd.bdate_range(prior_date, event_date)) - 1 < 20:
+                    continue
+                evidence_events.append(event)
+                last_kept_session[key] = event_date
+
+            edge_rows = []
+            for event in evidence_events:
+                outcomes = event.get("outcomes") or {}
+                if not isinstance(outcomes, dict):
+                    continue
+                for horizon, result in outcomes.items():
+                    if not isinstance(result, dict):
+                        continue
+                    try:
+                        gross = float(result.get("close_return_pct"))
+                        if not np.isfinite(gross):
+                            continue
+                    except (TypeError, ValueError):
+                        continue
+                    try:
+                        excess = float(result.get("excess_vs_spy_pp"))
+                        if not np.isfinite(excess):
+                            excess = np.nan
+                    except (TypeError, ValueError):
+                        excess = np.nan
+                    edge_rows.append({
+                        "Setup": str(event.get("setup_type") or "UNCLASSIFIED").upper(),
+                        "Regime": str(event.get("market_regime") or "UNKNOWN").upper(),
+                        "Horizon": str(horizon),
+                        "Gross return %": gross,
+                        "Matched excess pp": excess,
+                    })
+            if edge_rows:
+                edge_df = pd.DataFrame(edge_rows)
+                edge_summary = (edge_df.groupby(["Setup", "Regime", "Horizon"], dropna=False)
+                    .agg(Signal_samples=("Gross return %", "count"),
+                         Benchmark_matched_samples=("Matched excess pp", "count"),
+                         Gross_mean_return_pct=("Gross return %", "mean"),
+                         Gross_mean_excess_pp=("Matched excess pp", "mean"))
+                    .reset_index())
+                edge_summary["Return evidence"] = np.where(
+                    edge_summary["Signal_samples"] >= 30, "SUPPORTED (n≥30)", "NOT SUPPORTED (n<30)"
+                )
+                edge_summary["Benchmark evidence"] = np.where(
+                    edge_summary["Benchmark_matched_samples"] >= 20, "SUPPORTED (n≥20)", "NOT SUPPORTED (n<20)"
+                )
+                for cost_bps in (10, 20, 40, 60):
+                    edge_summary[f"Mean return after {cost_bps}bp %"] = (
+                        edge_summary["Gross_mean_return_pct"] - cost_bps / 100.0
+                    )
+                edge_summary["Mean excess after 20bp pp"] = (
+                    edge_summary["Gross_mean_excess_pp"] - 0.20
+                )
+                st.markdown("#### Evidence-qualified net-edge diagnostics")
+                st.caption(
+                    "20-session de-overlap per symbol/setup. Net scenarios subtract assumed round-trip costs "
+                    "of 10/20/40/60 bps from historical close-to-close means. Return support requires 30 "
+                    "observations; benchmark-excess support requires 20 matched SPY observations. "
+                    "Unsupported values remain visible for exploration but must not be treated as validated edge."
+                )
+                st.dataframe(edge_summary.style.format({
+                    "Gross_mean_return_pct": "{:+.2f}%",
+                    "Gross_mean_excess_pp": "{:+.2f}pp",
+                    "Mean return after 10bp %": "{:+.2f}%",
+                    "Mean return after 20bp %": "{:+.2f}%",
+                    "Mean return after 40bp %": "{:+.2f}%",
+                    "Mean return after 60bp %": "{:+.2f}%",
+                    "Mean excess after 20bp pp": "{:+.2f}pp",
+                }, na_rep="—"), use_container_width=True, hide_index=True)
+            else:
+                st.info("Not enough matured, valid forward returns to calculate de-overlapped net-edge diagnostics.")
             st.markdown("#### Latest completed signal outcomes")
             recent = outcomes_df.sort_values(["Signal date", "Symbol"], ascending=[False, True]).head(100)
             st.dataframe(recent.style.format({
@@ -974,7 +1066,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.43 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.44 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."

@@ -69,7 +69,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.45 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.49 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1654,6 +1654,52 @@ with cloud_tab:
                     )
                 else:
                     st.info("No matched volatility-transition cohorts are available yet. New signal observations need enough transition and stable-baseline history before comparisons can be established.")
+                response_study = evidence_report.get("volatility_transition_response_study")
+                response_pairs = response_study.get("comparisons") if isinstance(response_study, dict) else []
+                st.markdown("#### Strategy response by time since volatility transition · shadow-only")
+                if response_pairs:
+                    response_rows = []
+                    for pair in response_pairs:
+                        if not isinstance(pair, dict):
+                            continue
+                        transition_train = pair.get("transition_training") if isinstance(pair.get("transition_training"), dict) else {}
+                        transition_hold = pair.get("transition_holdout") if isinstance(pair.get("transition_holdout"), dict) else {}
+                        stable_train = pair.get("matched_stable_training") if isinstance(pair.get("matched_stable_training"), dict) else {}
+                        stable_hold = pair.get("matched_stable_holdout") if isinstance(pair.get("matched_stable_holdout"), dict) else {}
+                        response_rows.append({
+                            "Setup": pair.get("setup_type"),
+                            "Score bucket": pair.get("score_bucket"),
+                            "Trend": pair.get("trend_regime"),
+                            "Current volatility": pair.get("current_volatility_regime"),
+                            "Transition": pair.get("transition"),
+                            "Sessions after transition": pair.get("sessions_after_transition"),
+                            "Forward horizon": pair.get("horizon_sessions"),
+                            "Transition train n": transition_train.get("sample_count"),
+                            "Stable train n": stable_train.get("sample_count"),
+                            "Training mean difference (pp)": pair.get("training_mean_return_difference_pp"),
+                            "Transition holdout n": transition_hold.get("sample_count"),
+                            "Stable holdout n": stable_hold.get("sample_count"),
+                            "Holdout mean difference (pp)": pair.get("holdout_mean_return_difference_pp"),
+                            "Transition holdout win %": transition_hold.get("win_rate_pct"),
+                            "Stable holdout win %": stable_hold.get("win_rate_pct"),
+                            "Transition worst-decile %": transition_hold.get("worst_decile_average_pct"),
+                            "Stable worst-decile %": stable_hold.get("worst_decile_average_pct"),
+                            "Holdout cutoff": pair.get("holdout_cutoff_date"),
+                            "Status": pair.get("status"),
+                            "Reasons": ", ".join(pair.get("reasons") or []),
+                        })
+                    if response_rows:
+                        st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+                    st.caption(
+                        "Sessions after transition (1/5/10/20) are separate from the forward outcome horizon (1/5/10/20). "
+                        "Each row compares an exact transition-age cohort with a stable same-regime baseline matched "
+                        "on setup, score bucket, trend, current volatility, and horizon. Recent post-transition sessions "
+                        "through the 20-session checkpoint are excluded from the stable baseline. Each pair uses a shared "
+                        "chronological 70/30 cutoff. These are observational historical comparisons, not causal or predictive "
+                        "signals, and have no readiness, ranking, sizing, stop, gate, or order authority."
+                    )
+                else:
+                    st.info("No post-transition response cohorts are available yet. The worker must record enough matured 1/5/10/20-session outcomes and matched stable observations.")
                 st.caption(
                     "A supported group is not a buy signal or proof of future profitability. Downside-tail statistics "
                     "are descriptive only and do not affect readiness. Fill calibration and account-level portfolio "
@@ -3666,4 +3712,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.45 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.49 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

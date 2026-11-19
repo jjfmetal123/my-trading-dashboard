@@ -1084,6 +1084,8 @@ with validation_tab:
     for event in validation_events:
         outcomes = event.get("outcomes") or {}
         for horizon, result in outcomes.items():
+            if str(horizon).startswith("_") or not isinstance(result, dict):
+                continue
             row = {
                 "Symbol": event.get("symbol"),
                 "Signal date": event.get("signal_date"),
@@ -1102,6 +1104,53 @@ with validation_tab:
                 "Rule return %": (result.get("stop_target_test") or {}).get("strategy_return_pct"),
             }
             outcome_rows.append(row)
+    shadow_rows = []
+    for event in validation_events:
+        outcomes = event.get("outcomes") or {}
+        snapshot = outcomes.get("_shadow_opportunity") if isinstance(outcomes, dict) else None
+        if not isinstance(snapshot, dict):
+            continue
+        try:
+            score = float(snapshot.get("shadow_opportunity_score"))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not np.isfinite(score):
+            continue
+        lower = min(90, int(max(0, min(100, score)) // 10) * 10)
+        score_band = "00-49" if lower < 50 else (f"{lower:02d}-100" if lower == 90 else f"{lower:02d}-{lower+9}")
+        for horizon in ("5d", "10d", "20d"):
+            result = outcomes.get(horizon)
+            if not isinstance(result, dict) or result.get("close_return_pct") is None:
+                continue
+            shadow_rows.append({
+                "Symbol": event.get("symbol"), "Signal date": event.get("signal_date"),
+                "Setup": event.get("setup_type"), "Regime": event.get("market_regime"),
+                "Shadow score band": score_band, "Horizon": horizon,
+                "Return %": result.get("close_return_pct"),
+                "Excess vs SPY (pp)": result.get("excess_vs_spy_pp"),
+                "Win": result.get("win"),
+            })
+    if shadow_rows:
+        st.markdown("#### 🧠 Shadow opportunity score: realized forward performance")
+        shadow_df = pd.DataFrame(shadow_rows)
+        shadow_summary = (shadow_df.groupby(
+            ["Setup", "Regime", "Shadow score band", "Horizon"], dropna=False
+        ).agg(
+            Events=("Return %", "count"),
+            Win_rate_pct=("Win", lambda x: 100.0 * x.dropna().astype(bool).mean() if x.dropna().size else np.nan),
+            Avg_return_pct=("Return %", "mean"),
+            Median_return_pct=("Return %", "median"),
+            Avg_excess_vs_SPY_pp=("Excess vs SPY (pp)", "mean"),
+        ).reset_index())
+        shadow_summary["Evidence"] = np.where(shadow_summary["Events"] >= 30, "SUPPORTED (n≥30)", "LOW SAMPLE")
+        st.dataframe(shadow_summary.style.format({
+            "Win_rate_pct":"{:.1f}%", "Avg_return_pct":"{:+.2f}%",
+            "Median_return_pct":"{:+.2f}%", "Avg_excess_vs_SPY_pp":"{:+.2f}%"
+        }, na_rep="—"), use_container_width=True, hide_index=True)
+        st.caption("Scores are frozen at first observation. Results are descriptive, regime-conditioned and de-overlapped only in the worker's reliability summary; this raw table is not de-overlapped. A 30-event threshold is an evidence label, not proof of predictive edge. Shadow scores have no trading authority.")
+    else:
+        st.info("Shadow opportunity validation is collecting frozen scores and matured outcomes. Results will appear as 5-, 10- and 20-session outcomes mature.")
+
     if validation_events:
         total_events = len(validation_events)
         completed_5d = sum(1 for r in outcome_rows if r["Horizon"] == "5d")

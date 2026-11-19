@@ -543,7 +543,11 @@ if run_scan or st.session_state.scan_data is None:
         # the selected universe, but only display the assets the user selected.
         context_tickers = ["SPY", "QQQ"] + sorted(set(SECTOR_ETF.values()))
         fetch_tickers = tuple(dict.fromkeys(tickers + context_tickers))
-        history = load_history(fetch_tickers, lookback)
+        try:
+            history = load_history(fetch_tickers, lookback)
+        except Exception as exc:
+            history = {}
+            st.warning(f"Market history could not be downloaded. Other dashboard tabs remain available. Error type: {type(exc).__name__}.")
         rows = [analyze(t, history[t]) for t in tickers if t in history]
         rows = [row for row in rows if row is not None]
         result_df = pd.DataFrame(rows)

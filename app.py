@@ -1194,6 +1194,31 @@ with validation_tab:
             "they are not calibrated probabilities. Cross-symbol dependence, execution costs and changing market conditions remain. "
             "A supported sample label is not proof of edge. Shadow validation has no authority over ranking, sizing, gates or orders."
         )
+
+        period_rows = shadow_validation.get("period_stability", {}).get("summaries") or []
+        if period_rows:
+            st.markdown("##### Calendar-year stability")
+            period_df = pd.DataFrame([{
+                "Setup": item.get("setup_type"), "Regime": item.get("market_regime"),
+                "Signal year": item.get("signal_year"), "Horizon": str(item.get("horizon_sessions")) + " sessions",
+                "Events": item.get("sample_count"), "Evidence": item.get("sample_status"),
+                "Win rate": item.get("win_rate_pct"), "Average return": item.get("average_forward_return_pct"),
+                "Median return": item.get("median_forward_return_pct"),
+                "Average excess vs SPY": item.get("average_excess_vs_spy_pp"),
+            } for item in period_rows])
+            st.dataframe(period_df.style.format({"Win rate": "{:.1f}%", "Average return": "{:+.2f}%", "Median return": "{:+.2f}%", "Average excess vs SPY": "{:+.2f}%"}, na_rep="—"), use_container_width=True, hide_index=True)
+            st.caption("Calendar year is assigned by signal date. This exposes time variation; it is not a forward holdout or proof of persistence.")
+
+        association_rows = shadow_validation.get("score_return_association", {}).get("summaries") or []
+        if association_rows:
+            st.markdown("##### Does a higher score rank better?")
+            association_df = pd.DataFrame([{
+                "Setup": item.get("setup_type"), "Regime": item.get("market_regime"),
+                "Horizon": str(item.get("horizon_sessions")) + " sessions", "Events": item.get("sample_count"),
+                "Evidence": item.get("sample_status"), "Score/return Spearman": item.get("score_return_spearman"),
+            } for item in association_rows])
+            st.dataframe(association_df.style.format({"Score/return Spearman": "{:+.3f}"}, na_rep="—"), use_container_width=True, hide_index=True)
+            st.caption("Spearman measures rank association between frozen score and realized return within setup/regime/horizon. Positive is directionally encouraging, near zero means weak ordering, and negative means higher scores tended to fare worse. It is descriptive, not a calibrated probability or causal result.")
     else:
         st.info(
             "No persisted de-overlapped shadow summary is available yet. It will appear after a worker scan successfully "

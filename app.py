@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.40 · Weighted portfolio diversification · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.41 · Portfolio risk forecast · Weighted diversification · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.40 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.41 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1148,6 +1148,18 @@ with cloud_tab:
                         "candidate_diversification_score": decision.get("candidate_diversification_score"),
                         "diversification_holdings_count": decision.get("diversification_holdings_count"),
                         "diversification_observations": decision.get("diversification_observations"),
+                        "portfolio_risk_forecast_status": decision.get("portfolio_risk_forecast_status"),
+                        "portfolio_risk_lookback_sessions": decision.get("portfolio_risk_lookback_sessions"),
+                        "portfolio_risk_holdings_count": decision.get("portfolio_risk_holdings_count"),
+                        "portfolio_risk_basis_gross_dollars": decision.get("portfolio_risk_basis_gross_dollars"),
+                        "portfolio_annualized_volatility_pct": decision.get("portfolio_annualized_volatility_pct"),
+                        "portfolio_historical_var_95_1d_dollars": decision.get("portfolio_historical_var_95_1d_dollars"),
+                        "portfolio_historical_es_95_1d_dollars": decision.get("portfolio_historical_es_95_1d_dollars"),
+                        "portfolio_historical_var_95_5d_dollars": decision.get("portfolio_historical_var_95_5d_dollars"),
+                        "portfolio_historical_es_95_5d_dollars": decision.get("portfolio_historical_es_95_5d_dollars"),
+                        "portfolio_historical_max_drawdown_pct": decision.get("portfolio_historical_max_drawdown_pct"),
+                        "portfolio_current_drawdown_pct": decision.get("portfolio_current_drawdown_pct"),
+                        "portfolio_down_days_pct": decision.get("portfolio_down_days_pct"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1193,6 +1205,18 @@ with cloud_tab:
                     "current_portfolio_diversification_score", "candidate_diversification_status",
                     "candidate_weighted_held_correlation", "candidate_diversification_score",
                     "diversification_holdings_count", "diversification_observations",
+                    "portfolio_risk_forecast_status",
+                    "portfolio_risk_lookback_sessions",
+                    "portfolio_risk_holdings_count",
+                    "portfolio_risk_basis_gross_dollars",
+                    "portfolio_annualized_volatility_pct",
+                    "portfolio_historical_var_95_1d_dollars",
+                    "portfolio_historical_es_95_1d_dollars",
+                    "portfolio_historical_var_95_5d_dollars",
+                    "portfolio_historical_es_95_5d_dollars",
+                    "portfolio_historical_max_drawdown_pct",
+                    "portfolio_current_drawdown_pct",
+                    "portfolio_down_days_pct",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]
@@ -1294,6 +1318,44 @@ with cloud_tab:
                     "the product of the held positions' market values. It is unavailable unless "
                     "at least two valid holdings have sufficient aligned history."
                 )
+                risk_status = basket_reference.get("portfolio_risk_forecast_status", "UNAVAILABLE")
+                r1, r2, r3, r4, r5 = st.columns(5)
+                r1.metric(
+                    "Historical 1-day VaR (95%)",
+                    "$" + "{:,.0f}".format(basket_reference["portfolio_historical_var_95_1d_dollars"])
+                    if isinstance(basket_reference.get("portfolio_historical_var_95_1d_dollars"), (int, float))
+                    else "Unavailable",
+                )
+                r2.metric(
+                    "Historical 1-day expected shortfall",
+                    "$" + "{:,.0f}".format(basket_reference["portfolio_historical_es_95_1d_dollars"])
+                    if isinstance(basket_reference.get("portfolio_historical_es_95_1d_dollars"), (int, float))
+                    else "Unavailable",
+                )
+                r3.metric(
+                    "Historical 5-day VaR (95%)",
+                    "$" + "{:,.0f}".format(basket_reference["portfolio_historical_var_95_5d_dollars"])
+                    if isinstance(basket_reference.get("portfolio_historical_var_95_5d_dollars"), (int, float))
+                    else "Unavailable",
+                )
+                r4.metric(
+                    "Annualized realized volatility",
+                    "{:.1f}%".format(basket_reference["portfolio_annualized_volatility_pct"])
+                    if isinstance(basket_reference.get("portfolio_annualized_volatility_pct"), (int, float))
+                    else "Unavailable",
+                )
+                r5.metric(
+                    "60-session max drawdown",
+                    "{:.1f}%".format(basket_reference["portfolio_historical_max_drawdown_pct"])
+                    if isinstance(basket_reference.get("portfolio_historical_max_drawdown_pct"), (int, float))
+                    else "Unavailable",
+                )
+                st.caption(
+                    "Historical risk status: " + str(risk_status) + ". Dollar VaR/expected-shortfall figures are "
+                    "scaled to gross position notional, not account equity. Historical simulation only; "
+                    "not a prediction, loss limit, or trade gate. Requires fresh broker data and at least "
+                    "40 aligned daily observations."
+                )
                 correlation_df = pd.DataFrame(watchlist)
                 correlation_columns = [
                     col for col in [
@@ -1304,6 +1366,11 @@ with cloud_tab:
                         "candidate_correlation_observations", "high_correlation_flag",
                         "candidate_diversification_status", "candidate_weighted_held_correlation",
                         "candidate_diversification_score", "diversification_holdings_count",
+                        "portfolio_risk_forecast_status", "portfolio_risk_basis_gross_dollars",
+                        "portfolio_annualized_volatility_pct", "portfolio_historical_var_95_1d_dollars",
+                        "portfolio_historical_es_95_1d_dollars", "portfolio_historical_var_95_5d_dollars",
+                        "portfolio_historical_es_95_5d_dollars", "portfolio_historical_max_drawdown_pct",
+                        "portfolio_current_drawdown_pct", "portfolio_down_days_pct",
                     ] if col in correlation_df.columns
                 ]
                 if correlation_columns:
@@ -1319,12 +1386,31 @@ with cloud_tab:
                         "candidate_weighted_held_correlation": "Exposure-weighted held correlation",
                         "candidate_diversification_score": "Diversification score (0–100)",
                         "diversification_holdings_count": "Held positions compared",
+                        "portfolio_risk_forecast_status": "Risk forecast status",
+                        "portfolio_risk_basis_gross_dollars": "Gross exposure basis ($)",
+                        "portfolio_annualized_volatility_pct": "Annualized volatility %",
+                        "portfolio_historical_var_95_1d_dollars": "Historical 1D VaR 95% ($)",
+                        "portfolio_historical_es_95_1d_dollars": "Historical 1D ES 95% ($)",
+                        "portfolio_historical_var_95_5d_dollars": "Historical 5D VaR 95% ($)",
+                        "portfolio_historical_es_95_5d_dollars": "Historical 5D ES 95% ($)",
+                        "portfolio_historical_max_drawdown_pct": "60-session max drawdown %",
+                        "portfolio_current_drawdown_pct": "Current drawdown %",
+                        "portfolio_down_days_pct": "Down sessions %",
                     })
                     st.dataframe(
                         correlation_df.style.format({
                             "Daily-return correlation": "{:.2f}",
                             "Exposure-weighted held correlation": "{:.2f}",
                             "Diversification score (0–100)": "{:.1f}",
+                            "Gross exposure basis ($)": "\u0024{:,.0f}",
+                            "Historical 1D VaR 95% ($)": "\u0024{:,.0f}",
+                            "Historical 1D ES 95% ($)": "\u0024{:,.0f}",
+                            "Historical 5D VaR 95% ($)": "\u0024{:,.0f}",
+                            "Historical 5D ES 95% ($)": "\u0024{:,.0f}",
+                            "Annualized volatility %": "{:.1f}%",
+                            "60-session max drawdown %": "{:.1f}%",
+                            "Current drawdown %": "{:.1f}%",
+                            "Down sessions %": "{:.1f}%",
                         }),
                         use_container_width=True, hide_index=True,
                     )

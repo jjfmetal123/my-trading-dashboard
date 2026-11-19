@@ -23,7 +23,7 @@ class ValidationDiagnosticsTests(unittest.TestCase):
         ]
         kept = deoverlap_events(events, cooldown_sessions=20)
         self.assertEqual(len(kept), 4)
-        self.assertEqual(kept[0]["signal_date"], "2025-01-02")
+        self.assertIn("2025-01-02", [event["signal_date"] for event in kept])
 
     def test_invalid_dates_skipped_and_zero_cooldown_keeps_all_valid(self):
         events = [

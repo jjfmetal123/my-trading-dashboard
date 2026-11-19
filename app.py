@@ -69,7 +69,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.54 · Volatility-transition response research · Classification sensitivity · Full-history regime occupancy · Transition-date robustness · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.55 · Volatility-transition response research · Classification sensitivity · Full-history regime occupancy · Transition-date robustness · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1759,9 +1759,13 @@ with cloud_tab:
                             "Training supported years": calendar_train.get("supported_period_count"),
                             "Training positive / negative years": f"{calendar_train.get('positive_difference_period_count', 0)}/{calendar_train.get('negative_difference_period_count', 0)}",
                             "Training calendar status": calendar_train.get("status", "NOT_REPORTED"),
+                            "Training year-direction consistency %": calendar_train.get("direction_consistency_pct"),
+                            "Training direction status": calendar_train.get("direction_status", "NOT_REPORTED"),
                             "Holdout supported years": calendar_hold.get("supported_period_count"),
                             "Holdout positive / negative years": f"{calendar_hold.get('positive_difference_period_count', 0)}/{calendar_hold.get('negative_difference_period_count', 0)}",
                             "Holdout calendar status": calendar_hold.get("status", "NOT_REPORTED"),
+                            "Holdout year-direction consistency %": calendar_hold.get("direction_consistency_pct"),
+                            "Holdout direction status": calendar_hold.get("direction_status", "NOT_REPORTED"),
                             "Transition holdout win %": transition_hold.get("win_rate_pct"),
                             "Stable holdout win %": stable_hold.get("win_rate_pct"),
                             "Transition worst-decile %": transition_hold.get("worst_decile_average_pct"),

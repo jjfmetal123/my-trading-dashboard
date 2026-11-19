@@ -39,6 +39,50 @@ class ValidationDiagnosticsTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     deoverlap_events([], cooldown_sessions=value)
 
+    def test_edge_diagnostics_separate_signal_and_benchmark_support(self):
+        from validation_diagnostics import build_edge_diagnostics
+        events = []
+        for index in range(3):
+            events.append({
+                "symbol": f"SYM{index}", "setup_type": "PULLBACK WATCH",
+                "setup_score": 93, "market_regime": "BULL",
+                "outcomes": {"5d": {
+                    "close_return_pct": 1.0 + index,
+                    "excess_vs_spy_pp": 0.5 if index == 0 else None,
+                }},
+            })
+        rows = build_edge_diagnostics(
+            events, min_return_samples=3, min_benchmark_samples=2
+        )
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["Score band"], "90-100")
+        self.assertEqual(row["Signal_samples"], 3)
+        self.assertEqual(row["Benchmark_matched_samples"], 1)
+        self.assertEqual(row["Return evidence"], "SUPPORTED (n≥3)")
+        self.assertEqual(row["Benchmark evidence"], "NOT SUPPORTED (n<2)")
+        self.assertAlmostEqual(row["Gross_mean_return_pct"], 2.0)
+        self.assertAlmostEqual(row["Mean return after 20bp %"], 1.8)
+        self.assertAlmostEqual(row["Mean excess after 20bp pp"], 0.3)
+
+    def test_edge_diagnostics_ignore_invalid_returns_and_reject_bad_config(self):
+        from validation_diagnostics import build_edge_diagnostics
+        events = [{
+            "setup_type": "BREAKOUT WATCH", "setup_score": 80,
+            "outcomes": {"5d": {"close_return_pct": "nan", "excess_vs_spy_pp": 1.0}},
+        }]
+        self.assertEqual(build_edge_diagnostics(events), [])
+        for kwargs in (
+            {"min_return_samples": 0},
+            {"min_benchmark_samples": True},
+            {"horizons": ("5d", "5d")},
+            {"cost_scenarios_bps": (-1,)},
+            {"cost_scenarios_bps": ()},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    build_edge_diagnostics([], **kwargs)
+
 
 if __name__ == "__main__":
     unittest.main()

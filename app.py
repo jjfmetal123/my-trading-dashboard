@@ -1556,11 +1556,16 @@ with cloud_tab:
                     for group in evidence_groups:
                         if not isinstance(group, dict):
                             continue
+                        downside = group.get("downside_profile") if isinstance(group.get("downside_profile"), dict) else {}
                         evidence_rows.append({
                             "Setup": group.get("setup_type"),
                             "Score bucket": group.get("score_bucket"),
                             "Signal-time regime": group.get("market_regime"),
                             "Horizon": group.get("horizon_sessions"),
+                            "Loss rate (%)": downside.get("loss_rate_pct"),
+                            "Worst 10% avg (%)": downside.get("expected_shortfall_10pct_pct"),
+                            "5th percentile (%)": downside.get("fifth_percentile_return_pct"),
+                            "Worst observed (%)": downside.get("worst_observed_return_pct"),
                             "Overall status": group.get("status"),
                             "Evidence checks": json.dumps(group.get("checks") or {}, sort_keys=True),
                             "Not-established reasons": ", ".join(group.get("reasons") or []),
@@ -1569,9 +1574,18 @@ with cloud_tab:
                         st.dataframe(pd.DataFrame(evidence_rows), use_container_width=True, hide_index=True)
                 else:
                     st.info("The latest snapshot contains no joined evidence groups. Missing or insufficient evidence remains NOT ESTABLISHED.")
+                with st.expander("How to read downside-tail statistics"):
+                    st.caption(
+                        "Loss rate is the share of matured signal outcomes below zero. Worst 10% average is the mean "
+                        "of the lowest decile of observed outcomes; 5th percentile and worst observed are lower-tail "
+                        "descriptors. These are close-to-close signal-to-horizon returns, not portfolio maximum "
+                        "drawdown, intraday adverse excursion, stop execution, or realized broker losses. Missing "
+                        "metrics mean the worker snapshot predates downside-profile support or has no matched data."
+                    )
                 st.caption(
-                    "A supported group is not a buy signal or proof of future profitability. Fill calibration and account-level "
-                    "portfolio risk remain separate context and are not allowed to make a strategy group pass."
+                    "A supported group is not a buy signal or proof of future profitability. Downside-tail statistics "
+                    "are descriptive only and do not affect readiness. Fill calibration and account-level portfolio "
+                    "risk remain separate context and are not allowed to make a strategy group pass."
                 )
             else:
                 st.info("No unified research evidence snapshot has been saved yet. This panel will populate after the Supabase migration is applied and the worker completes its next learning cycle.")

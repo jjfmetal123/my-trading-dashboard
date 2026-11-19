@@ -111,3 +111,10 @@ The unified shadow research panel now displays strategy response at exact sessio
 ## Volatility response uncertainty (V3.50)
 - Displays the 95% weekly date-block bootstrap interval for each transition-versus-stable holdout mean-return difference, plus the number of weekly blocks and uncertainty status.
 - Intervals are intentionally withheld when either cohort has fewer than eight distinct holdout weeks. The estimate is descriptive uncertainty context, not causal or predictive confidence.
+
+
+## Dashboard V3.51 calendar-year volatility-response robustness
+- The post-transition response matrix now summarizes supported calendar years and positive/negative year counts separately for training and holdout.
+- A second table expands each calendar year, showing matched transition/stable sample counts, cohort mean returns, their difference, and whether the year meets the minimum of 10 observations per cohort.
+- Training support is classified as multi-year, single-year, or insufficient. Holdout periods remain separate and cannot influence training classifications.
+- These are descriptive observational diagnostics only; no candidate ranking, sizing, stops, execution gates, or order authority is changed.

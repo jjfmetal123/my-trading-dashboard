@@ -2525,7 +2525,7 @@ with scanner_tab:
     if data.empty:
         st.info("Market Scanner is waiting for usable market data. Choose a market group and run the scan again when data is available.")
     else:
-    st.subheader("Market scanner")
+        st.subheader("Market scanner")
         st.caption("Select a row to open its analysis immediately below the scanner. On desktop, click anywhere in the row; on mobile, tap the row.")
         display = data[["Symbol", "Asset class", "Signal", "Trend", "Weekly trend", "Risk level", "Score", "Last", "Price date", "1W %", "1M %", "3M %", "RSI", "20D Vol %"]].copy()
         selection_event = st.dataframe(
@@ -3131,7 +3131,7 @@ with paper_tab:
         st.warning("The saved account is available, but price-dependent monitoring and trade entry are paused until market data returns.")
         st.caption("Account values and journal are preserved; no simulated trades or automatic exits are processed without market prices.")
     else:
-    st.subheader("Virtual account")
+        st.subheader("Virtual account")
         st.info("Simulation only. Scanner and trade-entry references use Yahoo Finance DAILY bars. Open positions are separately checked against frequently refreshed one-minute Yahoo Finance bars while this dashboard session remains open. Neither feed is a guaranteed real-time executable quote. Your paper account is saved in Supabase.")
         prices = dict(zip(data["Symbol"], data["Last"]))
         @st.fragment(run_every="60s")
@@ -3512,7 +3512,7 @@ with analytics_tab:
     elif data.empty:
         st.warning("Performance price marks are unavailable. Retry the market scan; no estimated equity curve is generated from stale cost basis.")
     else:
-    st.subheader("Paper-trading performance")
+        st.subheader("Paper-trading performance")
         st.caption("Metrics are calculated from the saved paper-account journal and the latest available DAILY reference prices. They are simulation metrics, not verified live-trading results.")
     
         positions_now = st.session_state.paper_positions

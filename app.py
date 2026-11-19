@@ -8,6 +8,103 @@ from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
 
+st.markdown("""<style>\n
+# MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header[data-testid="stHeader"] {background: rgba(10, 17, 30, .82);}
+.stApp {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(30, 105, 125, .13), transparent 34%),
+    linear-gradient(180deg, #0b1220 0%, #0e1726 100%);
+  color: #e8eef7;
+}
+[data-testid="stAppViewContainer"] .main .block-container {
+  max-width: 1680px;
+  padding: 1.35rem clamp(1rem, 2.6vw, 2.5rem) 3rem;
+}
+h1, h2, h3, h4 { letter-spacing: -.025em; color: #f3f7fc; }
+h1 { font-size: clamp(1.75rem, 3vw, 2.35rem) !important; font-weight: 750 !important; }
+h2 { font-size: clamp(1.35rem, 2.2vw, 1.75rem) !important; }
+h3 { font-size: 1.18rem !important; }
+p, li, label, [data-testid="stCaptionContainer"] { line-height: 1.55; }
+[data-testid="stCaptionContainer"] { color: #9eafc4; }
+[data-testid="stAlert"] {
+  border-radius: 12px; border: 1px solid rgba(148, 163, 184, .18);
+  background: rgba(25, 39, 58, .72); padding: .8rem 1rem;
+}
+[data-testid="stMetric"] {
+  background: linear-gradient(145deg, rgba(24, 39, 58, .92), rgba(16, 28, 44, .88));
+  border: 1px solid rgba(148, 163, 184, .17);
+  border-radius: 14px; padding: 14px 16px; min-height: 104px;
+}
+[data-testid="stMetricLabel"] { color: #9fb1c7; font-size: .82rem; }
+[data-testid="stMetricValue"] { color: #f3f7fc; font-weight: 720; }
+[data-testid="stMetricDelta"] { font-size: .82rem; }
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+  gap: 6px; border-bottom: 1px solid rgba(148, 163, 184, .18);
+  padding: 5px 2px 10px; background: transparent;
+}
+[data-testid="stTabs"] button[data-baseweb="tab"] {
+  background: rgba(23, 37, 55, .72); border: 1px solid rgba(148, 163, 184, .14);
+  border-radius: 10px; color: #b7c5d7; padding: 9px 14px; min-height: 42px;
+  font-weight: 600; transition: background .15s ease, border-color .15s ease;
+}
+[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+  background: rgba(18, 119, 132, .22); color: #e7fbff;
+  border-color: rgba(45, 212, 191, .48);
+}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: #2dd4bf; height: 2px; }
+[data-testid="stVerticalBlockBorderWrapper"] {
+  border-color: rgba(148, 163, 184, .18) !important; border-radius: 14px;
+}
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+  border: 1px solid rgba(148, 163, 184, .16); border-radius: 12px; overflow: hidden;
+}
+[data-testid="stDataFrame"] > div { border-radius: 12px; }
+.stButton > button, [data-testid="stFormSubmitButton"] > button {
+  border-radius: 10px; min-height: 42px; font-weight: 650;
+  border: 1px solid rgba(148, 163, 184, .24); transition: all .15s ease;
+}
+.stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primary"] {
+  background: linear-gradient(135deg, #0f8b8d, #116b83); border-color: #20a7a2; color: white;
+}
+.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
+  border-color: rgba(45, 212, 191, .65); transform: translateY(-1px);
+}
+input, textarea, [data-baseweb="select"] > div {
+  border-radius: 9px !important;
+}
+hr { border-color: rgba(148, 163, 184, .16); }
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #101c2c, #0c1624);
+  border-right: 1px solid rgba(148, 163, 184, .14);
+}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color: #aebed0; }
+@media (max-width: 900px) {
+  [data-testid="stAppViewContainer"] .main .block-container {
+    padding: .9rem .85rem 2rem; max-width: 100%;
+  }
+  [data-testid="stTabs"] [data-baseweb="tab-list"] {
+    overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin;
+    padding-bottom: 8px; gap: 5px;
+  }
+  [data-testid="stTabs"] button[data-baseweb="tab"] {
+    flex: 0 0 auto; white-space: nowrap; padding: 8px 11px; font-size: .84rem;
+  }
+  [data-testid="stMetric"] { padding: 11px 12px; min-height: 88px; }
+  [data-testid="stMetricValue"] { font-size: 1.35rem; }
+  [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
+  h1 { margin-bottom: .35rem; }
+  .stButton > button { min-height: 46px; }
+}
+@media (max-width: 600px) {
+  [data-testid="stMetric"] { min-height: 82px; }
+  [data-testid="stMetricLabel"] { font-size: .74rem; }
+  [data-testid="stMetricValue"] { font-size: 1.18rem; }
+  [data-testid="stCaptionContainer"] { font-size: .82rem; }
+}
+\n</style>""", unsafe_allow_html=True)
+
 # Simple app-level password gate. The password is stored in Streamlit Secrets,
 # never in the GitHub source code. This protects the app UI, not the database
 # from a determined attacker; database permissions will be configured separately.
@@ -69,7 +166,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.44 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Market intelligence · Strategy research · Paper-trading analytics · Adaptive risk monitoring")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)

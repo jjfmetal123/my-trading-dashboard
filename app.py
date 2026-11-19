@@ -1243,6 +1243,57 @@ with validation_tab:
         else:
             st.info("No strategy combination currently qualifies for the research screen. Insufficient evidence is a valid result.")
 
+        holdout_rows = (shadow_validation.get("temporal_holdout_validation") or {}).get("summaries") or []
+        st.markdown("##### Chronological out-of-sample holdout")
+        if holdout_rows:
+            holdout_df = pd.DataFrame([{
+                "Assessment": item.get("assessment"), "Setup": item.get("setup_type"),
+                "Score band": item.get("score_bucket"), "Regime": item.get("market_regime"),
+                "Horizon": str(item.get("horizon_sessions")) + " sessions",
+                "Reference n": item.get("reference_sample_count"),
+                "Holdout n": item.get("holdout_sample_count"),
+                "Holdout net avg @40bps": item.get("holdout_average_net_return_40bps_pct"),
+                "Holdout win rate @40bps": item.get("holdout_win_rate_after_40bps_pct"),
+                "Benchmark n": item.get("holdout_benchmark_matched_count"),
+                "Holdout excess vs SPY": item.get("holdout_average_excess_vs_spy_pp"),
+            } for item in holdout_rows])
+            st.dataframe(holdout_df.style.format({
+                "Holdout net avg @40bps": "{:+.2f}%",
+                "Holdout win rate @40bps": "{:.1f}%",
+                "Holdout excess vs SPY": "{:+.2f}pp",
+            }, na_rep="—"), use_container_width=True, hide_index=True)
+            holdout_meta = shadow_validation.get("temporal_holdout_validation") or {}
+            st.caption(
+                f"Chronological split boundary: {holdout_meta.get('holdout_start_signal_date') or 'unavailable'}. "
+                "The final 30% of unique signal dates is held out from the first 70%; same-day events stay together. "
+                "This is a time-ordered historical holdout, not a guarantee of independence from prior research or future performance."
+            )
+        else:
+            st.info("Not enough distinct signal dates to construct a chronological holdout.")
+
+        decay_rows = (shadow_validation.get("strategy_decay_monitor") or {}).get("summaries") or []
+        st.markdown("##### Strategy decay / deterioration monitor")
+        if decay_rows:
+            decay_df = pd.DataFrame([{
+                "Assessment": item.get("assessment"), "Setup": item.get("setup_type"),
+                "Score band": item.get("score_bucket"), "Regime": item.get("market_regime"),
+                "Horizon": str(item.get("horizon_sessions")) + " sessions",
+                "Older n": item.get("older_sample_count"), "Recent n": item.get("recent_sample_count"),
+                "Older net avg @40bps": item.get("older_average_net_return_40bps_pct"),
+                "Recent net avg @40bps": item.get("recent_average_net_return_40bps_pct"),
+                "Change": item.get("change_percentage_points"),
+            } for item in decay_rows])
+            st.dataframe(decay_df.style.format({
+                "Older net avg @40bps": "{:+.2f}%",
+                "Recent net avg @40bps": "{:+.2f}%",
+                "Change": "{:+.2f}pp",
+            }, na_rep="—"), use_container_width=True, hide_index=True)
+            st.caption(
+                "A DECAY_WARNING requires both chronological halves to meet the minimum sample, "
+                "the older half to be positive after assumed 40 bps costs, and the recent half to deteriorate "
+                "by at least 0.50 percentage points. This is a research warning only; it never disables or changes a strategy."
+            )
+
         association_rows = shadow_validation.get("score_return_association", {}).get("summaries") or []
         if association_rows:
             st.markdown("##### Does a higher score rank better?")

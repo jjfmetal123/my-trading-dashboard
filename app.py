@@ -69,7 +69,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.44 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.45 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -371,6 +371,20 @@ def load_strategy_signal_events():
         .execute()
     )
     return result.data or []
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_latest_research_evidence_readiness():
+    """Read the worker's latest shadow-only evidence snapshot; never mutates state."""
+    client = get_supabase_client()
+    result = (
+        client.table("research_evidence_readiness")
+        .select("id,generated_at,status,source_event_count,group_count,research_supported_group_count,not_established_group_count,authority,report")
+        .order("generated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
 
 try:
     db = get_supabase_client()
@@ -1409,7 +1423,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.44 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.45 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1419,6 +1433,7 @@ with cloud_tab:
             load_latest_cloud_scan.clear()
             load_latest_paper_trade_decisions.clear()
             load_latest_paper_execution_guardrail.clear()
+            load_latest_research_evidence_readiness.clear()
         try:
             cloud_scan = load_latest_cloud_scan()
         except Exception as exc:
@@ -1472,6 +1487,59 @@ with cloud_tab:
                     st.warning(f"Data-quality status: {status}. Review missing symbols and stale prices before relying on rankings.")
                 st.caption(scan_health.get("freshness_method", "Freshness warnings use calendar-day thresholds and may need holiday/provider context."))
                 st.caption(scan_health.get("note", "Coverage is based on symbols with sufficient usable daily history."))
+
+            st.divider()
+            st.markdown("### 🧠 Unified research evidence readiness · shadow-only")
+            st.caption(
+                "Joins regime reliability, training-only multi-year research, an independent chronological holdout, "
+                "and 40 bps cost-stressed net edge. This report is descriptive research evidence only; it cannot "
+                "rank candidates, size positions, change stops, open gates, or submit orders."
+            )
+            try:
+                evidence_snapshot = load_latest_research_evidence_readiness()
+            except Exception as exc:
+                evidence_snapshot = None
+                st.info("Unified evidence snapshots are not available yet. Apply the worker's research-evidence Supabase migration, then allow the next worker learning cycle to save a snapshot.")
+                st.caption(f"Technical detail: {exc}")
+            if evidence_snapshot:
+                e1, e2, e3, e4 = st.columns(4)
+                e1.metric("Research-supported groups (shadow)", int(evidence_snapshot.get("research_supported_group_count") or 0))
+                e2.metric("Not established", int(evidence_snapshot.get("not_established_group_count") or 0))
+                e3.metric("Groups evaluated", int(evidence_snapshot.get("group_count") or 0))
+                e4.metric("Source observations", int(evidence_snapshot.get("source_event_count") or 0))
+                st.caption(
+                    f"Snapshot: {evidence_snapshot.get('generated_at') or 'Unavailable'} · "
+                    f"Worker status: {evidence_snapshot.get('status') or 'UNKNOWN'} · "
+                    f"Authority: {evidence_snapshot.get('authority') or 'UNAVAILABLE'}"
+                )
+                evidence_report = evidence_snapshot.get("report") if isinstance(evidence_snapshot.get("report"), dict) else {}
+                evidence_groups = evidence_report.get("groups") if isinstance(evidence_report.get("groups"), list) else []
+                if evidence_snapshot.get("authority") != "NONE":
+                    st.error("Unexpected authority metadata. Treat this snapshot as invalid and do not use it.")
+                if evidence_groups:
+                    evidence_rows = []
+                    for group in evidence_groups:
+                        if not isinstance(group, dict):
+                            continue
+                        evidence_rows.append({
+                            "Setup": group.get("setup_type"),
+                            "Score bucket": group.get("score_bucket"),
+                            "Signal-time regime": group.get("market_regime"),
+                            "Horizon": group.get("horizon_sessions"),
+                            "Overall status": group.get("status"),
+                            "Evidence checks": json.dumps(group.get("checks") or {}, sort_keys=True),
+                            "Not-established reasons": ", ".join(group.get("reasons") or []),
+                        })
+                    if evidence_rows:
+                        st.dataframe(pd.DataFrame(evidence_rows), use_container_width=True, hide_index=True)
+                else:
+                    st.info("The latest snapshot contains no joined evidence groups. Missing or insufficient evidence remains NOT ESTABLISHED.")
+                st.caption(
+                    "A supported group is not a buy signal or proof of future profitability. Fill calibration and account-level "
+                    "portfolio risk remain separate context and are not allowed to make a strategy group pass."
+                )
+            else:
+                st.info("No unified research evidence snapshot has been saved yet. This panel will populate after the Supabase migration is applied and the worker completes its next learning cycle.")
 
             st.divider()
             st.markdown("### 🤖 Alpaca paper-trading decisions")

@@ -1300,8 +1300,9 @@ with validation_tab:
             st.caption(
                 "Decay warnings use per-signal-date averages, require sufficient SPY-matched dates in both halves, "
                 "and require positive older net excess plus at least 0.50pp deterioration with the approximate 95% "
-                "Welch-style interval below zero. Same-day symbols are grouped together. This interval is not "
-                "cluster-robust or a formal hypothesis test; the warning never disables or changes a strategy."
+                "horizon-aware Newey-West HAC interval below zero. Same-day symbols are grouped together and "
+                "serial dependence up to horizon minus one is allowed for. This is exploratory, not a "
+                "formal hypothesis test or fully cross-sectionally cluster-robust; warnings never disable strategies."
             )
 
         association_rows = shadow_validation.get("score_return_association", {}).get("summaries") or []

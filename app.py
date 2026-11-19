@@ -692,6 +692,24 @@ with command_tab:
                     st.markdown("##### Drawdown duration & recovery")
                     st.dataframe(pd.DataFrame(drawdown_rows), use_container_width=True, hide_index=True)
                     st.caption("Drawdown depth and duration use daily closing equity marks; intraday peak-to-trough movement may be larger.")
+                exposure = replay_result.get("exposure_quality") or {}
+                exposure_rows = []
+                for label, key, suffix in (
+                    ("Peak single-stock exposure", "max_single_symbol_exposure_pct", "%"),
+                    ("Peak single-sector exposure", "max_single_sector_exposure_pct", "%"),
+                    ("Peak top-three stock exposure", "max_top_three_symbols_exposure_pct", "%"),
+                    ("Peak single-stock concentration (HHI)", "max_symbol_exposure_hhi_pct2", " pct²"),
+                    ("Date of peak single-stock exposure", "max_single_symbol_exposure_date", ""),
+                    ("Date of peak sector exposure", "max_single_sector_exposure_date", ""),
+                ):
+                    value = exposure.get(key)
+                    if value is not None:
+                        display_value = f"{float(value):.2f}{suffix}" if key.endswith("_pct") or key.endswith("_pct2") else str(value)
+                        exposure_rows.append({"Exposure diagnostic": label, "Value": display_value})
+                if exposure_rows:
+                    st.markdown("##### Portfolio concentration")
+                    st.dataframe(pd.DataFrame(exposure_rows), use_container_width=True, hide_index=True)
+                    st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages; it rises as exposure concentrates.")
                 quality = replay_result.get("trade_quality") or {}
                 quality_rows = []
                 for label, key, suffix in (

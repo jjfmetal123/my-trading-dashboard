@@ -1685,6 +1685,52 @@ with cloud_tab:
                     )
                 else:
                     st.info("Volatility classification sensitivity is not available yet. The worker must record signal-date labels under the pre-specified definitions before this panel can populate.")
+                full_history = classification_sensitivity.get("full_history") if isinstance(classification_sensitivity, dict) else {}
+                st.markdown("#### Full-history volatility regime occupancy and transition-date shifts · shadow-only")
+                if isinstance(full_history, dict) and full_history.get("configurations"):
+                    occupancy_rows = []
+                    for item in full_history.get("configurations") or []:
+                        if not isinstance(item, dict):
+                            continue
+                        occupancy = item.get("regime_occupancy_pct") if isinstance(item.get("regime_occupancy_pct"), dict) else {}
+                        transition_counts = item.get("transition_counts") if isinstance(item.get("transition_counts"), dict) else {}
+                        occupancy_rows.append({
+                            "Definition": item.get("configuration"),
+                            "Sessions": item.get("session_count"),
+                            "Known / unknown": f"{item.get('known_session_count', 0)} / {item.get('unknown_session_count', 0)}",
+                            "LOW / NORMAL / HIGH (%)": f"{occupancy.get('LOW', '—')} / {occupancy.get('NORMAL', '—')} / {occupancy.get('HIGH', '—')}",
+                            "LOW→HIGH": transition_counts.get("LOW_TO_HIGH", 0),
+                            "HIGH→LOW": transition_counts.get("HIGH_TO_LOW", 0),
+                            "LOW→NORMAL": transition_counts.get("LOW_TO_NORMAL", 0),
+                            "NORMAL→LOW": transition_counts.get("NORMAL_TO_LOW", 0),
+                            "NORMAL→HIGH": transition_counts.get("NORMAL_TO_HIGH", 0),
+                            "HIGH→NORMAL": transition_counts.get("HIGH_TO_NORMAL", 0),
+                        })
+                    st.dataframe(pd.DataFrame(occupancy_rows), use_container_width=True, hide_index=True)
+                    displacement_rows = []
+                    for item in full_history.get("transition_date_displacement") or []:
+                        if not isinstance(item, dict):
+                            continue
+                        displacement_rows.append({
+                            "Alternative definition": item.get("configuration"),
+                            "Matched baseline transitions": item.get("matched_baseline_transitions"),
+                            "Unmatched baseline / alternative": f"{item.get('unmatched_baseline_transitions', 0)} / {item.get('unmatched_alternative_transitions', 0)}",
+                            "Median absolute shift (sessions)": item.get("median_absolute_session_shift"),
+                            "Maximum absolute shift (sessions)": item.get("maximum_absolute_session_shift"),
+                            "Median signed shift (sessions)": item.get("median_signed_session_shift"),
+                            "Status": item.get("status"),
+                        })
+                    if displacement_rows:
+                        st.markdown("**Transition-date displacement versus baseline**")
+                        st.dataframe(pd.DataFrame(displacement_rows), use_container_width=True, hide_index=True)
+                    st.caption(
+                        f"Baseline: {full_history.get('baseline_configuration', 'not reported')}. "
+                        "Occupancy uses all available SPY sessions with a known point-in-time label; unknown sessions are shown separately. "
+                        "Transition dates are matched by transition direction/type and nearest date, then measured in trading-session index units. "
+                        "These are descriptive definition-sensitivity diagnostics, not return-based threshold selection or trading signals."
+                    )
+                else:
+                    st.info("Full-history regime occupancy and transition-date displacement are waiting for the worker's next SPY history scan and persisted signal metadata.")
                 response_study = evidence_report.get("volatility_transition_response_study")
                 response_pairs = response_study.get("comparisons") if isinstance(response_study, dict) else []
                 st.markdown("#### Strategy response by time since volatility transition · shadow-only")
@@ -3789,4 +3835,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.52 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.53 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

@@ -89,3 +89,7 @@ The broker audit view now distinguishes the replacement-chain classification and
 
 ## Dashboard V3.45 shadow research evidence readiness
 The Cloud Scanner includes a read-only panel for the worker's latest unified research evidence snapshot. It shows research-supported shadow groups, groups not established, source observation counts, and per-group checks/reasons. The panel requires the worker migration `202611190002_research_evidence_readiness.sql` to be applied in Supabase. These diagnostics have no candidate-ranking, position-sizing, stop, execution-gate, or order authority.
+
+
+## Dashboard V3.46 downside-tail research context
+The unified shadow research evidence table now surfaces matched loss rate, worst-decile average return, fifth-percentile return, and worst observed return when supplied by the worker. An explainer distinguishes these close-to-close signal-horizon statistics from portfolio maximum drawdown, intraday adverse excursion, and realized broker losses. These fields are descriptive only and do not affect research readiness or trading decisions.

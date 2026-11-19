@@ -1206,7 +1206,7 @@ with validation_tab:
         if period_rows:
             st.markdown("##### Calendar-year stability")
             period_df = pd.DataFrame([{
-                "Setup": item.get("setup_type"), "Regime": item.get("market_regime"),
+                "Setup": item.get("setup_type"), "Score band": item.get("score_bucket"), "Regime": item.get("market_regime"),
                 "Signal year": item.get("signal_year"), "Horizon": str(item.get("horizon_sessions")) + " sessions",
                 "Events": item.get("sample_count"), "Evidence": item.get("sample_status"),
                 "Win rate": item.get("win_rate_pct"), "Average return": item.get("average_forward_return_pct"),

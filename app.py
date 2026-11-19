@@ -982,6 +982,9 @@ with validation_tab:
                 if not isinstance(outcomes, dict):
                     continue
                 for horizon, result in outcomes.items():
+                    # Match the worker's default reliability horizons exactly.
+                    if str(horizon) not in {"5d", "10d", "20d"}:
+                        continue
                     if not isinstance(result, dict):
                         continue
                     try:
@@ -1038,7 +1041,7 @@ with validation_tab:
                 )
                 st.markdown("#### Evidence-qualified net-edge diagnostics")
                 st.caption(
-                    "20-session de-overlap per symbol/setup; " + f"{len(evidence_events):,} retained events. Groups are split by worker-aligned setup-score bands (00–49, 50–59 … 90–100) and signal-time regime. Net scenarios subtract assumed round-trip costs "
+                    "20-session de-overlap per symbol/setup; " + f"{len(evidence_events):,} retained events. Groups use the worker-aligned 5/10/20-session horizons, setup-score bands (00–49, 50–59 … 90–100), and signal-time regime. Net scenarios subtract assumed round-trip costs "
                     "of 10/20/40/60 bps from historical close-to-close means. Return support requires 30 "
                     "observations; benchmark-excess support requires 20 matched SPY observations. "
                     "Unsupported values remain visible for exploration but must not be treated as validated edge."

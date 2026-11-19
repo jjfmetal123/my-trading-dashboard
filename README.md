@@ -118,3 +118,10 @@ The unified shadow research panel now displays strategy response at exact sessio
 - A second table expands each calendar year, showing matched transition/stable sample counts, cohort mean returns, their difference, and whether the year meets the minimum of 10 observations per cohort.
 - Training support is classified as multi-year, single-year, or insufficient. Holdout periods remain separate and cannot influence training classifications.
 - These are descriptive observational diagnostics only; no candidate ranking, sizing, stops, execution gates, or order authority is changed.
+
+
+## Dashboard V3.52 volatility classification sensitivity
+- Adds a read-only table comparing the existing 20-session / 252-session / 25th-75th percentile volatility definition with six pre-specified alternatives.
+- Displays unique signal-date coverage, regime-label agreement, transition-label agreement, and observed transition dates for each definition.
+- These are point-in-time classification diagnostics only. No strategy returns are used to select thresholds, and no ranking, sizing, stops, gates, execution, or order authority changes.
+- Requires Worker PR #8 sensitivity metadata and the existing research evidence snapshot pipeline.

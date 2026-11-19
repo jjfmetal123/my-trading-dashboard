@@ -103,6 +103,11 @@ The unified shadow research panel now displays pairwise downside-tail difference
 The unified shadow research panel now displays matched volatility-transition outcome comparisons against stable cohorts at the same current volatility, matched exactly on setup, score bucket, and horizon. It shows chronological training/holdout samples, mean-return differences, holdout cutoff, and explicit not-established reasons. The study is observational, not causal or predictive, and has no readiness, ranking, sizing, stop, gate, or order authority.
 
 
-## Dashboard V3.49 post-volatility-transition response matrix
+## Dashboard V3.50 post-volatility-transition response matrix
 
 The unified shadow research panel now displays strategy response at exact session ages 1, 5, 10, and 20 after a point-in-time volatility transition, crossed with forward outcome horizons of 1, 5, 10, and 20 sessions. It shows matched transition/stable training and holdout sample counts, mean-return differences, holdout win rates and downside-tail context, the shared chronological cutoff, and fail-closed reasons. Transition age is distinct from the forward return horizon. The worker excludes recent post-transition observations through the longest checkpoint from the stable baseline. These observational comparisons are not causal or predictive and have no readiness, ranking, sizing, stop, gate, or order authority. The panel requires the corresponding Worker PR #5 code and the earlier worker evidence-persistence migration/snapshot pipeline.
+
+
+## Volatility response uncertainty (V3.50)
+- Displays the 95% weekly date-block bootstrap interval for each transition-versus-stable holdout mean-return difference, plus the number of weekly blocks and uncertainty status.
+- Intervals are intentionally withheld when either cohort has fewer than eight distinct holdout weeks. The estimate is descriptive uncertainty context, not causal or predictive confidence.

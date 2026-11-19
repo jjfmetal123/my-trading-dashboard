@@ -106,6 +106,40 @@ hr { border-color: rgba(148, 163, 184, .16); }
 }
 
 
+
+/* Login form: make the password label and field unmistakable. */
+[data-testid="stForm"] [data-testid="stWidgetLabel"],
+[data-testid="stForm"] [data-testid="stWidgetLabel"] *,
+[data-testid="stForm"] label,
+[data-testid="stForm"] label p {
+  color: #f3f7fc !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: 1rem !important;
+  font-weight: 650 !important;
+}
+[data-testid="stForm"] [data-testid="stTextInput"] input {
+  background: #0b1728 !important;
+  color: #ffffff !important;
+  border: 1px solid #8ba3bd !important;
+  border-radius: 10px !important;
+  min-height: 3.1rem !important;
+  font-size: 1.05rem !important;
+  caret-color: #5eead4 !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+[data-testid="stForm"] [data-testid="stTextInput"] input:focus {
+  border-color: #5eead4 !important;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, .25) !important;
+}
+[data-testid="stForm"] button[kind="primary"] {
+  background: #0f8b8d !important;
+  color: #ffffff !important;
+  border: 1px solid #5eead4 !important;
+  font-weight: 750 !important;
+  min-height: 2.8rem !important;
+}
+
 /* Contrast and readability hardening for Streamlit's native widgets. */
 :root {
   color-scheme: dark;

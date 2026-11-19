@@ -131,3 +131,8 @@ The unified shadow research panel now displays strategy response at exact sessio
 - Adds read-only full-session LOW/NORMAL/HIGH occupancy and unknown-session coverage across the seven pre-specified volatility definitions.
 - Displays transition counts and alternative-definition transition-date displacement versus the unchanged baseline.
 - Diagnostics are descriptive, point-in-time, and have no ranking, sizing, stop, gate, or order authority.
+
+
+### Version 3.54 — Holdout-boundary purge visibility
+- Shows how many training observations are purged because their forward-return windows overlap the chronological holdout period.
+- Keeps the 1/5/10/20-session transition-age and forward-horizon matrix descriptive and shadow-only.

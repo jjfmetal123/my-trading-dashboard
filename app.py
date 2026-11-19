@@ -1797,6 +1797,7 @@ with cloud_tab:
                                 "CI status": checkpoint.get("holdout_ci_status"),
                                 "Supported holdout years": checkpoint.get("holdout_supported_calendar_years"),
                                 "Year direction": checkpoint.get("holdout_year_direction_status"),
+                                "Profile checkpoints with CI upper below zero": profile.get("holdout_checkpoints_with_ci_below_zero"),
                                 "Comparison status": checkpoint.get("status"),
                             })
                     if age_profile_rows:

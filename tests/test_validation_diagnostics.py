@@ -1,8 +1,57 @@
 import unittest
-from validation_diagnostics import deoverlap_events, score_bucket
+from validation_diagnostics import deoverlap_events, score_bucket, full_history_display_state
 
 
 class ValidationDiagnosticsTests(unittest.TestCase):
+    def test_full_history_available_payload_requires_configurations(self):
+        state = full_history_display_state({
+            "status": "AVAILABLE",
+            "configurations": [{"configuration": "BASELINE"}],
+            "transition_date_displacement": [{"configuration": "ALT", "status": "NO_MATCHED_TRANSITIONS"}],
+            "authority": "NONE",
+            "decision_authority": "NONE",
+        })
+        self.assertTrue(state["available"])
+        self.assertEqual(state["configuration_count"], 1)
+        self.assertEqual(state["displacement_count"], 1)
+        self.assertEqual(state["authority"], "NONE")
+        self.assertEqual(state["decision_authority"], "NONE")
+
+    def test_full_history_waiting_for_signal_metadata(self):
+        state = full_history_display_state({
+            "status": "WAITING_FOR_SIGNAL_HISTORY_METADATA",
+            "authority": "NONE",
+            "decision_authority": "NONE",
+        })
+        self.assertFalse(state["available"])
+        self.assertEqual(state["status"], "WAITING_FOR_SIGNAL_HISTORY_METADATA")
+        self.assertEqual(state["configuration_count"], 0)
+
+    def test_full_history_no_matched_transitions_keeps_occupancy_available(self):
+        state = full_history_display_state({
+            "status": "AVAILABLE",
+            "configurations": [{"configuration": "BASELINE"}],
+            "transition_date_displacement": [{
+                "configuration": "ALT", "status": "NO_MATCHED_TRANSITIONS"
+            }],
+        })
+        self.assertTrue(state["available"])
+        self.assertEqual(state["displacement_count"], 1)
+
+    def test_full_history_absent_nested_field_fails_closed(self):
+        evidence_report = {"status": "COMPLETE"}
+        payload = evidence_report.get("volatility_classification_sensitivity", {}).get("full_history")
+        state = full_history_display_state(payload)
+        self.assertFalse(state["available"])
+        self.assertEqual(state["status"], "MISSING_PAYLOAD")
+        self.assertEqual(state["authority"], "NONE")
+        self.assertEqual(state["decision_authority"], "NONE")
+
+    def test_full_history_available_without_configurations_is_not_available(self):
+        state = full_history_display_state({"status": "AVAILABLE", "configurations": []})
+        self.assertFalse(state["available"])
+        self.assertEqual(state["configuration_count"], 0)
+
     def test_score_buckets_match_worker_boundaries(self):
         self.assertEqual(score_bucket(0), "00-49")
         self.assertEqual(score_bucket(49.9), "00-49")

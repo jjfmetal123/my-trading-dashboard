@@ -754,6 +754,19 @@ with command_tab:
                     st.markdown("##### Deterministic portfolio shock scenarios")
                     st.dataframe(pd.DataFrame(shock_rows), use_container_width=True, hide_index=True)
                     st.caption(shock.get("interpretation") or "Independent sensitivity scenarios; not forecasts. Do not add scenario losses together.")
+                    contributors = shock.get("symbol_contributions_at_peak_gross_exposure") or []
+                    if contributors:
+                        st.markdown("**Largest individual shock contributors at peak gross exposure**")
+                        contributor_rows = [{
+                            "Symbol": row.get("symbol"),
+                            "Exposure": f"{float(row.get('exposure_pct') or 0):.2f}%",
+                            "Planned open risk": f"{float(row.get('planned_open_risk_pct') or 0):.2f}%",
+                            "Loss at -10%": f"{float(row.get('loss_at_10pct_drop_pct') or 0):.2f}%",
+                            "Loss at -20%": f"{float(row.get('loss_at_20pct_drop_pct') or 0):.2f}%",
+                        } for row in contributors]
+                        st.dataframe(pd.DataFrame(contributor_rows), use_container_width=True, hide_index=True)
+                        st.caption("Per-symbol price-shock contributions use each symbol's exposure at the same peak-gross-exposure snapshot; planned open risk is the modeled distance to stop after assumed baseline execution costs.")
+
                 quality = replay_result.get("trade_quality") or {}
                 quality_rows = []
                 for label, key, suffix in (

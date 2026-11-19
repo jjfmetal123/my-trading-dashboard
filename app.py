@@ -1182,16 +1182,23 @@ with validation_tab:
                 "Median return": item.get("median_forward_return_pct"),
                 "Avg excess vs SPY": item.get("average_excess_vs_spy_pp"),
                 "Benchmark n": item.get("benchmark_matched_count"),
+                "Avg net @20bps": (item.get("cost_sensitivity_round_trip") or {}).get("20bps", {}).get("average_return_pct"),
+                "Win @20bps": (item.get("cost_sensitivity_round_trip") or {}).get("20bps", {}).get("win_rate_pct"),
+                "Avg net @40bps": (item.get("cost_sensitivity_round_trip") or {}).get("40bps", {}).get("average_return_pct"),
+                "Win @40bps": (item.get("cost_sensitivity_round_trip") or {}).get("40bps", {}).get("win_rate_pct"),
+                "Avg net @60bps": (item.get("cost_sensitivity_round_trip") or {}).get("60bps", {}).get("average_return_pct"),
+                "Win @60bps": (item.get("cost_sensitivity_round_trip") or {}).get("60bps", {}).get("win_rate_pct"),
             })
         deoverlap_df = pd.DataFrame(deoverlap_rows)
         st.dataframe(deoverlap_df.style.format({
             "Win rate": "{:.1f}%", "95% Wilson low": "{:.1f}%",
             "95% Wilson high": "{:.1f}%", "Avg return": "{:+.2f}%",
-            "Median return": "{:+.2f}%", "Avg excess vs SPY": "{:+.2f}%",
+            "Median return": "{:+.2f}%", "Avg excess vs SPY": "{:+.2f}%", "Avg net @20bps": "{:+.2f}%", "Win @20bps": "{:.1f}%", "Avg net @40bps": "{:+.2f}%", "Win @40bps": "{:.1f}%", "Avg net @60bps": "{:+.2f}%", "Win @60bps": "{:.1f}%",
         }, na_rep="—"), use_container_width=True, hide_index=True)
         st.caption(
             "This is the worker's de-overlapped, regime-conditioned summary. Wilson intervals describe historical win-rate uncertainty; "
-            "they are not calibrated probabilities. Cross-symbol dependence, execution costs and changing market conditions remain. "
+            "they are not calibrated probabilities. Cross-symbol dependence and changing market conditions remain. "
+            "The 20/40/60 bps columns are flat assumed round-trip cost sensitivities, not measured fills or a complete execution model. "
             "A supported sample label is not proof of edge. Shadow validation has no authority over ranking, sizing, gates or orders."
         )
 

@@ -741,6 +741,19 @@ with command_tab:
                     st.markdown("##### Historical market selloff behavior")
                     st.dataframe(pd.DataFrame(stress_rows), use_container_width=True, hide_index=True)
                     st.caption("Conditional historical observations using the supplied SPY history. Five-session selloff windows may overlap. These results are not a forecast or a simulated sudden correlation/liquidity shock.")
+                shock = replay_result.get("portfolio_shock_scenarios") or {}
+                if shock.get("scenarios"):
+                    shock_rows = []
+                    for scenario in shock.get("scenarios", []):
+                        shock_rows.append({
+                            "Scenario": scenario.get("name"),
+                            "Estimated equity loss": f"{float(scenario.get('estimated_equity_loss_pct') or 0):.2f}%",
+                            "Loss per $10,000": f"${float(scenario.get('estimated_equity_loss_per_10000') or 0):,.2f}",
+                            "Exposure snapshot": scenario.get("exposure_date") or "—",
+                        })
+                    st.markdown("##### Deterministic portfolio shock scenarios")
+                    st.dataframe(pd.DataFrame(shock_rows), use_container_width=True, hide_index=True)
+                    st.caption(shock.get("interpretation") or "Independent sensitivity scenarios; not forecasts. Do not add scenario losses together.")
                 quality = replay_result.get("trade_quality") or {}
                 quality_rows = []
                 for label, key, suffix in (

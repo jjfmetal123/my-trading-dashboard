@@ -93,3 +93,7 @@ The Cloud Scanner includes a read-only panel for the worker's latest unified res
 
 ## Dashboard V3.46 downside-tail research context
 The unified shadow research evidence table now surfaces matched loss rate, worst-decile average return, fifth-percentile return, and worst observed return when supplied by the worker. An explainer distinguishes these close-to-close signal-horizon statistics from portfolio maximum drawdown, intraday adverse excursion, and realized broker losses. These fields are descriptive only and do not affect research readiness or trading decisions.
+
+
+## Dashboard V3.47 matched cross-regime downside intelligence
+The unified shadow research panel now displays pairwise downside-tail differences between market regimes, matched exactly on setup, score bucket, and horizon. It shows loss-rate, worst-decile, and fifth-percentile differences with per-regime sample counts and explicit descriptive-only interpretation. Missing or thin pairs remain not established. These comparisons are not causal and have no readiness, ranking, sizing, stop, gate, or order authority.

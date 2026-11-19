@@ -77,6 +77,27 @@ def deoverlap_events(events, cooldown_sessions=20):
     return kept
 
 
+
+def full_history_display_state(payload):
+    """Normalize worker full-history states for dashboard display; never infer availability."""
+    if not isinstance(payload, dict):
+        return {"status": "MISSING_PAYLOAD", "available": False, "configuration_count": 0,
+                "displacement_count": 0, "authority": "NONE", "decision_authority": "NONE"}
+    status = str(payload.get("status") or "UNKNOWN").upper()
+    configurations = payload.get("configurations")
+    configurations = [row for row in configurations if isinstance(row, dict)] if isinstance(configurations, list) else []
+    displacement = payload.get("transition_date_displacement")
+    displacement = [row for row in displacement if isinstance(row, dict)] if isinstance(displacement, list) else []
+    available = status == "AVAILABLE" and bool(configurations)
+    return {
+        "status": status if status else "UNKNOWN",
+        "available": available,
+        "configuration_count": len(configurations),
+        "displacement_count": len(displacement),
+        "authority": payload.get("authority") or "NONE",
+        "decision_authority": payload.get("decision_authority") or "NONE",
+    }
+
 def build_edge_diagnostics(
     events,
     *,

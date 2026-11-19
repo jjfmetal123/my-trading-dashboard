@@ -69,7 +69,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.53 · Volatility-transition response research · Classification sensitivity · Full-history regime occupancy · Transition-date robustness · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.54 · Volatility-transition response research · Classification sensitivity · Full-history regime occupancy · Transition-date robustness · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1636,6 +1636,7 @@ with cloud_tab:
                             "Transition": pair.get("transition"),
                             "Transition train n": train.get("sample_count"),
                             "Stable train n": stable_train.get("sample_count"),
+                            "Purged training n": pair.get("purged_training_event_count", 0),
                             "Training mean difference (pp)": pair.get("training_mean_return_difference_pp"),
                             "Transition holdout n": hold.get("sample_count"),
                             "Stable holdout n": stable_hold.get("sample_count"),
@@ -1807,7 +1808,8 @@ with cloud_tab:
                         "Each row compares an exact transition-age cohort with a stable same-regime baseline matched "
                         "on setup, score bucket, trend, current volatility, and horizon. Recent post-transition sessions "
                         "through the 20-session checkpoint are excluded from the stable baseline. Each pair uses a shared "
-                        "chronological 70/30 cutoff. Holdout mean-difference intervals use a weekly date-block bootstrap; " 
+                        "chronological 70/30 cutoff, with training forward-return windows purged at the holdout boundary. "
+                        "The purged training count is shown so sample reductions remain visible. Holdout mean-difference intervals use a weekly date-block bootstrap; "
                         "intervals are withheld when either cohort has fewer than eight weekly blocks. These are observational historical comparisons, not causal or predictive "
                         "signals, and have no readiness, ranking, sizing, stop, gate, or order authority."
                     )

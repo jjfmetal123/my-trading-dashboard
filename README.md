@@ -125,3 +125,9 @@ The unified shadow research panel now displays strategy response at exact sessio
 - Displays unique signal-date coverage, regime-label agreement, transition-label agreement, and observed transition dates for each definition.
 - These are point-in-time classification diagnostics only. No strategy returns are used to select thresholds, and no ranking, sizing, stops, gates, execution, or order authority changes.
 - Requires Worker PR #8 sensitivity metadata and the existing research evidence snapshot pipeline.
+
+
+### Version 3.53 — Full-history volatility sensitivity
+- Adds read-only full-session LOW/NORMAL/HIGH occupancy and unknown-session coverage across the seven pre-specified volatility definitions.
+- Displays transition counts and alternative-definition transition-date displacement versus the unchanged baseline.
+- Diagnostics are descriptive, point-in-time, and have no ranking, sizing, stop, gate, or order authority.

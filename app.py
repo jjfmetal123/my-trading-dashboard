@@ -1201,6 +1201,7 @@ with cloud_tab:
                         "current_spy_realized_volatility_pct": decision.get("current_spy_realized_volatility_pct"),
                         "regime_performance": decision.get("regime_performance"),
                         "regime_holding_diagnostics": decision.get("regime_holding_diagnostics"),
+                        "historical_signal_reliability": decision.get("historical_signal_reliability"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1246,6 +1247,7 @@ with cloud_tab:
                     "current_portfolio_diversification_score", "candidate_diversification_status",
                     "candidate_weighted_held_correlation", "candidate_diversification_score",
                     "diversification_holdings_count", "diversification_observations",
+                    "historical_signal_reliability",
                     "portfolio_risk_forecast_status",
                     "portfolio_risk_lookback_sessions",
                     "portfolio_risk_holdings_count",

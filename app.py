@@ -956,33 +956,18 @@ with validation_tab:
             # score buckets and symbol/setup de-overlap. Still close-to-close only.
             evidence_events = deoverlap_events(validation_events, cooldown_sessions=20)
 
-            edge_rows = build_edge_diagnostics(evidence_events)            if edge_rows:
-                edge_df = pd.DataFrame(edge_rows)
-                edge_summary = (edge_df.groupby(["Setup", "Score band", "Regime", "Horizon"], dropna=False)
-                    .agg(Signal_samples=("Gross return %", "count"),
-                         Benchmark_matched_samples=("Matched excess pp", "count"),
-                         Gross_mean_return_pct=("Gross return %", "mean"),
-                         Gross_mean_excess_pp=("Matched excess pp", "mean"))
-                    .reset_index())
-                edge_summary["Return evidence"] = np.where(
-                    edge_summary["Signal_samples"] >= 30, "SUPPORTED (n≥30)", "NOT SUPPORTED (n<30)"
-                )
-                edge_summary["Benchmark evidence"] = np.where(
-                    edge_summary["Benchmark_matched_samples"] >= 20, "SUPPORTED (n≥20)", "NOT SUPPORTED (n<20)"
-                )
-                for cost_bps in (10, 20, 40, 60):
-                    edge_summary[f"Mean return after {cost_bps}bp %"] = (
-                        edge_summary["Gross_mean_return_pct"] - cost_bps / 100.0
-                    )
-                edge_summary["Mean excess after 20bp pp"] = (
-                    edge_summary["Gross_mean_excess_pp"] - 0.20
-                )
+            edge_rows = build_edge_diagnostics(evidence_events)
+            if edge_rows:
+                edge_summary = pd.DataFrame(edge_rows)
                 st.markdown("#### Evidence-qualified net-edge diagnostics")
                 st.caption(
-                    "20-session de-overlap per symbol/setup; " + f"{len(evidence_events):,} retained events. Groups use the worker-aligned 5/10/20-session horizons, setup-score bands (00–49, 50–59 … 90–100), and signal-time regime. Net scenarios subtract assumed round-trip costs "
-                    "of 10/20/40/60 bps from historical close-to-close means. Return support requires 30 "
-                    "observations; benchmark-excess support requires 20 matched SPY observations. "
-                    "Unsupported values remain visible for exploration but must not be treated as validated edge."
+                    "20-session de-overlap per symbol/setup; "
+                    + f"{len(evidence_events):,} retained events. Groups use the worker-aligned "
+                    "5/10/20-session horizons, setup-score bands (00–49, 50–59 … 90–100), "
+                    "and signal-time regime. Net scenarios subtract assumed round-trip costs "
+                    "of 10/20/40/60 bps from historical close-to-close means. Return support "
+                    "requires 30 observations; benchmark-excess support requires 20 matched "
+                    "SPY observations. Unsupported values are exploratory, not validated edge."
                 )
                 st.dataframe(edge_summary.style.format({
                     "Gross_mean_return_pct": "{:+.2f}%",

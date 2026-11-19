@@ -136,3 +136,9 @@ The unified shadow research panel now displays strategy response at exact sessio
 ### Version 3.54 — Holdout-boundary purge visibility
 - Shows how many training observations are purged because their forward-return windows overlap the chronological holdout period.
 - Keeps the 1/5/10/20-session transition-age and forward-horizon matrix descriptive and shadow-only.
+
+
+### Within-cohort volatility transition-age profiles
+- Displays the 1/5/10/20-session post-transition checkpoints as profiles only within an exact setup, score bucket, trend, current volatility regime, transition type, and forward-horizon cohort.
+- Each checkpoint keeps its holdout difference, confidence interval status, supported holdout years, and annual direction status visible. The profile also reports how many checkpoints have a weekly-block 95% interval wholly below zero.
+- No pooled cross-setup ranking is created; the view remains descriptive and has no trading authority.

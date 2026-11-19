@@ -1654,6 +1654,37 @@ with cloud_tab:
                     )
                 else:
                     st.info("No matched volatility-transition cohorts are available yet. New signal observations need enough transition and stable-baseline history before comparisons can be established.")
+                classification_sensitivity = evidence_report.get("volatility_classification_sensitivity")
+                st.markdown("#### Volatility classification sensitivity · shadow-only")
+                if isinstance(classification_sensitivity, dict) and classification_sensitivity.get("configurations"):
+                    sensitivity_rows = []
+                    for item in classification_sensitivity.get("configurations") or []:
+                        if not isinstance(item, dict):
+                            continue
+                        sensitivity_rows.append({
+                            "Definition": item.get("configuration"),
+                            "Volatility window (sessions)": item.get("volatility_window_sessions"),
+                            "Reference lookback (sessions)": item.get("reference_lookback_sessions"),
+                            "Low / high quantile": (
+                                f"{float(item.get('low_quantile')):.0%} / {float(item.get('high_quantile')):.0%}"
+                                if item.get("low_quantile") is not None and item.get("high_quantile") is not None else "—"
+                            ),
+                            "Observed signal dates": item.get("unique_signal_dates"),
+                            "Regime agreement vs baseline": item.get("regime_agreement_with_baseline_pct"),
+                            "Transition agreement vs baseline": item.get("transition_agreement_with_baseline_pct"),
+                            "Transition dates observed": item.get("observed_transition_signal_dates"),
+                            "Status": item.get("status"),
+                        })
+                    st.dataframe(pd.DataFrame(sensitivity_rows), use_container_width=True, hide_index=True)
+                    st.caption(
+                        f"Baseline: {classification_sensitivity.get('baseline_configuration', 'not reported')}. "
+                        "Alternative definitions vary the realized-volatility window, trailing reference lookback, or percentile bands. "
+                        "Agreement is measured on unique persisted signal dates, not every market session. "
+                        "Definitions are pre-specified; no strategy returns are used to choose a threshold. "
+                        "This measures classification sensitivity only, not which definition produces better trades."
+                    )
+                else:
+                    st.info("Volatility classification sensitivity is not available yet. The worker must record signal-date labels under the pre-specified definitions before this panel can populate.")
                 response_study = evidence_report.get("volatility_transition_response_study")
                 response_pairs = response_study.get("comparisons") if isinstance(response_study, dict) else []
                 st.markdown("#### Strategy response by time since volatility transition · shadow-only")
@@ -3758,4 +3789,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.51 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.52 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

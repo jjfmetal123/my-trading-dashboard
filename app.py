@@ -1502,19 +1502,54 @@ with cloud_tab:
                 st.info("Unified evidence snapshots are not available yet. Apply the worker's research-evidence Supabase migration, then allow the next worker learning cycle to save a snapshot.")
                 st.caption(f"Technical detail: {exc}")
             if evidence_snapshot:
+                evidence_report = evidence_snapshot.get("report") if isinstance(evidence_snapshot.get("report"), dict) else {}
+                evidence_groups = evidence_report.get("groups") if isinstance(evidence_report.get("groups"), list) else []
+                reported_supported = evidence_snapshot.get("research_supported_group_count")
+                reported_not_established = evidence_snapshot.get("not_established_group_count")
+                reported_groups = evidence_snapshot.get("group_count")
+                actual_supported = sum(
+                    1 for group in evidence_groups
+                    if isinstance(group, dict)
+                    and group.get("status") == "RESEARCH_EVIDENCE_SUPPORTED_SHADOW_ONLY"
+                )
+                actual_not_established = sum(
+                    1 for group in evidence_groups
+                    if isinstance(group, dict)
+                    and group.get("status") == "NOT_ESTABLISHED"
+                )
+                count_consistent = (
+                    isinstance(reported_supported, int) and not isinstance(reported_supported, bool)
+                    and isinstance(reported_not_established, int) and not isinstance(reported_not_established, bool)
+                    and isinstance(reported_groups, int) and not isinstance(reported_groups, bool)
+                    and reported_supported == actual_supported
+                    and reported_not_established == actual_not_established
+                    and reported_groups == len(evidence_groups)
+                    and actual_supported + actual_not_established == len(evidence_groups)
+                )
+                snapshot_age_minutes = None
+                try:
+                    generated = pd.to_datetime(evidence_snapshot.get("generated_at"), utc=True, errors="raise")
+                    snapshot_age_minutes = max(0, int((pd.Timestamp.now(tz="UTC") - generated).total_seconds() / 60))
+                except Exception:
+                    pass
                 e1, e2, e3, e4 = st.columns(4)
-                e1.metric("Research-supported groups (shadow)", int(evidence_snapshot.get("research_supported_group_count") or 0))
-                e2.metric("Not established", int(evidence_snapshot.get("not_established_group_count") or 0))
-                e3.metric("Groups evaluated", int(evidence_snapshot.get("group_count") or 0))
+                e1.metric("Research-supported groups (shadow)", int(reported_supported or 0))
+                e2.metric("Not established", int(reported_not_established or 0))
+                e3.metric("Groups evaluated", int(reported_groups or 0))
                 e4.metric("Source observations", int(evidence_snapshot.get("source_event_count") or 0))
                 st.caption(
                     f"Snapshot: {evidence_snapshot.get('generated_at') or 'Unavailable'} · "
+                    f"Age: {snapshot_age_minutes if snapshot_age_minutes is not None else 'unknown'} min · "
                     f"Worker status: {evidence_snapshot.get('status') or 'UNKNOWN'} · "
                     f"Authority: {evidence_snapshot.get('authority') or 'UNAVAILABLE'}"
                 )
-                evidence_report = evidence_snapshot.get("report") if isinstance(evidence_snapshot.get("report"), dict) else {}
-                evidence_groups = evidence_report.get("groups") if isinstance(evidence_report.get("groups"), list) else []
-                if evidence_snapshot.get("authority") != "NONE":
+                if snapshot_age_minutes is None:
+                    st.warning("Snapshot timestamp is missing or invalid. Do not treat this report as current.")
+                elif snapshot_age_minutes > 5:
+                    st.warning("Research evidence snapshot is older than five minutes. Check the worker's learning engine before relying on it.")
+                if not count_consistent:
+                    st.error("Snapshot summary counts do not reconcile with the detailed evidence groups. Treat this report as invalid.")
+                if evidence_snapshot.get("authority") != "NONE" or evidence_report.get("authority") != "NONE" or evidence_report.get("decision_authority") != "NONE":
                     st.error("Unexpected authority metadata. Treat this snapshot as invalid and do not use it.")
                 if evidence_groups:
                     evidence_rows = []

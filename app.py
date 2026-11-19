@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, deoverlap_events
+from validation_diagnostics import build_edge_diagnostics, deoverlap_events, full_history_display_state
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -1686,8 +1686,9 @@ with cloud_tab:
                 else:
                     st.info("Volatility classification sensitivity is not available yet. The worker must record signal-date labels under the pre-specified definitions before this panel can populate.")
                 full_history = classification_sensitivity.get("full_history") if isinstance(classification_sensitivity, dict) else {}
+                full_history_state = full_history_display_state(full_history)
                 st.markdown("#### Full-history volatility regime occupancy and transition-date shifts · shadow-only")
-                if isinstance(full_history, dict) and full_history.get("configurations"):
+                if full_history_state["available"]:
                     occupancy_rows = []
                     for item in full_history.get("configurations") or []:
                         if not isinstance(item, dict):
@@ -1731,7 +1732,22 @@ with cloud_tab:
                         "These are descriptive definition-sensitivity diagnostics, not return-based threshold selection or trading signals."
                     )
                 else:
-                    st.info("Full-history regime occupancy and transition-date displacement are waiting for the worker's next SPY history scan and persisted signal metadata.")
+                    status_messages = {
+                        "WAITING_FOR_SIGNAL_HISTORY_METADATA": "Waiting for the worker to persist a full-history SPY summary on a recent signal observation.",
+                        "WAITING_FOR_SIGNAL_DATE_LABELS": "Waiting for point-in-time volatility labels on persisted signal dates.",
+                        "NO_MATCHED_TRANSITIONS": "Full-history data is available, but no alternative-definition transitions matched the baseline within the 20-session window.",
+                        "MISSING_PAYLOAD": "The full-history field is absent from this research snapshot. No result is inferred.",
+                    }
+                    message = status_messages.get(
+                        full_history_state["status"],
+                        "Full-history diagnostics are not available yet. Status: " + full_history_state["status"],
+                    )
+                    st.info(message)
+                    st.caption(
+                        f"Configurations: {full_history_state['configuration_count']} · "
+                        f"Transition comparisons: {full_history_state['displacement_count']} · "
+                        "Research and decision authority: NONE."
+                    )
                 response_study = evidence_report.get("volatility_transition_response_study")
                 response_pairs = response_study.get("comparisons") if isinstance(response_study, dict) else []
                 st.markdown("#### Strategy response by time since volatility transition · shadow-only")

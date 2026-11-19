@@ -1423,7 +1423,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.47 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.48 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1616,6 +1616,44 @@ with cloud_tab:
                     )
                 else:
                     st.info("No matched cross-regime downside pairs are available yet. This can mean the worker snapshot predates this analysis or lacks sufficient regime coverage.")
+                transition_study = evidence_report.get("volatility_transition_study")
+                transition_pairs = transition_study.get("comparisons") if isinstance(transition_study, dict) else []
+                st.markdown("#### Volatility transition outcome study · shadow-only")
+                if transition_pairs:
+                    transition_rows = []
+                    for pair in transition_pairs:
+                        if not isinstance(pair, dict):
+                            continue
+                        train = pair.get("transition_training") if isinstance(pair.get("transition_training"), dict) else {}
+                        hold = pair.get("transition_holdout") if isinstance(pair.get("transition_holdout"), dict) else {}
+                        stable_train = pair.get("matched_stable_training") if isinstance(pair.get("matched_stable_training"), dict) else {}
+                        stable_hold = pair.get("matched_stable_holdout") if isinstance(pair.get("matched_stable_holdout"), dict) else {}
+                        transition_rows.append({
+                            "Setup": pair.get("setup_type"),
+                            "Score bucket": pair.get("score_bucket"),
+                            "Horizon": pair.get("horizon_sessions"),
+                            "Current volatility": pair.get("current_volatility_regime"),
+                            "Transition": pair.get("transition"),
+                            "Transition train n": train.get("sample_count"),
+                            "Stable train n": stable_train.get("sample_count"),
+                            "Training mean difference (pp)": pair.get("training_mean_return_difference_pp"),
+                            "Transition holdout n": hold.get("sample_count"),
+                            "Stable holdout n": stable_hold.get("sample_count"),
+                            "Holdout mean difference (pp)": pair.get("holdout_mean_return_difference_pp"),
+                            "Holdout cutoff": pair.get("holdout_cutoff_date"),
+                            "Status": pair.get("status"),
+                            "Reasons": ", ".join(pair.get("reasons") or []),
+                        })
+                    if transition_rows:
+                        st.dataframe(pd.DataFrame(transition_rows), use_container_width=True, hide_index=True)
+                    st.caption(
+                        "Transition cohorts are compared with stable cohorts at the same current volatility, "
+                        "matched exactly on setup, score bucket, and horizon. The study uses a chronological "
+                        "70/30 split; differences are observational, not causal or predictive, and have no "
+                        "readiness, ranking, sizing, stop, gate, or order authority."
+                    )
+                else:
+                    st.info("No matched volatility-transition cohorts are available yet. New signal observations need enough transition and stable-baseline history before comparisons can be established.")
                 st.caption(
                     "A supported group is not a buy signal or proof of future profitability. Downside-tail statistics "
                     "are descriptive only and do not affect readiness. Fill calibration and account-level portfolio "

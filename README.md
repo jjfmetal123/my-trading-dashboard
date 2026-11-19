@@ -97,3 +97,7 @@ The unified shadow research evidence table now surfaces matched loss rate, worst
 
 ## Dashboard V3.47 matched cross-regime downside intelligence
 The unified shadow research panel now displays pairwise downside-tail differences between market regimes, matched exactly on setup, score bucket, and horizon. It shows loss-rate, worst-decile, and fifth-percentile differences with per-regime sample counts and explicit descriptive-only interpretation. Missing or thin pairs remain not established. These comparisons are not causal and have no readiness, ranking, sizing, stop, gate, or order authority.
+
+
+## Dashboard V3.48 volatility-transition outcome study
+The unified shadow research panel now displays matched volatility-transition outcome comparisons against stable cohorts at the same current volatility, matched exactly on setup, score bucket, and horizon. It shows chronological training/holdout samples, mean-return differences, holdout cutoff, and explicit not-established reasons. The study is observational, not causal or predictive, and has no readiness, ranking, sizing, stop, gate, or order authority.

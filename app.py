@@ -701,34 +701,63 @@ with command_tab:
                         " Fixed-share cases freeze baseline accepted quantities; they are not pure friction-only comparisons."
                     )
                 fold_rows = walk.get("windows_detail") or []
-                sufficient_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
-                positive_sufficient_folds = sum(
-                    1 for row in sufficient_folds if float(row.get("test_return_pct") or 0) > 0
+                sufficient_training_folds = [row for row in fold_rows if row.get("training_sample_sufficient")]
+                positive_training_folds = sum(
+                    1 for row in sufficient_training_folds if float(row.get("test_return_pct") or 0) > 0
                 )
+                supported_test_folds = int(walk.get("windows_with_at_least_10_closed_trades") or 0)
+                thin_test_folds = int(walk.get("windows_with_insufficient_closed_trade_evidence") or 0)
+                supported_cost_folds = int(walk.get("supported_windows_at_moderate_cost") or 0)
+                positive_supported_cost_folds = int(walk.get("supported_windows_positive_at_moderate_cost") or 0)
+                median_cost_fold = walk.get("median_test_return_at_moderate_cost_pct")
+                worst_cost_fold = walk.get("worst_test_return_at_moderate_cost_pct")
                 wf_cols = st.columns(4)
                 wf_cols[0].metric(
-                    "Walk-forward periods positive",
-                    f"{int(walk.get('positive_test_windows') or 0)}/{int(walk.get('windows') or 0)}"
+                    "Test periods with ≥10 trades",
+                    f"{supported_test_folds}/{int(walk.get('windows') or 0)}"
                 )
                 wf_cols[1].metric(
-                    "Positive with adequate training",
-                    f"{positive_sufficient_folds}/{len(sufficient_folds)}"
+                    "Positive supported periods after costs",
+                    f"{positive_supported_cost_folds}/{supported_cost_folds}"
                 )
-                wf_mean = walk.get("mean_test_return_pct")
-                wf_cols[2].metric("Mean fold return", f"{float(wf_mean):+.2f}%" if wf_mean is not None else "—")
-                wf_cols[3].metric(
-                    "Training samples sufficient",
-                    f"{int(walk.get('windows_with_sufficient_training_events') or 0)}/{int(walk.get('windows') or 0)}"
+                wf_cols[2].metric(
+                    "Median fold return after costs",
+                    f"{float(median_cost_fold):+.2f}%" if median_cost_fold is not None else "—"
+                )
+                wf_cols[3].metric("Thin-evidence periods", f"{thin_test_folds:,}")
+                st.caption(
+                    f"Walk-forward design: {int(walk.get('training_sessions') or 126)} training sessions / "
+                    f"{int(walk.get('test_sessions') or 63)} unseen test sessions per fold · "
+                    f"{int(walk.get('total_test_closed_trades') or 0):,} closed test trades total. "
+                    "A fold needs at least 10 closed trades to count as supported evidence."
                 )
                 moderate_cost_return = (cost_sensitivity.get("moderate") or {}).get("total_return_pct")
-                if not sufficient_folds or (
-                    positive_sufficient_folds * 2 < len(sufficient_folds)
-                    or (moderate_cost_return is not None and float(moderate_cost_return) <= 0)
-                ):
+                enough_supported_folds = supported_cost_folds >= 3
+                majority_positive_after_costs = (
+                    enough_supported_folds and positive_supported_cost_folds * 2 > supported_cost_folds
+                )
+                if not enough_supported_folds:
                     st.warning(
-                        "Research gate: the current replay does not show a robust edge. Too few adequately trained "
-                        "walk-forward folds are positive and/or the moderate-cost holdout is non-positive. Keep this model simulation-only."
+                        "UNPROVEN: fewer than three walk-forward test periods have at least 10 closed trades. "
+                        "The available results are exploratory, not evidence of a dependable edge."
                     )
+                elif majority_positive_after_costs and median_cost_fold is not None and float(median_cost_fold) > 0:
+                    st.success(
+                        "POSITIVE HISTORICAL EVIDENCE: a majority of adequately sampled unseen periods were positive "
+                        "after moderate assumed costs. This is not proof of future profitability or permission to trade live."
+                    )
+                else:
+                    st.warning(
+                        "WEAK OR NEGATIVE EVIDENCE: adequately sampled unseen periods do not show consistent positive "
+                        "returns after moderate assumed costs. Keep the strategy simulation-only while investigating."
+                    )
+                if moderate_cost_return is not None and float(moderate_cost_return) <= 0:
+                    st.caption(
+                        "The separate 70/30 moderate-cost holdout is non-positive; do not let positive individual folds "
+                        "override that conflicting result."
+                    )
+                if worst_cost_fold is not None:
+                    st.caption(f"Worst adequately sampled moderate-cost fold: {float(worst_cost_fold):+.2f}%.")
                 try:
                     prior_row = load_prior_historical_portfolio_replay()
                     current_fingerprint = replay_result.get("history_fingerprint")

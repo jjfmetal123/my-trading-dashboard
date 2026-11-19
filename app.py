@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
+from validation_diagnostics import deoverlap_events, score_bucket
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -951,30 +952,9 @@ with validation_tab:
                 "Rule_avg_return_pct":"{:+.2f}%"
             }, na_rep="—"), use_container_width=True, hide_index=True)
 
-            # Evidence-qualified edge view: de-overlap each symbol/setup stream
-            # by 20 business sessions, then score stock returns and matched-SPY
-            # excess independently. These are still close-to-close diagnostics.
-            evidence_events = []
-            last_kept_session = {}
-            ordered_events = sorted(
-                validation_events,
-                key=lambda e: (str(e.get("symbol") or ""), str(e.get("setup_type") or ""),
-                               str(e.get("signal_date") or "")),
-            )
-            for event in ordered_events:
-                try:
-                    event_date = pd.Timestamp(event.get("signal_date")).normalize()
-                    if pd.isna(event_date):
-                        continue
-                except Exception:
-                    continue
-                key = (str(event.get("symbol") or "").upper(),
-                       str(event.get("setup_type") or "").upper())
-                prior_date = last_kept_session.get(key)
-                if prior_date is not None and len(pd.bdate_range(prior_date, event_date)) - 1 < 20:
-                    continue
-                evidence_events.append(event)
-                last_kept_session[key] = event_date
+            # Evidence-qualified edge view: shared pure helpers mirror worker
+            # score buckets and symbol/setup de-overlap. Still close-to-close only.
+            evidence_events = deoverlap_events(validation_events, cooldown_sessions=20)
 
             edge_rows = []
             for event in evidence_events:
@@ -999,17 +979,9 @@ with validation_tab:
                             excess = np.nan
                     except (TypeError, ValueError):
                         excess = np.nan
-                    try:
-                        score = float(event.get("setup_score"))
-                        if not np.isfinite(score):
-                            continue
-                    except (TypeError, ValueError):
+                    score_band = score_bucket(event.get("setup_score"))
+                    if score_band is None:
                         continue
-                    score = min(100.0, max(0.0, score))
-                    lower = min(90, int(score // 10) * 10)
-                    score_band = "00-49" if lower < 50 else (
-                        "90-100" if lower == 90 else f"{lower:02d}-{lower + 9:02d}"
-                    )
                     edge_rows.append({
                         "Setup": str(event.get("setup_type") or "UNCLASSIFIED").upper(),
                         "Score band": score_band,

@@ -665,6 +665,33 @@ with command_tab:
                 dd = replay_row.get("max_drawdown_pct")
                 m3.metric("Maximum drawdown", f"{float(dd):.2f}%" if dd is not None else "—")
                 m4.metric("Closed trades", f"{int(replay_row.get('closed_trades') or 0):,}")
+                drawdown_rows = []
+                for label, key in (
+                    ("Current drawdown", "current_drawdown_pct"),
+                    ("Current underwater sessions", "current_underwater_sessions"),
+                    ("Longest underwater stretch (sessions)", "longest_underwater_sessions"),
+                    ("Maximum drawdown peak date", "max_drawdown_peak_date"),
+                    ("Maximum drawdown trough date", "max_drawdown_trough_date"),
+                ):
+                    value = replay_result.get(key)
+                    if value is not None:
+                        if key.endswith("_pct"):
+                            display_value = f"{float(value):.2f}%"
+                        elif key.endswith("_sessions"):
+                            display_value = f"{int(value):,}"
+                        else:
+                            display_value = str(value)
+                        drawdown_rows.append({"Drawdown diagnostic": label, "Value": display_value})
+                recovered = replay_result.get("is_recovered_to_prior_peak")
+                if recovered is not None:
+                    drawdown_rows.append({
+                        "Drawdown diagnostic": "Recovered to prior equity peak",
+                        "Value": "Yes" if recovered else "No",
+                    })
+                if drawdown_rows:
+                    st.markdown("##### Drawdown duration & recovery")
+                    st.dataframe(pd.DataFrame(drawdown_rows), use_container_width=True, hide_index=True)
+                    st.caption("Drawdown depth and duration use daily closing equity marks; intraday peak-to-trough movement may be larger.")
                 cost_rows = []
                 for key, label in (
                     ("baseline", "Baseline"),

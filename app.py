@@ -1187,6 +1187,14 @@ with cloud_tab:
                         "portfolio_downside_capture_pct": decision.get("portfolio_downside_capture_pct"),
                         "portfolio_downside_correlation": decision.get("portfolio_downside_correlation"),
                         "downside_holding_diagnostics": decision.get("downside_holding_diagnostics"),
+                        "regime_status": decision.get("regime_status"),
+                        "regime_observations": decision.get("regime_observations"),
+                        "current_market_trend_regime": decision.get("current_market_trend_regime"),
+                        "current_market_volatility_regime": decision.get("current_market_volatility_regime"),
+                        "current_market_regime": decision.get("current_market_regime"),
+                        "current_spy_realized_volatility_pct": decision.get("current_spy_realized_volatility_pct"),
+                        "regime_performance": decision.get("regime_performance"),
+                        "regime_holding_diagnostics": decision.get("regime_holding_diagnostics"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1268,6 +1276,10 @@ with cloud_tab:
                     "portfolio_avg_return_on_down_market_days_pct",
                     "portfolio_downside_beta", "portfolio_downside_capture_pct",
                     "portfolio_downside_correlation", "downside_holding_diagnostics",
+                    "regime_status", "regime_observations",
+                    "current_market_trend_regime", "current_market_volatility_regime",
+                    "current_market_regime", "current_spy_realized_volatility_pct",
+                    "regime_performance", "regime_holding_diagnostics",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]

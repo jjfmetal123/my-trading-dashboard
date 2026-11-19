@@ -1179,6 +1179,14 @@ with cloud_tab:
                         "portfolio_worst_return_on_5_worst_spy_days_pct": decision.get("portfolio_worst_return_on_5_worst_spy_days_pct"),
                         "portfolio_loss_on_5_worst_spy_days_dollars": decision.get("portfolio_loss_on_5_worst_spy_days_dollars"),
                         "portfolio_worst_day_contributors": decision.get("portfolio_worst_day_contributors"),
+                        "downside_status": decision.get("downside_status"),
+                        "downside_observations": decision.get("downside_observations"),
+                        "downside_benchmark_avg_return_pct": decision.get("downside_benchmark_avg_return_pct"),
+                        "portfolio_avg_return_on_down_market_days_pct": decision.get("portfolio_avg_return_on_down_market_days_pct"),
+                        "portfolio_downside_beta": decision.get("portfolio_downside_beta"),
+                        "portfolio_downside_capture_pct": decision.get("portfolio_downside_capture_pct"),
+                        "portfolio_downside_correlation": decision.get("portfolio_downside_correlation"),
+                        "downside_holding_diagnostics": decision.get("downside_holding_diagnostics"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1255,6 +1263,11 @@ with cloud_tab:
                     "portfolio_worst_return_on_5_worst_spy_days_pct",
                     "portfolio_loss_on_5_worst_spy_days_dollars",
                     "portfolio_worst_day_contributors",
+                    "downside_status", "downside_observations",
+                    "downside_benchmark_avg_return_pct",
+                    "portfolio_avg_return_on_down_market_days_pct",
+                    "portfolio_downside_beta", "portfolio_downside_capture_pct",
+                    "portfolio_downside_correlation", "downside_holding_diagnostics",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]

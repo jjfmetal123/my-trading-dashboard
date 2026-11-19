@@ -1776,6 +1776,34 @@ with cloud_tab:
                         })
                     if response_rows:
                         st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+                    age_profile_rows = []
+                    age_profiles = response_study.get("transition_age_profiles") if isinstance(response_study, dict) else []
+                    for profile in age_profiles or []:
+                        if not isinstance(profile, dict):
+                            continue
+                        for checkpoint in profile.get("checkpoint_profile") or []:
+                            if not isinstance(checkpoint, dict):
+                                continue
+                            age_profile_rows.append({
+                                "Setup": profile.get("setup_type"),
+                                "Score bucket": profile.get("score_bucket"),
+                                "Trend": profile.get("trend_regime"),
+                                "Current volatility": profile.get("current_volatility_regime"),
+                                "Transition": profile.get("transition"),
+                                "Forward horizon": profile.get("horizon_sessions"),
+                                "Sessions after transition": checkpoint.get("sessions_after_transition"),
+                                "Holdout difference (pp)": checkpoint.get("holdout_mean_return_difference_pp"),
+                                "CI upper (pp)": checkpoint.get("holdout_ci_upper_95_pct"),
+                                "CI status": checkpoint.get("holdout_ci_status"),
+                                "Supported holdout years": checkpoint.get("holdout_supported_calendar_years"),
+                                "Year direction": checkpoint.get("holdout_year_direction_status"),
+                                "Comparison status": checkpoint.get("status"),
+                            })
+                    if age_profile_rows:
+                        st.markdown("##### Within-cohort transition-age profiles · no cross-setup pooling")
+                        st.dataframe(pd.DataFrame(age_profile_rows), use_container_width=True, hide_index=True)
+                        st.caption("Each profile preserves one exact setup, score bucket, trend, current volatility regime, transition type, and forward horizon. Checkpoints remain separate; confidence intervals and year-direction support are displayed without creating a pooled transition ranking.")
+
                     calendar_rows = []
                     for pair in response_pairs:
                         if not isinstance(pair, dict):

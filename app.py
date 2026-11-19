@@ -1713,6 +1713,7 @@ with cloud_tab:
                             continue
                         displacement_rows.append({
                             "Alternative definition": item.get("configuration"),
+                            "Match window (sessions)": item.get("max_match_shift_sessions"),
                             "Matched baseline transitions": item.get("matched_baseline_transitions"),
                             "Unmatched baseline / alternative": f"{item.get('unmatched_baseline_transitions', 0)} / {item.get('unmatched_alternative_transitions', 0)}",
                             "Median absolute shift (sessions)": item.get("median_absolute_session_shift"),
@@ -1726,7 +1727,7 @@ with cloud_tab:
                     st.caption(
                         f"Baseline: {full_history.get('baseline_configuration', 'not reported')}. "
                         "Occupancy uses all available SPY sessions with a known point-in-time label; unknown sessions are shown separately. "
-                        "Transition dates are matched by transition direction/type and nearest date, then measured in trading-session index units. "
+                        "Transition dates are matched one-to-one by transition direction/type within a 20-session window, then measured in trading-session index units. "
                         "These are descriptive definition-sensitivity diagnostics, not return-based threshold selection or trading signals."
                     )
                 else:

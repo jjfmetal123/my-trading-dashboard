@@ -9,7 +9,7 @@ on:
       - research/volatility-response-uncertainty-dashboard-20261119
       - research/volatility-response-uncertainty-dashboard-20261119
       - research/volatility-response-calendar-robustness-dashboard-20261119
-      - research/volatility-classification-sensitivity-dashboard-20261119
+      - research/volatility-classification-sensitivity-dashboard-20261119\n      - research/volatility-classification-full-history-dashboard-20261119
   pull_request:
     branches:
       - main

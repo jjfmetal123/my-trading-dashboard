@@ -741,6 +741,31 @@ with command_tab:
                     st.markdown("##### Historical market selloff behavior")
                     st.dataframe(pd.DataFrame(stress_rows), use_container_width=True, hide_index=True)
                     st.caption("Conditional historical observations using the supplied SPY history. Five-session selloff windows may overlap. These results are not a forecast or a simulated sudden correlation/liquidity shock.")
+                risk_budget = replay_result.get("portfolio_risk_budget") or {}
+                if risk_budget.get("status") == "COMPLETED":
+                    utilization = float(risk_budget.get("peak_utilization_pct") or 0)
+                    budget_rows = [
+                        {"Portfolio risk budget": "Configured stop-risk budget", "Value": f"{float(risk_budget.get('risk_budget_pct_equity') or 0):.2f}% of equity"},
+                        {"Portfolio risk budget": "Peak planned open risk", "Value": f"{float(risk_budget.get('peak_open_risk_pct_equity') or 0):.2f}% of equity"},
+                        {"Portfolio risk budget": "Peak budget utilization", "Value": f"{utilization:.1f}%"},
+                        {"Portfolio risk budget": "Remaining budget at peak", "Value": f"{float(risk_budget.get('remaining_budget_pct_equity') or 0):+.2f}% of equity"},
+                        {"Portfolio risk budget": "Peak date", "Value": risk_budget.get("peak_date") or "—"},
+                        {"Portfolio risk budget": "Snapshots above budget", "Value": int(risk_budget.get("over_budget_snapshots") or 0)},
+                    ]
+                    st.markdown("##### Portfolio stop-risk budget")
+                    st.dataframe(pd.DataFrame(budget_rows), use_container_width=True, hide_index=True)
+                    risk_contributors = risk_budget.get("symbol_contributions_at_peak_risk") or []
+                    if risk_contributors:
+                        st.markdown("**Largest contributors at peak portfolio stop-risk**")
+                        st.dataframe(pd.DataFrame([{
+                            "Symbol": row.get("symbol"),
+                            "Planned stop-risk": f"{float(row.get('planned_open_risk_pct_equity') or 0):.3f}%",
+                            "Share of budget": f"{float(row.get('risk_budget_share_pct') or 0):.1f}%",
+                            "Share of open risk": f"{float(row.get('share_of_portfolio_open_risk_pct') or 0):.1f}%",
+                        } for row in risk_contributors]), use_container_width=True, hide_index=True)
+                    st.caption(risk_budget.get("interpretation") or "Historical replay diagnostic only; not a live order gate.")
+                elif risk_budget.get("status"):
+                    st.caption(f"Portfolio risk budget: {risk_budget.get('status')}")
                 shock = replay_result.get("portfolio_shock_scenarios") or {}
                 if shock.get("scenarios"):
                     shock_rows = []

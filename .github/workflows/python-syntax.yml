@@ -6,6 +6,7 @@ on:
       - main
       - research/volatility-transition-response-dashboard-20261119
       - research/volatility-response-uncertainty-dashboard-20261119
+      - research/volatility-response-calendar-robustness-dashboard-20261119
   pull_request:
     branches:
       - main

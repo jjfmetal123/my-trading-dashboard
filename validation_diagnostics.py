@@ -79,23 +79,110 @@ def deoverlap_events(events, cooldown_sessions=20):
 
 
 def full_history_display_state(payload):
-    """Normalize worker full-history states for dashboard display; never infer availability."""
+    """Validate the persisted worker contract before showing full-history evidence."""
+    unavailable = {
+        "status": "MISSING_PAYLOAD", "available": False,
+        "configuration_count": 0, "displacement_count": 0,
+        "authority": "NONE", "decision_authority": "NONE",
+    }
     if not isinstance(payload, dict):
-        return {"status": "MISSING_PAYLOAD", "available": False, "configuration_count": 0,
-                "displacement_count": 0, "authority": "NONE", "decision_authority": "NONE"}
+        return unavailable
     status = str(payload.get("status") or "UNKNOWN").upper()
-    configurations = payload.get("configurations")
-    configurations = [row for row in configurations if isinstance(row, dict)] if isinstance(configurations, list) else []
-    displacement = payload.get("transition_date_displacement")
-    displacement = [row for row in displacement if isinstance(row, dict)] if isinstance(displacement, list) else []
-    available = status == "AVAILABLE" and bool(configurations)
+    raw_configurations = payload.get("configurations")
+    raw_displacement = payload.get("transition_date_displacement")
+    configurations = raw_configurations if isinstance(raw_configurations, list) else []
+    configurations = [
+        row for row in configurations
+        if isinstance(row, dict)
+        and row.get("configuration")
+        and isinstance(row.get("regime_occupancy_pct"), dict)
+        and isinstance(row.get("transition_counts"), dict)
+        and all(
+            isinstance(row.get(field), (int, float))
+            and not isinstance(row.get(field), bool)
+            and math.isfinite(float(row[field]))
+            and row[field] >= 0
+            for field in ("session_count", "known_session_count", "unknown_session_count")
+        )
+    ]
+    displacement = raw_displacement if isinstance(raw_displacement, list) else []
+    displacement = [row for row in displacement if isinstance(row, dict)]
+    authority = str(payload.get("authority") or "UNDECLARED").upper()
+    decision_authority = str(payload.get("decision_authority") or "UNDECLARED").upper()
+    baseline = str(payload.get("baseline_configuration") or "")
+    baseline_present = any(row.get("configuration") == baseline for row in configurations)
+    available = (
+        status == "AVAILABLE"
+        and bool(configurations)
+        and baseline_present
+        and isinstance(raw_displacement, list)
+        and authority == "NONE"
+        and decision_authority == "NONE"
+    )
     return {
         "status": status if status else "UNKNOWN",
         "available": available,
         "configuration_count": len(configurations),
         "displacement_count": len(displacement),
-        "authority": payload.get("authority") or "NONE",
-        "decision_authority": payload.get("decision_authority") or "NONE",
+        "authority": authority,
+        "decision_authority": decision_authority,
+    }
+
+
+def full_history_display_rows(payload):
+    """Map the exact worker payload into dashboard table rows after contract validation."""
+    state = full_history_display_state(payload)
+    if not state["available"]:
+        return {"state": state, "occupancy_rows": [], "displacement_rows": []}
+    occupancy_rows = []
+    for item in payload["configurations"]:
+        if not isinstance(item, dict) or item not in [
+            row for row in payload["configurations"]
+            if isinstance(row, dict)
+            and row.get("configuration")
+            and isinstance(row.get("regime_occupancy_pct"), dict)
+            and isinstance(row.get("transition_counts"), dict)
+        ]:
+            continue
+        occupancy = item["regime_occupancy_pct"]
+        transitions = item["transition_counts"]
+        occupancy_rows.append({
+            "Definition": item.get("configuration"),
+            "Sessions": item.get("session_count"),
+            "Known / unknown": f'{item.get("known_session_count")} / {item.get("unknown_session_count")}',
+            "LOW / NORMAL / HIGH (%)": " / ".join(
+                str(occupancy.get(label)) if occupancy.get(label) is not None else "—"
+                for label in ("LOW", "NORMAL", "HIGH")
+            ),
+            "LOW→HIGH": transitions.get("LOW_TO_HIGH", 0),
+            "HIGH→LOW": transitions.get("HIGH_TO_LOW", 0),
+            "LOW→NORMAL": transitions.get("LOW_TO_NORMAL", 0),
+            "NORMAL→LOW": transitions.get("NORMAL_TO_LOW", 0),
+            "NORMAL→HIGH": transitions.get("NORMAL_TO_HIGH", 0),
+            "HIGH→NORMAL": transitions.get("HIGH_TO_NORMAL", 0),
+        })
+    displacement_rows = []
+    for item in payload["transition_date_displacement"]:
+        if not isinstance(item, dict):
+            continue
+        displacement_rows.append({
+            "Alternative definition": item.get("configuration"),
+            "Match window (sessions)": item.get("max_match_shift_sessions"),
+            "Matched baseline transitions": item.get("matched_baseline_transitions"),
+            "Unmatched baseline / alternative": (
+                f'{item.get("unmatched_baseline_transitions", 0)} / '
+                f'{item.get("unmatched_alternative_transitions", 0)}'
+            ),
+            "Median absolute shift (sessions)": item.get("median_absolute_session_shift"),
+            "Maximum absolute shift (sessions)": item.get("maximum_absolute_session_shift"),
+            "Median signed shift (sessions)": item.get("median_signed_session_shift"),
+            "Status": item.get("status"),
+        })
+    return {
+        "state": state,
+        "baseline_configuration": payload.get("baseline_configuration"),
+        "occupancy_rows": occupancy_rows,
+        "displacement_rows": displacement_rows,
     }
 
 def build_edge_diagnostics(

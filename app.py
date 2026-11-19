@@ -105,6 +105,118 @@ hr { border-color: rgba(148, 163, 184, .16); }
   [data-testid="stCaptionContainer"] { font-size: .82rem; }
 }
 
+
+/* Contrast and readability hardening for Streamlit's native widgets. */
+:root {
+  color-scheme: dark;
+  --dash-text: #edf4fc;
+  --dash-muted: #c0cede;
+  --dash-panel: #17263a;
+  --dash-panel-strong: #1d3048;
+  --dash-border: #52677f;
+  --dash-accent: #5eead4;
+}
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+  color: var(--dash-text);
+}
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stText"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stRadio"] label,
+[data-testid="stCheckbox"] label {
+  color: var(--dash-text);
+}
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p,
+small, .stHelp {
+  color: var(--dash-muted) !important;
+}
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stDateInput"] input,
+[data-testid="stTimeInput"] input,
+[data-testid="stMultiSelect"] [data-baseweb="select"],
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+  background: #142338 !important;
+  color: #f3f7fc !important;
+  border-color: #647b95 !important;
+  -webkit-text-fill-color: #f3f7fc !important;
+}
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stNumberInput"] input::placeholder,
+[data-testid="stTextArea"] textarea::placeholder {
+  color: #b5c4d6 !important;
+  opacity: 1;
+}
+[data-baseweb="select"] *,
+[data-baseweb="popover"] *,
+[role="listbox"] *,
+[role="option"] {
+  color: #f3f7fc !important;
+}
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[role="listbox"] {
+  background: #17263a !important;
+  border: 1px solid #647b95 !important;
+}
+[role="option"]:hover,
+[role="option"][aria-selected="true"] {
+  background: #25445a !important;
+}
+[data-testid="stDataFrame"],
+[data-testid="stTable"] {
+  color: #edf4fc !important;
+}
+[data-testid="stDataFrame"] [role="columnheader"],
+[data-testid="stDataFrame"] [role="gridcell"],
+[data-testid="stTable"] th,
+[data-testid="stTable"] td {
+  color: #edf4fc !important;
+}
+[data-testid="stExpander"] {
+  background: rgba(23, 38, 58, .72);
+  border: 1px solid #52677f !important;
+  border-radius: 12px;
+}
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span {
+  color: #edf4fc !important;
+}
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] li {
+  color: #edf4fc !important;
+}
+.stButton > button,
+[data-testid="stFormSubmitButton"] > button,
+[data-testid="stDownloadButton"] > button {
+  color: #f3f7fc !important;
+  background-color: #1c3047;
+  border-color: #647b95 !important;
+}
+.stButton > button:focus-visible,
+[data-testid="stFormSubmitButton"] > button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[data-baseweb="select"]:focus-within {
+  outline: 2px solid var(--dash-accent) !important;
+  outline-offset: 2px !important;
+}
+button:disabled,
+input:disabled,
+textarea:disabled,
+[data-testid="stSelectbox"] [aria-disabled="true"] {
+  color: #c0cede !important;
+  opacity: .78 !important;
+  -webkit-text-fill-color: #c0cede !important;
+}
+[data-testid="stMetricLabel"] { color: #c0cede !important; }
+[data-testid="stMetricValue"] { color: #f3f7fc !important; }
+
 </style>""", unsafe_allow_html=True)
 
 # Simple app-level password gate. The password is stored in Streamlit Secrets,

@@ -1075,6 +1075,7 @@ with validation_tab:
     st.caption("Tracks each eligible signal once, at its first observed daily close, then records what happened over 1, 3, 5, 10 and 20 subsequent trading sessions. Results update as new daily bars arrive.")
     if st.button("↻ Refresh validation data", key="refresh_validation_events"):
         load_strategy_signal_events.clear()
+        load_latest_cloud_scan.clear()
     try:
         validation_events = load_strategy_signal_events()
     except Exception as exc:

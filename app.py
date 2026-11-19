@@ -996,8 +996,20 @@ with validation_tab:
                             excess = np.nan
                     except (TypeError, ValueError):
                         excess = np.nan
+                    try:
+                        score = float(event.get("setup_score"))
+                        if not np.isfinite(score):
+                            continue
+                    except (TypeError, ValueError):
+                        continue
+                    score = min(100.0, max(0.0, score))
+                    lower = min(90, int(score // 10) * 10)
+                    score_band = "00-49" if lower < 50 else (
+                        "90-100" if lower == 90 else f"{lower:02d}-{lower + 9:02d}"
+                    )
                     edge_rows.append({
                         "Setup": str(event.get("setup_type") or "UNCLASSIFIED").upper(),
+                        "Score band": score_band,
                         "Regime": str(event.get("market_regime") or "UNKNOWN").upper(),
                         "Horizon": str(horizon),
                         "Gross return %": gross,
@@ -1005,7 +1017,7 @@ with validation_tab:
                     })
             if edge_rows:
                 edge_df = pd.DataFrame(edge_rows)
-                edge_summary = (edge_df.groupby(["Setup", "Regime", "Horizon"], dropna=False)
+                edge_summary = (edge_df.groupby(["Setup", "Score band", "Regime", "Horizon"], dropna=False)
                     .agg(Signal_samples=("Gross return %", "count"),
                          Benchmark_matched_samples=("Matched excess pp", "count"),
                          Gross_mean_return_pct=("Gross return %", "mean"),
@@ -1026,7 +1038,7 @@ with validation_tab:
                 )
                 st.markdown("#### Evidence-qualified net-edge diagnostics")
                 st.caption(
-                    "20-session de-overlap per symbol/setup. Net scenarios subtract assumed round-trip costs "
+                    "20-session de-overlap per symbol/setup; " + f"{len(evidence_events):,} retained events. Groups are split by worker-aligned setup-score bands (00–49, 50–59 … 90–100) and signal-time regime. Net scenarios subtract assumed round-trip costs "
                     "of 10/20/40/60 bps from historical close-to-close means. Return support requires 30 "
                     "observations; benchmark-excess support requires 20 matched SPY observations. "
                     "Unsupported values remain visible for exploration but must not be treated as validated edge."

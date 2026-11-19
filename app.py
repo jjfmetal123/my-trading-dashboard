@@ -1281,17 +1281,27 @@ with validation_tab:
                 "Older n": item.get("older_sample_count"), "Recent n": item.get("recent_sample_count"),
                 "Older net avg @40bps": item.get("older_average_net_return_40bps_pct"),
                 "Recent net avg @40bps": item.get("recent_average_net_return_40bps_pct"),
-                "Change": item.get("change_percentage_points"),
+                "Older net excess vs SPY": item.get("older_average_net_excess_vs_spy_40bps_pp"),
+                "Recent net excess vs SPY": item.get("recent_average_net_excess_vs_spy_40bps_pp"),
+                "Excess change": item.get("change_percentage_points"),
+                "95% CI low": item.get("change_ci_95_low_pp"),
+                "95% CI high": item.get("change_ci_95_high_pp"),
+                "Matched days old/new": f"{item.get('older_benchmark_matched_days', 0)}/{item.get('recent_benchmark_matched_days', 0)}",
             } for item in decay_rows])
             st.dataframe(decay_df.style.format({
                 "Older net avg @40bps": "{:+.2f}%",
                 "Recent net avg @40bps": "{:+.2f}%",
-                "Change": "{:+.2f}pp",
+                "Older net excess vs SPY": "{:+.2f}pp",
+                "Recent net excess vs SPY": "{:+.2f}pp",
+                "Excess change": "{:+.2f}pp",
+                "95% CI low": "{:+.2f}pp",
+                "95% CI high": "{:+.2f}pp",
             }, na_rep="—"), use_container_width=True, hide_index=True)
             st.caption(
-                "A DECAY_WARNING requires both chronological halves to meet the minimum sample, "
-                "the older half to be positive after assumed 40 bps costs, and the recent half to deteriorate "
-                "by at least 0.50 percentage points. This is a research warning only; it never disables or changes a strategy."
+                "Decay warnings use per-signal-date averages, require sufficient SPY-matched dates in both halves, "
+                "and require positive older net excess plus at least 0.50pp deterioration with the approximate 95% "
+                "Welch-style interval below zero. Same-day symbols are grouped together. This interval is not "
+                "cluster-robust or a formal hypothesis test; the warning never disables or changes a strategy."
             )
 
         association_rows = shadow_validation.get("score_return_association", {}).get("summaries") or []

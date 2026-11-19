@@ -1279,6 +1279,8 @@ with cloud_tab:
                         "most_correlated_higher_ranked_symbol",
                         "highest_ranked_candidate_correlation",
                         "candidate_correlation_observations", "high_correlation_flag",
+                        "candidate_diversification_status", "candidate_weighted_held_correlation",
+                        "candidate_diversification_score", "diversification_holdings_count",
                     ] if col in correlation_df.columns
                 ]
                 if correlation_columns:
@@ -1290,17 +1292,26 @@ with cloud_tab:
                         "highest_ranked_candidate_correlation": "Daily-return correlation",
                         "candidate_correlation_observations": "Overlapping sessions",
                         "high_correlation_flag": "High overlap (>= 0.80)",
+                        "candidate_diversification_status": "Held-basket data status",
+                        "candidate_weighted_held_correlation": "Exposure-weighted held correlation",
+                        "candidate_diversification_score": "Diversification score (0–100)",
+                        "diversification_holdings_count": "Held positions compared",
                     })
                     st.dataframe(
                         correlation_df.style.format({
                             "Daily-return correlation": "{:.2f}",
+                            "Exposure-weighted held correlation": "{:.2f}",
+                            "Diversification score (0–100)": "{:.1f}",
                         }),
                         use_container_width=True, hide_index=True,
                     )
                     st.caption(
                         "Pearson correlation of aligned daily returns over up to 60 sessions; "
                         "at least 40 overlapping observations required. This is a diagnostic "
-                        "between ranked candidates, not a trade block or portfolio correlation to held positions."
+                        "between ranked candidates. The held-basket metric is weighted by broker-reported "
+                        "market value and requires at least 40 aligned sessions for every compared holding. "
+                        "Higher diversification scores indicate lower positive co-movement; diagnostic only, "
+                        "not a trade block or forecast."
                     )
             else:
                 st.info("No ranked candidates are available for correlation comparison.")

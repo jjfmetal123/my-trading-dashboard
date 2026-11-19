@@ -1667,6 +1667,9 @@ with cloud_tab:
                         stable_train = pair.get("matched_stable_training") if isinstance(pair.get("matched_stable_training"), dict) else {}
                         stable_hold = pair.get("matched_stable_holdout") if isinstance(pair.get("matched_stable_holdout"), dict) else {}
                         uncertainty = pair.get("holdout_mean_difference_95pct_ci") if isinstance(pair.get("holdout_mean_difference_95pct_ci"), dict) else {}
+                        calendar = pair.get("calendar_period_robustness") if isinstance(pair.get("calendar_period_robustness"), dict) else {}
+                        calendar_train = calendar.get("training") if isinstance(calendar.get("training"), dict) else {}
+                        calendar_hold = calendar.get("holdout") if isinstance(calendar.get("holdout"), dict) else {}
                         response_rows.append({
                             "Setup": pair.get("setup_type"),
                             "Score bucket": pair.get("score_bucket"),
@@ -1685,6 +1688,12 @@ with cloud_tab:
                             "Holdout difference CI upper (pp)": uncertainty.get("upper_95_pct"),
                             "Bootstrap week blocks (transition/stable)": f"{uncertainty.get('transition_week_blocks', 0)}/{uncertainty.get('stable_week_blocks', 0)}",
                             "Bootstrap uncertainty status": uncertainty.get("status", "NOT_REPORTED"),
+                            "Training supported years": calendar_train.get("supported_period_count"),
+                            "Training positive / negative years": f"{calendar_train.get('positive_difference_period_count', 0)}/{calendar_train.get('negative_difference_period_count', 0)}",
+                            "Training calendar status": calendar_train.get("status", "NOT_REPORTED"),
+                            "Holdout supported years": calendar_hold.get("supported_period_count"),
+                            "Holdout positive / negative years": f"{calendar_hold.get('positive_difference_period_count', 0)}/{calendar_hold.get('negative_difference_period_count', 0)}",
+                            "Holdout calendar status": calendar_hold.get("status", "NOT_REPORTED"),
                             "Transition holdout win %": transition_hold.get("win_rate_pct"),
                             "Stable holdout win %": stable_hold.get("win_rate_pct"),
                             "Transition worst-decile %": transition_hold.get("worst_decile_average_pct"),
@@ -1695,6 +1704,37 @@ with cloud_tab:
                         })
                     if response_rows:
                         st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+                    calendar_rows = []
+                    for pair in response_pairs:
+                        if not isinstance(pair, dict):
+                            continue
+                        calendar = pair.get("calendar_period_robustness") if isinstance(pair.get("calendar_period_robustness"), dict) else {}
+                        for cohort_name, cohort_key in (("Training", "training"), ("Holdout", "holdout")):
+                            cohort = calendar.get(cohort_key) if isinstance(calendar.get(cohort_key), dict) else {}
+                            for period in cohort.get("supported_periods") or []:
+                                if not isinstance(period, dict):
+                                    continue
+                                calendar_rows.append({
+                                    "Setup": pair.get("setup_type"),
+                                    "Score bucket": pair.get("score_bucket"),
+                                    "Trend": pair.get("trend_regime"),
+                                    "Current volatility": pair.get("current_volatility_regime"),
+                                    "Transition": pair.get("transition"),
+                                    "Sessions after transition": pair.get("sessions_after_transition"),
+                                    "Forward horizon": pair.get("horizon_sessions"),
+                                    "Period": cohort_name,
+                                    "Calendar year": period.get("calendar_year"),
+                                    "Transition n": period.get("transition_sample_count"),
+                                    "Stable n": period.get("stable_sample_count"),
+                                    "Transition mean %": period.get("transition_mean_return_pct"),
+                                    "Stable mean %": period.get("stable_mean_return_pct"),
+                                    "Difference (pp)": period.get("mean_return_difference_pp"),
+                                    "Period status": period.get("status"),
+                                })
+                    if calendar_rows:
+                        st.markdown("##### Calendar-year robustness · training and holdout kept separate")
+                        st.dataframe(pd.DataFrame(calendar_rows), use_container_width=True, hide_index=True)
+                        st.caption("A calendar year is supported only with at least 10 observations in each matched cohort. Training status requires two or more supported years for MULTI_YEAR_TRAINING_SUPPORT; one is SINGLE_YEAR_SUPPORT. Holdout years are displayed independently and never feed back into training.")
                     st.caption(
                         "Sessions after transition (1/5/10/20) are separate from the forward outcome horizon (1/5/10/20). "
                         "Each row compares an exact transition-age cohort with a stable same-regime baseline matched "
@@ -3718,4 +3758,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.50 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.51 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

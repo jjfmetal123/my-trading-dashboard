@@ -85,3 +85,7 @@ The Alpaca broker audit table now displays replacement-chain classification and 
 ## Dashboard V3.33 replacement-aware protection audit
 
 The broker audit view now distinguishes the replacement-chain classification and order IDs from the exact broker order used for position-protection verification. This makes it clear when protection was assessed against the latest verified replacement rather than the original parent order.
+
+
+## Dashboard V3.45 shadow research evidence readiness
+The Cloud Scanner includes a read-only panel for the worker's latest unified research evidence snapshot. It shows research-supported shadow groups, groups not established, source observation counts, and per-group checks/reasons. The panel requires the worker migration `202611190002_research_evidence_readiness.sql` to be applied in Supabase. These diagnostics have no candidate-ranking, position-sizing, stop, execution-gate, or order authority.

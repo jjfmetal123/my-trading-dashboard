@@ -1582,6 +1582,40 @@ with cloud_tab:
                         "drawdown, intraday adverse excursion, stop execution, or realized broker losses. Missing "
                         "metrics mean the worker snapshot predates downside-profile support or has no matched data."
                     )
+                regime_comparison = evidence_report.get("regime_downside_comparison")
+                regime_pairs = regime_comparison.get("comparisons") if isinstance(regime_comparison, dict) else []
+                st.markdown("#### Cross-regime downside comparison · shadow-only")
+                if regime_pairs:
+                    regime_rows = []
+                    for pair in regime_pairs:
+                        if not isinstance(pair, dict):
+                            continue
+                        metrics = pair.get("metrics") if isinstance(pair.get("metrics"), dict) else {}
+                        loss = metrics.get("loss_rate_pct") if isinstance(metrics.get("loss_rate_pct"), dict) else {}
+                        es = metrics.get("expected_shortfall_10pct_pct") if isinstance(metrics.get("expected_shortfall_10pct_pct"), dict) else {}
+                        p5 = metrics.get("fifth_percentile_return_pct") if isinstance(metrics.get("fifth_percentile_return_pct"), dict) else {}
+                        regime_rows.append({
+                            "Setup": pair.get("setup_type"),
+                            "Score bucket": pair.get("score_bucket"),
+                            "Horizon": pair.get("horizon_sessions"),
+                            "Regime A": pair.get("left_regime"),
+                            "Regime B": pair.get("right_regime"),
+                            "A observations": pair.get("left_sample_count"),
+                            "B observations": pair.get("right_sample_count"),
+                            "Loss-rate difference (A-B, pp)": loss.get("left_minus_right"),
+                            "Worst 10% difference (A-B, pp)": es.get("left_minus_right"),
+                            "5th percentile difference (A-B, pp)": p5.get("left_minus_right"),
+                            "Comparison status": pair.get("status"),
+                        })
+                    if regime_rows:
+                        st.dataframe(pd.DataFrame(regime_rows), use_container_width=True, hide_index=True)
+                    st.caption(
+                        "Differences are Regime A minus Regime B, matched on setup, score bucket, and horizon. "
+                        "Negative lower-tail differences mean Regime A had a more adverse value. Comparisons are "
+                        "descriptive, not causal, and never affect readiness, ranking, sizing, stops, gates, or orders."
+                    )
+                else:
+                    st.info("No matched cross-regime downside pairs are available yet. This can mean the worker snapshot predates this analysis or lacks sufficient regime coverage.")
                 st.caption(
                     "A supported group is not a buy signal or proof of future profitability. Downside-tail statistics "
                     "are descriptive only and do not affect readiness. Fill calibration and account-level portfolio "

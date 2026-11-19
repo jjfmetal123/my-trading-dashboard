@@ -1280,6 +1280,8 @@ with cloud_tab:
                     "portfolio_worst_return_on_5_worst_spy_days_pct",
                     "portfolio_loss_on_5_worst_spy_days_dollars",
                     "portfolio_worst_day_contributors",
+                    "rolling_performance_status", "rolling_performance_method",
+                    "rolling_performance_observations", "rolling_performance_windows",
                     "downside_status", "downside_observations",
                     "downside_benchmark_avg_return_pct",
                     "portfolio_avg_return_on_down_market_days_pct",
@@ -1519,6 +1521,40 @@ with cloud_tab:
                     "scaled to gross position notional, not account equity. Historical simulation only; "
                     "not a prediction, loss limit, or trade gate. Requires fresh broker data and at least "
                     "40 aligned daily observations."
+                )
+                rolling_status = basket_reference.get("rolling_performance_status", "UNAVAILABLE")
+                rolling_rows = basket_reference.get("rolling_performance_windows") or []
+                st.markdown("**Rolling portfolio performance (20 / 60 / 120 sessions)**")
+                if rolling_status == "AVAILABLE" and rolling_rows:
+                    rolling_df = pd.DataFrame(rolling_rows).rename(columns={
+                        "window_sessions": "Window (sessions)",
+                        "sessions": "Observations",
+                        "portfolio_total_return_pct": "Portfolio return %",
+                        "benchmark_total_return_pct": "SPY return %",
+                        "excess_return_pct_points": "Excess return (pp)",
+                        "annualized_volatility_pct": "Annualized volatility %",
+                        "maximum_drawdown_pct": "Maximum drawdown %",
+                        "win_rate_pct": "Win rate %",
+                        "worst_day_pct": "Worst day %",
+                    })
+                    st.dataframe(
+                        rolling_df.style.format({
+                            "Portfolio return %": "{:.2f}%",
+                            "SPY return %": "{:.2f}%",
+                            "Excess return (pp)": "{:.2f}",
+                            "Annualized volatility %": "{:.2f}%",
+                            "Maximum drawdown %": "{:.2f}%",
+                            "Win rate %": "{:.1f}%",
+                            "Worst day %": "{:.2f}%",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
+                else:
+                    st.caption("Rolling performance unavailable: " + str(rolling_status).replace("_", " ").lower() + ".")
+                st.caption(
+                    "Method: today's signed market-value weights are applied to historical daily returns. "
+                    "This is a constant-weight approximation, not actual historical fills, changing position sizes, "
+                    "or realized broker P&L. Descriptive only; it does not affect candidate ranking, sizing, or orders."
                 )
                 stress_1, stress_2 = st.columns(2)
                 stress_1.metric(

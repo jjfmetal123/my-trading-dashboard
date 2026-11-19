@@ -712,6 +712,35 @@ with command_tab:
                     st.markdown("##### Portfolio concentration")
                     st.dataframe(pd.DataFrame(exposure_rows), use_container_width=True, hide_index=True)
                     st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages. Correlation uses trailing aligned daily returns for concurrently held symbols; high-correlation pair share is the portion of pairwise exposure-product weight with correlation at or above 0.70. Insufficient history is reported as unavailable, not zero.")
+                stress = replay_result.get("market_stress_quality") or {}
+                if stress:
+                    stress_rows = []
+                    for label, key in (
+                        ("SPY down at least 1% (daily)", "daily_benchmark_down_1pct"),
+                        ("SPY down at least 2% (daily)", "daily_benchmark_down_2pct"),
+                        ("SPY down at least 5% (rolling 5 sessions)", "rolling_5_session_benchmark_down_5pct"),
+                    ):
+                        scenario = stress.get(key) or {}
+                        stress_rows.append({
+                            "Historical stress condition": label,
+                            "Sessions": scenario.get("sessions", 0),
+                            "Portfolio loss sessions": scenario.get("portfolio_loss_sessions", 0),
+                            "Average portfolio return": (
+                                f"{float(scenario['average_portfolio_return_pct']):+.2f}%"
+                                if scenario.get("average_portfolio_return_pct") is not None else "—"
+                            ),
+                            "Worst portfolio return": (
+                                f"{float(scenario['worst_portfolio_return_pct']):+.2f}%"
+                                if scenario.get("worst_portfolio_return_pct") is not None else "—"
+                            ),
+                            "Average vs. SPY": (
+                                f"{float(scenario['average_portfolio_minus_benchmark_pct']):+.2f} pp"
+                                if scenario.get("average_portfolio_minus_benchmark_pct") is not None else "—"
+                            ),
+                        })
+                    st.markdown("##### Historical market selloff behavior")
+                    st.dataframe(pd.DataFrame(stress_rows), use_container_width=True, hide_index=True)
+                    st.caption("Conditional historical observations using the supplied SPY history. Five-session selloff windows may overlap. These results are not a forecast or a simulated sudden correlation/liquidity shock.")
                 quality = replay_result.get("trade_quality") or {}
                 quality_rows = []
                 for label, key, suffix in (

@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.42 · Historical stress attribution · Portfolio risk forecast · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.43 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.42 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.43 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1165,6 +1165,19 @@ with cloud_tab:
                         "portfolio_worst_5d_start_date": decision.get("portfolio_worst_5d_start_date"),
                         "portfolio_worst_5d_end_date": decision.get("portfolio_worst_5d_end_date"),
                         "portfolio_worst_5d_loss_dollars": decision.get("portfolio_worst_5d_loss_dollars"),
+                        "market_stress_status": decision.get("market_stress_status"),
+                        "spy_worst_day_date": decision.get("spy_worst_day_date"),
+                        "spy_worst_day_return_pct": decision.get("spy_worst_day_return_pct"),
+                        "portfolio_return_on_spy_worst_day_pct": decision.get("portfolio_return_on_spy_worst_day_pct"),
+                        "portfolio_loss_on_spy_worst_day_dollars": decision.get("portfolio_loss_on_spy_worst_day_dollars"),
+                        "spy_worst_5d_start_date": decision.get("spy_worst_5d_start_date"),
+                        "spy_worst_5d_end_date": decision.get("spy_worst_5d_end_date"),
+                        "spy_worst_5d_return_pct": decision.get("spy_worst_5d_return_pct"),
+                        "portfolio_return_on_spy_worst_5d_pct": decision.get("portfolio_return_on_spy_worst_5d_pct"),
+                        "portfolio_loss_on_spy_worst_5d_dollars": decision.get("portfolio_loss_on_spy_worst_5d_dollars"),
+                        "portfolio_avg_return_on_5_worst_spy_days_pct": decision.get("portfolio_avg_return_on_5_worst_spy_days_pct"),
+                        "portfolio_worst_return_on_5_worst_spy_days_pct": decision.get("portfolio_worst_return_on_5_worst_spy_days_pct"),
+                        "portfolio_loss_on_5_worst_spy_days_dollars": decision.get("portfolio_loss_on_5_worst_spy_days_dollars"),
                         "portfolio_worst_day_contributors": decision.get("portfolio_worst_day_contributors"),
                     })
 
@@ -1228,6 +1241,19 @@ with cloud_tab:
                     "portfolio_worst_5d_start_date",
                     "portfolio_worst_5d_end_date",
                     "portfolio_worst_5d_loss_dollars",
+                    "market_stress_status",
+                    "spy_worst_day_date",
+                    "spy_worst_day_return_pct",
+                    "portfolio_return_on_spy_worst_day_pct",
+                    "portfolio_loss_on_spy_worst_day_dollars",
+                    "spy_worst_5d_start_date",
+                    "spy_worst_5d_end_date",
+                    "spy_worst_5d_return_pct",
+                    "portfolio_return_on_spy_worst_5d_pct",
+                    "portfolio_loss_on_spy_worst_5d_dollars",
+                    "portfolio_avg_return_on_5_worst_spy_days_pct",
+                    "portfolio_worst_return_on_5_worst_spy_days_pct",
+                    "portfolio_loss_on_5_worst_spy_days_dollars",
                     "portfolio_worst_day_contributors",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
@@ -1385,6 +1411,15 @@ with cloud_tab:
                     " to " + str(basket_reference.get("portfolio_worst_5d_end_date") or "No end"),
                 )
                 contributors = basket_reference.get("portfolio_worst_day_contributors") or []
+                if basket_reference.get("market_stress_status") == "AVAILABLE":
+                    st.markdown("**Broad-market historical stress scenarios (SPY)**")
+                    stress_a, stress_b, stress_c = st.columns(3)
+                    stress_a.metric("Portfolio loss on SPY worst day", "$" + "{:,.0f}".format(basket_reference["portfolio_loss_on_spy_worst_day_dollars"]), str(basket_reference["spy_worst_day_date"]))
+                    stress_b.metric("Portfolio loss on SPY worst 5 sessions", "$" + "{:,.0f}".format(basket_reference["portfolio_loss_on_spy_worst_5d_dollars"]), str(basket_reference["spy_worst_5d_start_date"]) + " to " + str(basket_reference["spy_worst_5d_end_date"]))
+                    stress_c.metric("Loss on 5 worst SPY days", "$" + "{:,.0f}".format(basket_reference["portfolio_loss_on_5_worst_spy_days_dollars"]), "Five separate sessions")
+                    st.caption("These replay the portfolio holdings and long/short weights on the same historical dates as SPY selloffs. They are historical scenarios, not predictions or trading limits.")
+                else:
+                    st.caption("Broad-market stress scenarios unavailable: SPY history or aligned held-position history is insufficient.")
                 if contributors:
                     st.markdown("**Largest contributors on the worst observed day**")
                     contributor_df = pd.DataFrame(contributors)
@@ -1419,6 +1454,13 @@ with cloud_tab:
                         "portfolio_worst_day_date", "portfolio_worst_day_loss_dollars",
                         "portfolio_worst_5d_start_date", "portfolio_worst_5d_end_date",
                         "portfolio_worst_5d_loss_dollars",
+                        "market_stress_status", "spy_worst_day_date", "spy_worst_day_return_pct",
+                        "portfolio_return_on_spy_worst_day_pct", "portfolio_loss_on_spy_worst_day_dollars",
+                        "spy_worst_5d_start_date", "spy_worst_5d_end_date", "spy_worst_5d_return_pct",
+                        "portfolio_return_on_spy_worst_5d_pct", "portfolio_loss_on_spy_worst_5d_dollars",
+                        "portfolio_avg_return_on_5_worst_spy_days_pct",
+                        "portfolio_worst_return_on_5_worst_spy_days_pct",
+                        "portfolio_loss_on_5_worst_spy_days_dollars",
                     ] if col in correlation_df.columns
                 ]
                 if correlation_columns:
@@ -1449,6 +1491,19 @@ with cloud_tab:
                         "portfolio_worst_5d_start_date": "Worst 5D start",
                         "portfolio_worst_5d_end_date": "Worst 5D end",
                         "portfolio_worst_5d_loss_dollars": "Worst 5D loss ($)",
+                        "market_stress_status": "Market stress status",
+                        "spy_worst_day_date": "SPY worst day",
+                        "spy_worst_day_return_pct": "SPY worst day return %",
+                        "portfolio_return_on_spy_worst_day_pct": "Portfolio return on SPY worst day %",
+                        "portfolio_loss_on_spy_worst_day_dollars": "Portfolio loss on SPY worst day ($)",
+                        "spy_worst_5d_start_date": "SPY worst 5D start",
+                        "spy_worst_5d_end_date": "SPY worst 5D end",
+                        "spy_worst_5d_return_pct": "SPY worst 5D return %",
+                        "portfolio_return_on_spy_worst_5d_pct": "Portfolio return on SPY worst 5D %",
+                        "portfolio_loss_on_spy_worst_5d_dollars": "Portfolio loss on SPY worst 5D ($)",
+                        "portfolio_avg_return_on_5_worst_spy_days_pct": "Avg portfolio return on 5 worst SPY days %",
+                        "portfolio_worst_return_on_5_worst_spy_days_pct": "Worst portfolio return on 5 worst SPY days %",
+                        "portfolio_loss_on_5_worst_spy_days_dollars": "Loss on 5 worst SPY days ($)",
                     })
                     st.dataframe(
                         correlation_df.style.format({
@@ -1466,6 +1521,15 @@ with cloud_tab:
                             "Down sessions %": "{:.1f}%",
                             "Worst day loss ($)": "\u0024{:,.0f}",
                             "Worst 5D loss ($)": "\u0024{:,.0f}",
+                            "Portfolio loss on SPY worst day ($)": "\u0024{:,.0f}",
+                            "Portfolio loss on SPY worst 5D ($)": "\u0024{:,.0f}",
+                            "Loss on 5 worst SPY days ($)": "\u0024{:,.0f}",
+                            "SPY worst day return %": "{:.2f}%",
+                            "Portfolio return on SPY worst day %": "{:.2f}%",
+                            "SPY worst 5D return %": "{:.2f}%",
+                            "Portfolio return on SPY worst 5D %": "{:.2f}%",
+                            "Avg portfolio return on 5 worst SPY days %": "{:.2f}%",
+                            "Worst portfolio return on 5 worst SPY days %": "{:.2f}%",
                         }),
                         use_container_width=True, hide_index=True,
                     )

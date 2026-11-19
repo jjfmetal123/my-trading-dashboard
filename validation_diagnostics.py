@@ -78,21 +78,11 @@ def deoverlap_events(events, cooldown_sessions=20):
 
 
 
-def full_history_display_state(payload):
-    """Validate the persisted worker contract before showing full-history evidence."""
-    unavailable = {
-        "status": "MISSING_PAYLOAD", "available": False,
-        "configuration_count": 0, "displacement_count": 0,
-        "authority": "NONE", "decision_authority": "NONE",
-    }
-    if not isinstance(payload, dict):
-        return unavailable
-    status = str(payload.get("status") or "UNKNOWN").upper()
-    raw_configurations = payload.get("configurations")
-    raw_displacement = payload.get("transition_date_displacement")
-    configurations = raw_configurations if isinstance(raw_configurations, list) else []
-    configurations = [
-        row for row in configurations
+def _valid_full_history_configurations(payload):
+    raw = payload.get("configurations") if isinstance(payload, dict) else None
+    rows = raw if isinstance(raw, list) else []
+    return [
+        row for row in rows
         if isinstance(row, dict)
         and row.get("configuration")
         and isinstance(row.get("regime_occupancy_pct"), dict)
@@ -105,6 +95,20 @@ def full_history_display_state(payload):
             for field in ("session_count", "known_session_count", "unknown_session_count")
         )
     ]
+
+
+def full_history_display_state(payload):
+    """Validate the persisted worker contract before showing full-history evidence."""
+    unavailable = {
+        "status": "MISSING_PAYLOAD", "available": False,
+        "configuration_count": 0, "displacement_count": 0,
+        "authority": "NONE", "decision_authority": "NONE",
+    }
+    if not isinstance(payload, dict):
+        return unavailable
+    status = str(payload.get("status") or "UNKNOWN").upper()
+    configurations = _valid_full_history_configurations(payload)
+    raw_displacement = payload.get("transition_date_displacement")
     displacement = raw_displacement if isinstance(raw_displacement, list) else []
     displacement = [row for row in displacement if isinstance(row, dict)]
     authority = str(payload.get("authority") or "UNDECLARED").upper()
@@ -135,15 +139,7 @@ def full_history_display_rows(payload):
     if not state["available"]:
         return {"state": state, "occupancy_rows": [], "displacement_rows": []}
     occupancy_rows = []
-    for item in payload["configurations"]:
-        if not isinstance(item, dict) or item not in [
-            row for row in payload["configurations"]
-            if isinstance(row, dict)
-            and row.get("configuration")
-            and isinstance(row.get("regime_occupancy_pct"), dict)
-            and isinstance(row.get("transition_counts"), dict)
-        ]:
-            continue
+    for item in _valid_full_history_configurations(payload):
         occupancy = item["regime_occupancy_pct"]
         transitions = item["transition_counts"]
         occupancy_rows.append({

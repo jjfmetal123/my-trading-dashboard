@@ -1666,6 +1666,7 @@ with cloud_tab:
                         transition_hold = pair.get("transition_holdout") if isinstance(pair.get("transition_holdout"), dict) else {}
                         stable_train = pair.get("matched_stable_training") if isinstance(pair.get("matched_stable_training"), dict) else {}
                         stable_hold = pair.get("matched_stable_holdout") if isinstance(pair.get("matched_stable_holdout"), dict) else {}
+                        uncertainty = pair.get("holdout_mean_difference_95pct_ci") if isinstance(pair.get("holdout_mean_difference_95pct_ci"), dict) else {}
                         response_rows.append({
                             "Setup": pair.get("setup_type"),
                             "Score bucket": pair.get("score_bucket"),
@@ -1680,6 +1681,10 @@ with cloud_tab:
                             "Transition holdout n": transition_hold.get("sample_count"),
                             "Stable holdout n": stable_hold.get("sample_count"),
                             "Holdout mean difference (pp)": pair.get("holdout_mean_return_difference_pp"),
+                            "Holdout difference CI lower (pp)": uncertainty.get("lower_95_pct"),
+                            "Holdout difference CI upper (pp)": uncertainty.get("upper_95_pct"),
+                            "Bootstrap week blocks (transition/stable)": f"{uncertainty.get('transition_week_blocks', 0)}/{uncertainty.get('stable_week_blocks', 0)}",
+                            "Bootstrap uncertainty status": uncertainty.get("status", "NOT_REPORTED"),
                             "Transition holdout win %": transition_hold.get("win_rate_pct"),
                             "Stable holdout win %": stable_hold.get("win_rate_pct"),
                             "Transition worst-decile %": transition_hold.get("worst_decile_average_pct"),
@@ -1695,7 +1700,8 @@ with cloud_tab:
                         "Each row compares an exact transition-age cohort with a stable same-regime baseline matched "
                         "on setup, score bucket, trend, current volatility, and horizon. Recent post-transition sessions "
                         "through the 20-session checkpoint are excluded from the stable baseline. Each pair uses a shared "
-                        "chronological 70/30 cutoff. These are observational historical comparisons, not causal or predictive "
+                        "chronological 70/30 cutoff. Holdout mean-difference intervals use a weekly date-block bootstrap; " 
+                        "intervals are withheld when either cohort has fewer than eight weekly blocks. These are observational historical comparisons, not causal or predictive "
                         "signals, and have no readiness, ranking, sizing, stop, gate, or order authority."
                     )
                 else:
@@ -3712,4 +3718,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.49 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.50 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

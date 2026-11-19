@@ -494,6 +494,18 @@ def build_closed_trade_metrics(journal):
 def safe_pct(numerator, denominator):
     return (numerator / denominator * 100.0) if denominator else 0.0
 
+def _safe_format_number(value, template):
+    """Format numeric values without crashing on null or malformed DB fields."""
+    if value is None:
+        return "—"
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return str(value)
+    if not np.isfinite(number):
+        return "—"
+    return template.format(number)
+
 command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "🧪 Strategy validation", "☁️ Cloud scanner"])
 
 with command_tab:
@@ -1894,8 +1906,13 @@ with cloud_tab:
                     ), "UNAVAILABLE")
                     st.markdown("#### 🌦️ Portfolio performance by market regime")
                     st.info(f"Regime diagnostics: {str(regime_status).replace('_', ' ').lower()}.")
+                safe_decision_formats = {
+                    col: (lambda value, template=template: _safe_format_number(value, template))
+                    for col, template in number_formats.items()
+                    if col in decision_df.columns
+                }
                 st.dataframe(
-                    decision_df.style.format({k: v for k, v in number_formats.items() if k in decision_df.columns}),
+                    decision_df.style.format(safe_decision_formats),
                     use_container_width=True, hide_index=True
                 )
                 st.caption("READY_NOT_SUBMITTED is not an order. Invalid broker fill quantities are separately flagged as BROKER_DATA_INVALID; unavailable fill metadata is not treated as valid. Position protection is marked PROTECTED only when both active bracket exits exactly match the broker-reported open share quantity. All broker data is read-only. Quote timestamps are UTC.")
@@ -2389,7 +2406,13 @@ with cloud_tab:
                 "a report to Supabase, then use Refresh cloud results."
             )
 
-    render_cloud_scanner()
+    try:
+        render_cloud_scanner()
+    except Exception as exc:
+        # A cloud-panel rendering/data-shape error must not prevent the
+        # independent scanner, virtual account, and performance tabs rendering.
+        st.error("The cloud scanner panel encountered an unexpected data/rendering error.")
+        st.caption(f"Cloud panel error type: {type(exc).__name__}. Other dashboard sections remain available.")
 
 with scanner_tab:
     st.subheader("Market scanner")

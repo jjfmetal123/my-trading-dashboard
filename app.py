@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import deoverlap_events, score_bucket
+from validation_diagnostics import build_edge_diagnostics, deoverlap_events
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -956,41 +956,7 @@ with validation_tab:
             # score buckets and symbol/setup de-overlap. Still close-to-close only.
             evidence_events = deoverlap_events(validation_events, cooldown_sessions=20)
 
-            edge_rows = []
-            for event in evidence_events:
-                outcomes = event.get("outcomes") or {}
-                if not isinstance(outcomes, dict):
-                    continue
-                for horizon, result in outcomes.items():
-                    # Match the worker's default reliability horizons exactly.
-                    if str(horizon) not in {"5d", "10d", "20d"}:
-                        continue
-                    if not isinstance(result, dict):
-                        continue
-                    try:
-                        gross = float(result.get("close_return_pct"))
-                        if not np.isfinite(gross):
-                            continue
-                    except (TypeError, ValueError):
-                        continue
-                    try:
-                        excess = float(result.get("excess_vs_spy_pp"))
-                        if not np.isfinite(excess):
-                            excess = np.nan
-                    except (TypeError, ValueError):
-                        excess = np.nan
-                    score_band = score_bucket(event.get("setup_score"))
-                    if score_band is None:
-                        continue
-                    edge_rows.append({
-                        "Setup": str(event.get("setup_type") or "UNCLASSIFIED").upper(),
-                        "Score band": score_band,
-                        "Regime": str(event.get("market_regime") or "UNKNOWN").upper(),
-                        "Horizon": str(horizon),
-                        "Gross return %": gross,
-                        "Matched excess pp": excess,
-                    })
-            if edge_rows:
+            edge_rows = build_edge_diagnostics(evidence_events)            if edge_rows:
                 edge_df = pd.DataFrame(edge_rows)
                 edge_summary = (edge_df.groupby(["Setup", "Score band", "Regime", "Horizon"], dropna=False)
                     .agg(Signal_samples=("Gross return %", "count"),

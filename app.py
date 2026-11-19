@@ -68,7 +68,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.41 · Portfolio risk forecast · Weighted diversification · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.42 · Historical stress attribution · Portfolio risk forecast · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -974,7 +974,7 @@ with cloud_tab:
     @st.fragment(run_every="60s")
     def render_cloud_scanner():
         st.subheader("☁️ Cloud market scanner")
-        st.caption("Dashboard V3.41 · Cloud worker version is reported with the latest saved scan when available.")
+        st.caption("Dashboard V3.42 · Cloud worker version is reported with the latest saved scan when available.")
         st.caption(
             "Latest rules-based scan produced by the Render background worker and saved in Supabase. "
             "Uses Yahoo Finance daily bars; this is a screening report, not an AI verdict or trade instruction."
@@ -1160,6 +1160,12 @@ with cloud_tab:
                         "portfolio_historical_max_drawdown_pct": decision.get("portfolio_historical_max_drawdown_pct"),
                         "portfolio_current_drawdown_pct": decision.get("portfolio_current_drawdown_pct"),
                         "portfolio_down_days_pct": decision.get("portfolio_down_days_pct"),
+                        "portfolio_worst_day_date": decision.get("portfolio_worst_day_date"),
+                        "portfolio_worst_day_loss_dollars": decision.get("portfolio_worst_day_loss_dollars"),
+                        "portfolio_worst_5d_start_date": decision.get("portfolio_worst_5d_start_date"),
+                        "portfolio_worst_5d_end_date": decision.get("portfolio_worst_5d_end_date"),
+                        "portfolio_worst_5d_loss_dollars": decision.get("portfolio_worst_5d_loss_dollars"),
+                        "portfolio_worst_day_contributors": decision.get("portfolio_worst_day_contributors"),
                     })
 
                 exposure_df = decision_df.apply(_portfolio_exposure_columns, axis=1)
@@ -1217,6 +1223,12 @@ with cloud_tab:
                     "portfolio_historical_max_drawdown_pct",
                     "portfolio_current_drawdown_pct",
                     "portfolio_down_days_pct",
+                    "portfolio_worst_day_date",
+                    "portfolio_worst_day_loss_dollars",
+                    "portfolio_worst_5d_start_date",
+                    "portfolio_worst_5d_end_date",
+                    "portfolio_worst_5d_loss_dollars",
+                    "portfolio_worst_day_contributors",
                     "current_reward_risk", "broker_order_id", "updated_at"
                 ]
                 visible = [col for col in decision_columns if col in decision_df.columns]
@@ -1356,6 +1368,39 @@ with cloud_tab:
                     "not a prediction, loss limit, or trade gate. Requires fresh broker data and at least "
                     "40 aligned daily observations."
                 )
+                stress_1, stress_2 = st.columns(2)
+                stress_1.metric(
+                    "Worst observed day",
+                    "$" + "{:,.0f}".format(basket_reference["portfolio_worst_day_loss_dollars"])
+                    if isinstance(basket_reference.get("portfolio_worst_day_loss_dollars"), (int, float))
+                    else "Unavailable",
+                    str(basket_reference.get("portfolio_worst_day_date") or "No date"),
+                )
+                stress_2.metric(
+                    "Worst rolling 5-session loss",
+                    "$" + "{:,.0f}".format(basket_reference["portfolio_worst_5d_loss_dollars"])
+                    if isinstance(basket_reference.get("portfolio_worst_5d_loss_dollars"), (int, float))
+                    else "Unavailable",
+                    str(basket_reference.get("portfolio_worst_5d_start_date") or "No start") +
+                    " to " + str(basket_reference.get("portfolio_worst_5d_end_date") or "No end"),
+                )
+                contributors = basket_reference.get("portfolio_worst_day_contributors") or []
+                if contributors:
+                    st.markdown("**Largest contributors on the worst observed day**")
+                    contributor_df = pd.DataFrame(contributors)
+                    contributor_df = contributor_df.rename(columns={
+                        "symbol": "Symbol", "side": "Side", "market_value": "Market value ($)",
+                        "underlying_return_pct": "Underlying return %",
+                        "pnl_contribution_dollars": "P&L contribution ($)",
+                    })
+                    st.dataframe(
+                        contributor_df.style.format({
+                            "Market value ($)": "\u0024{:,.0f}",
+                            "Underlying return %": "{:.2f}%",
+                            "P&L contribution ($)": "\u0024{:,.0f}",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
                 correlation_df = pd.DataFrame(watchlist)
                 correlation_columns = [
                     col for col in [
@@ -1371,6 +1416,9 @@ with cloud_tab:
                         "portfolio_historical_es_95_1d_dollars", "portfolio_historical_var_95_5d_dollars",
                         "portfolio_historical_es_95_5d_dollars", "portfolio_historical_max_drawdown_pct",
                         "portfolio_current_drawdown_pct", "portfolio_down_days_pct",
+                        "portfolio_worst_day_date", "portfolio_worst_day_loss_dollars",
+                        "portfolio_worst_5d_start_date", "portfolio_worst_5d_end_date",
+                        "portfolio_worst_5d_loss_dollars",
                     ] if col in correlation_df.columns
                 ]
                 if correlation_columns:
@@ -1396,6 +1444,11 @@ with cloud_tab:
                         "portfolio_historical_max_drawdown_pct": "60-session max drawdown %",
                         "portfolio_current_drawdown_pct": "Current drawdown %",
                         "portfolio_down_days_pct": "Down sessions %",
+                        "portfolio_worst_day_date": "Worst observed day",
+                        "portfolio_worst_day_loss_dollars": "Worst day loss ($)",
+                        "portfolio_worst_5d_start_date": "Worst 5D start",
+                        "portfolio_worst_5d_end_date": "Worst 5D end",
+                        "portfolio_worst_5d_loss_dollars": "Worst 5D loss ($)",
                     })
                     st.dataframe(
                         correlation_df.style.format({
@@ -1411,6 +1464,8 @@ with cloud_tab:
                             "60-session max drawdown %": "{:.1f}%",
                             "Current drawdown %": "{:.1f}%",
                             "Down sessions %": "{:.1f}%",
+                            "Worst day loss ($)": "\u0024{:,.0f}",
+                            "Worst 5D loss ($)": "\u0024{:,.0f}",
                         }),
                         use_container_width=True, hide_index=True,
                     )

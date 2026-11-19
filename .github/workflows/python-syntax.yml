@@ -1,4 +1,4 @@
-name: Dashboard Python syntax check
+name: Dashboard Python checks
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  compile:
+  compile-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -16,5 +16,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile dashboard
-        run: python -m py_compile app.py
+      - name: Compile dashboard modules
+        run: python -m py_compile app.py validation_diagnostics.py
+      - name: Run validation helper tests
+        run: python -m unittest discover -s tests -v

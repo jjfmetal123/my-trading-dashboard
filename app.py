@@ -1216,6 +1216,33 @@ with validation_tab:
             st.dataframe(period_df.style.format({"Win rate": "{:.1f}%", "Average return": "{:+.2f}%", "Median return": "{:+.2f}%", "Average excess vs SPY": "{:+.2f}%"}, na_rep="—"), use_container_width=True, hide_index=True)
             st.caption("Calendar year is assigned by signal date. This exposes time variation; it is not a forward holdout or proof of persistence.")
 
+        selection_research = shadow_validation.get("strategy_selection_research") or {}
+        selection_rows = selection_research.get("summaries") or []
+        st.markdown("##### Evidence-based strategy research screen")
+        if selection_rows:
+            selection_df = pd.DataFrame([{
+                "Assessment": item.get("assessment"),
+                "Setup": item.get("setup_type"),
+                "Score band": item.get("score_bucket"),
+                "Regime": item.get("market_regime"),
+                "Horizon": str(item.get("horizon_sessions")) + " sessions",
+                "Events": item.get("sample_count"),
+                "Net avg @40bps": item.get("average_net_return_40bps_pct"),
+                "Benchmark n": item.get("benchmark_matched_count"),
+                "Supported years": item.get("supported_year_count"),
+                "Positive years": item.get("positive_net_year_count"),
+                "Spearman": item.get("score_return_spearman"),
+            } for item in selection_rows])
+            st.dataframe(selection_df.style.format({"Net avg @40bps": "{:+.2f}%", "Spearman": "{:+.3f}"}, na_rep="—"), use_container_width=True, hide_index=True)
+            st.caption(
+                "ROBUST RESEARCH CANDIDATE is deliberately difficult to earn: minimum sample and benchmark coverage, "
+                "positive average return after assumed 40 bps round-trip costs, at least two supported calendar years "
+                "with every supported year positive after costs, and positive score/return rank association. "
+                "This is a retrospective research filter, not an optimizer, recommendation, or authorization to trade."
+            )
+        else:
+            st.info("No strategy combination currently qualifies for the research screen. Insufficient evidence is a valid result.")
+
         association_rows = shadow_validation.get("score_return_association", {}).get("summaries") or []
         if association_rows:
             st.markdown("##### Does a higher score rank better?")

@@ -1151,6 +1151,54 @@ with validation_tab:
     else:
         st.info("Shadow opportunity validation is collecting frozen scores and matured outcomes. Results will appear as 5-, 10- and 20-session outcomes mature.")
 
+    st.markdown("#### 🧪 De-overlapped worker validation")
+    try:
+        latest_validation_scan = load_latest_cloud_scan()
+        shadow_validation = ((latest_validation_scan or {}).get("ai_review") or {}).get("shadow_opportunity_validation") or {}
+    except Exception as exc:
+        shadow_validation = {}
+        st.caption(f"Could not load the worker's de-overlapped validation snapshot: {exc}")
+    if shadow_validation.get("summaries"):
+        st.caption(
+            f"Worker snapshot: {shadow_validation.get('status', '—')} · "
+            f"{shadow_validation.get('deoverlapped_event_count', 0):,} de-overlapped scored events · "
+            f"{shadow_validation.get('minimum_sample_count', 30)} observations required per supported group · "
+            f"{shadow_validation.get('cooldown_sessions', 20)}-session same-symbol/setup cooldown."
+        )
+        deoverlap_rows = []
+        for item in shadow_validation.get("summaries") or []:
+            deoverlap_rows.append({
+                "Setup": item.get("setup_type"),
+                "Regime": item.get("market_regime"),
+                "Score band": item.get("score_bucket"),
+                "Horizon": f"{item.get('horizon_sessions')} sessions",
+                "Events": item.get("sample_count"),
+                "Evidence": item.get("sample_status"),
+                "Win rate": item.get("win_rate_pct"),
+                "95% Wilson low": item.get("win_rate_wilson_95_low_pct"),
+                "95% Wilson high": item.get("win_rate_wilson_95_high_pct"),
+                "Avg return": item.get("average_forward_return_pct"),
+                "Median return": item.get("median_forward_return_pct"),
+                "Avg excess vs SPY": item.get("average_excess_vs_spy_pp"),
+                "Benchmark n": item.get("benchmark_matched_count"),
+            })
+        deoverlap_df = pd.DataFrame(deoverlap_rows)
+        st.dataframe(deoverlap_df.style.format({
+            "Win rate": "{:.1f}%", "95% Wilson low": "{:.1f}%",
+            "95% Wilson high": "{:.1f}%", "Avg return": "{:+.2f}%",
+            "Median return": "{:+.2f}%", "Avg excess vs SPY": "{:+.2f}%",
+        }, na_rep="—"), use_container_width=True, hide_index=True)
+        st.caption(
+            "This is the worker's de-overlapped, regime-conditioned summary. Wilson intervals describe historical win-rate uncertainty; "
+            "they are not calibrated probabilities. Cross-symbol dependence, execution costs and changing market conditions remain. "
+            "A supported sample label is not proof of edge. Shadow validation has no authority over ranking, sizing, gates or orders."
+        )
+    else:
+        st.info(
+            "No persisted de-overlapped shadow summary is available yet. It will appear after a worker scan successfully "
+            "updates the signal ledger and saves its validation snapshot."
+        )
+
     if validation_events:
         total_events = len(validation_events)
         completed_5d = sum(1 for r in outcome_rows if r["Horizon"] == "5d")

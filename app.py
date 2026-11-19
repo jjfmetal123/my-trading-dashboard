@@ -1271,6 +1271,29 @@ with cloud_tab:
 
             st.markdown("#### Candidate overlap / correlation")
             if watchlist:
+                basket_reference = next(
+                    (item for item in watchlist if isinstance(item, dict)
+                     and item.get("portfolio_diversification_status") == "AVAILABLE"),
+                    watchlist[0] if isinstance(watchlist[0], dict) else {},
+                )
+                basket_status = basket_reference.get("portfolio_diversification_status", "UNAVAILABLE")
+                basket_score = basket_reference.get("current_portfolio_diversification_score")
+                basket_corr = basket_reference.get("current_portfolio_weighted_correlation")
+                b1, b2, b3 = st.columns(3)
+                b1.metric(
+                    "Current basket diversification",
+                    f"{basket_score:.1f}/100" if isinstance(basket_score, (int, float)) else "Unavailable",
+                )
+                b2.metric(
+                    "Current weighted correlation",
+                    f"{basket_corr:.2f}" if isinstance(basket_corr, (int, float)) else "Unavailable",
+                )
+                b3.metric("Basket data status", str(basket_status).replace("_", " ").title())
+                st.caption(
+                    "Current basket score summarizes pairwise daily-return correlation weighted by "
+                    "the product of the held positions' market values. It is unavailable unless "
+                    "at least two valid holdings have sufficient aligned history."
+                )
                 correlation_df = pd.DataFrame(watchlist)
                 correlation_columns = [
                     col for col in [

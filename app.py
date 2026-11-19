@@ -699,6 +699,8 @@ with command_tab:
                     ("Peak single-sector exposure", "max_single_sector_exposure_pct", "%"),
                     ("Peak top-three stock exposure", "max_top_three_symbols_exposure_pct", "%"),
                     ("Peak single-stock concentration (HHI)", "max_symbol_exposure_hhi_pct2", " pct²"),
+                    ("Exposure-weighted average pair correlation", "max_weighted_average_pair_correlation", ""),
+                    ("High-correlation pair-weight share", "max_high_correlation_pair_weight_share_pct", "%"),
                     ("Date of peak single-stock exposure", "max_single_symbol_exposure_date", ""),
                     ("Date of peak sector exposure", "max_single_sector_exposure_date", ""),
                 ):
@@ -709,7 +711,7 @@ with command_tab:
                 if exposure_rows:
                     st.markdown("##### Portfolio concentration")
                     st.dataframe(pd.DataFrame(exposure_rows), use_container_width=True, hide_index=True)
-                    st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages; it rises as exposure concentrates.")
+                    st.caption("Peak exposures are measured against daily marked portfolio equity. HHI is the sum of squared single-symbol exposure percentages. Correlation uses trailing aligned daily returns for concurrently held symbols; high-correlation pair share is the portion of pairwise exposure-product weight with correlation at or above 0.70. Insufficient history is reported as unavailable, not zero.")
                 quality = replay_result.get("trade_quality") or {}
                 quality_rows = []
                 for label, key, suffix in (

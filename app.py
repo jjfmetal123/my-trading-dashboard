@@ -3979,6 +3979,34 @@ with intelligence_tab:
         replay_rows = []
         signal_context = []
         st.error(f"Could not load replay evidence: {type(exc).__name__}")
+    # Volatility-transition response research: SPY trailing realized volatility
+    # defines transitions using a threshold shifted one session to avoid lookahead.
+    st.markdown("#### 🌡️ Volatility-transition response (1 / 5 / 10 / 20 sessions)")
+    st.caption("Retrospective research only. Regimes use SPY 20-session realized volatility versus its trailing 252-session 75th-percentile threshold, shifted one session so today's regime never uses today's threshold update. Strategy outcomes come from persisted signal observations; Yahoo daily history can be delayed, revised, incomplete, and is not point-in-time.")
+    try:
+        transition_history = load_history(("SPY",), period="5y")
+        transition_signals = load_strategy_signal_events()
+        if "SPY" not in transition_history or transition_history["SPY"].empty:
+            st.info("SPY daily history is unavailable; volatility-transition study is waiting for source bars.")
+        else:
+            transition_close = transition_history["SPY"]["Close"]
+            transition_study = build_volatility_transition_study(transition_close, transition_signals)
+            transition_cols = st.columns(3)
+            transition_cols[0].metric("Detected transitions", len(transition_study["transitions"]))
+            transition_cols[1].metric("Signal observations loaded", len(transition_signals))
+            transition_cols[2].metric("Matched response groups", len(transition_study["rows"]))
+            if transition_study["transitions"]:
+                transition_frame = pd.DataFrame(transition_study["transitions"]).tail(12)
+                st.dataframe(transition_frame, use_container_width=True, hide_index=True)
+            if transition_study["rows"]:
+                response_frame = pd.DataFrame(transition_study["rows"])
+                st.dataframe(response_frame, use_container_width=True, hide_index=True)
+            else:
+                st.info("No signal outcomes currently align to the first 20 sessions after a detected SPY volatility transition. More history or matched observations are needed.")
+            st.caption("Age buckets are measured in SPY trading sessions after each transition: session 1, sessions 2–5, 6–10, and 11–20. Rows are grouped by transition direction, setup, and persisted 1d/5d/10d/20d outcome horizon. Samples under 30 are exploratory; this is not a readiness score or trading instruction.")
+    except Exception as exc:
+        st.warning(f"Volatility-transition research is temporarily unavailable: {type(exc).__name__}")
+
     replay_df = pd.DataFrame(replay_rows)
     context_df = pd.DataFrame(signal_context)
     if not replay_df.empty and not context_df.empty:

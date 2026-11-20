@@ -810,3 +810,5 @@ When the user says **“Resume the trading project”**:
 
 ### Safety
 - No changes to production main, no merges/deployments, no broker writes/orders, no account mutations, and no risk/entry/exit policy changes. Production remains V5.95 / main. PR #32 remains draft/open/unmerged/undeployed; its CI passed (Python tests `44819614648`, Python checks `44819614626`).
+
+- Follow-up CI verification: PR #33 head `b9e307ea2f8c04214d6e14cac49e184b9ba87837` passed Python tests run `44820031670` and Python checks run `44820031921`; both completed SUCCESS. PR remains draft/open/unmerged/undeployed.

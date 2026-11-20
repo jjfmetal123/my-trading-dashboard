@@ -859,3 +859,6 @@ When the user says **“Resume the trading project”**:
 
 
 - PR #35 CI follow-up: initial Python tests run `44833821898` failed because the CI test environment does not install yfinance and the new research module imported it eagerly. Fixed by making the provider import lazy; deterministic tests continue to inject a mock provider. Corrected head `9d98de3a2e355ea097ba3e7b44d19199c9aa0bb0`; a fresh workflow run was not yet visible at the final check. Treat PR #35 validation as pending, not green.
+
+
+- PR #35 validation follow-up: after the lazy-import correction, Python tests run `44833904597` (head `9d98de3a2e355ea097ba3e7b44d19199c9aa0bb0`) compiled successfully but failed two new test fixtures because a pandas DatetimeIndex was used in boolean context. Corrected the fixture to test `dates is None` explicitly. Latest head: `3a191a0a856a2b75edd0e26db8f88e7294fa3ad0`; fresh CI run was not yet visible. PR #35 remains unvalidated until that run completes.

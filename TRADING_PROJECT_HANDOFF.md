@@ -683,3 +683,11 @@ When the user says **“Resume the trading project”**:
 - Worker PR #28 was updated at commit `da04e08afba5bf3731a2e25347058c50237d86e6`: the collector now excludes rows whose `near_miss_future_outcomes_status` is already `MATURED` and selects the oldest pending rows first. Successful CAS updates advance their timestamps, moving those rows behind untouched backlog rows on the next pass.
 - PR #28 description records the fairness change and explicitly distinguishes previous green CI (459 tests at `a032382ba18e4e38fa674f6a1677ce829733bbd1`) from the new head. No CI run for the new head was visible at the time of this update; rerun/verify the full suite before treating this change as validated.
 - PR #28 remains open/unmerged/undeployed. No production deployment, paper switch, strategy policy, order handling, or broker account changes.
+
+
+## 2026-11-20 latest verification — PR #28 fairness hardening CI green
+
+- Worker PR #28 current head `da04e08afba5bf3731a2e25347058c50237d86e6` passed fresh CI after the collector fairness change: Python tests run `44814918456` SUCCESS (**459 tests passed**); Python checks run `44814918444` SUCCESS (compile + deterministic strategy checks).
+- GitHub currently reports PR #28 open, unmerged, and mergeable. Its description now records the current-head CI results. It remains undeployed; Render auto-deploys only main.
+- Collector fairness query change is covered by a green full suite, although the tests do not yet include a high-volume multi-batch starvation simulation. Add that targeted stress/regression test in a later hardening pass before relying on fairness under sustained backlog.
+- No production or broker state was modified.

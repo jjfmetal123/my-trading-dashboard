@@ -222,3 +222,99 @@ def replay_sequence_risk_metrics(closed_events):
         "max_sequence_drawdown": max_drawdown,
         "ending_cumulative_pnl": cumulative,
     }
+
+
+
+def build_volatility_transition_study(close, signal_events, *, vol_window=20, lookback=252, quantile=0.75, horizons=("1d", "5d", "10d", "20d")):
+    """Measure signal outcomes by sessions since a trailing-volatility regime transition.
+
+    Regime thresholds are calculated from prior observations only (rolling
+    quantile shifted one session). Signal outcomes are precomputed observation
+    fields; this helper never uses future prices to label a transition.
+    """
+    import pandas as pd
+
+    if not hasattr(close, "index") or not hasattr(close, "pct_change"):
+        raise ValueError("close must be a pandas Series indexed by trading session")
+    if isinstance(vol_window, bool) or not isinstance(vol_window, int) or vol_window < 2:
+        raise ValueError("vol_window must be an integer >= 2")
+    if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 30:
+        raise ValueError("lookback must be an integer >= 30")
+    if not 0.5 <= float(quantile) <= 0.99:
+        raise ValueError("quantile must be between 0.5 and 0.99")
+
+    prices = pd.to_numeric(close, errors="coerce").dropna().sort_index()
+    returns = prices.pct_change()
+    realized_vol = returns.rolling(vol_window, min_periods=vol_window).std() * (252 ** 0.5) * 100
+    prior_threshold = realized_vol.rolling(lookback, min_periods=30).quantile(float(quantile)).shift(1)
+    regime = pd.Series(index=prices.index, dtype="object")
+    valid = realized_vol.notna() & prior_threshold.notna()
+    regime.loc[valid] = ["HIGH" if value > threshold else "BASELINE"
+                         for value, threshold in zip(realized_vol.loc[valid], prior_threshold.loc[valid])]
+    transitions = []
+    prior_state = None
+    for timestamp, state in regime.items():
+        if pd.isna(state):
+            continue
+        if prior_state is not None and state != prior_state:
+            transitions.append({
+                "transition_date": timestamp.date().isoformat() if hasattr(timestamp, "date") else str(timestamp),
+                "from_regime": prior_state,
+                "to_regime": state,
+                "realized_vol_pct": float(realized_vol.loc[timestamp]),
+                "prior_vol_threshold_pct": float(prior_threshold.loc[timestamp]),
+            })
+        prior_state = state
+
+    session_dates = list(prices.index)
+    date_positions = {str(pd.Timestamp(value).date()): i for i, value in enumerate(session_dates)}
+    transition_positions = []
+    for item in transitions:
+        key = item["transition_date"]
+        if key in date_positions:
+            transition_positions.append((date_positions[key], item))
+
+    groups = {}
+    for event in signal_events or []:
+        signal_date = _parse_signal_date(event.get("signal_date"))
+        if signal_date is None:
+            continue
+        pos = date_positions.get(signal_date.isoformat())
+        if pos is None:
+            continue
+        prior_transitions = [entry for entry in transition_positions if entry[0] <= pos]
+        if not prior_transitions:
+            continue
+        transition_pos, transition = prior_transitions[-1]
+        age = pos - transition_pos
+        if age < 1 or age > 20:
+            continue
+        age_band = "1 session" if age == 1 else "2–5 sessions" if age <= 5 else "6–10 sessions" if age <= 10 else "11–20 sessions"
+        outcomes = event.get("outcomes") or {}
+        if not isinstance(outcomes, dict):
+            continue
+        for horizon in horizons:
+            outcome = outcomes.get(horizon)
+            if not isinstance(outcome, dict):
+                continue
+            try:
+                value = float(outcome.get("close_return_pct"))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if not math.isfinite(value):
+                continue
+            key = (transition["from_regime"] + " → " + transition["to_regime"], age_band, horizon,
+                   str(event.get("setup_type") or "UNCLASSIFIED").upper())
+            bucket = groups.setdefault(key, [])
+            bucket.append(value)
+
+    rows = []
+    for (transition, age_band, horizon, setup), values in sorted(groups.items()):
+        rows.append({
+            "Transition": transition, "Sessions after transition": age_band,
+            "Setup": setup, "Outcome horizon": horizon, "Samples": len(values),
+            "Mean return %": sum(values) / len(values),
+            "Win rate %": sum(value > 0 for value in values) / len(values) * 100,
+            "Evidence": "Exploratory" if len(values) < 30 else "30+ observations",
+        })
+    return {"transitions": transitions, "rows": rows, "regime": regime, "realized_vol": realized_vol}

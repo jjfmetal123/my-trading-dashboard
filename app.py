@@ -480,7 +480,8 @@ def load_snapshot_history():
               .eq("account_id", ACCOUNT_ID).order("snapshot_date").execute())
     return result.data or []
 
-def load_snapshot_history():
+
+
     result = (db.table("paper_account_snapshots").select("snapshot_date,equity,cash,position_value,realized_pnl,unrealized_pnl")
               .eq("account_id", ACCOUNT_ID).order("snapshot_date").execute())
     return result.data or []
@@ -613,28 +614,19 @@ def load_strategy_signal_events():
     )
     return result.data or []
 
-# The legacy $1,000 Supabase virtual account is retired. Load it read-only
-# for archived performance/history; never create, reset, trade, or write to it.
+# Retired Supabase virtual account: load the historical record read-only.
 paper_account_available = True
 paper_account_error = None
 try:
     db = get_supabase_client()
     if not st.session_state.get("paper_db_loaded", False):
         result = db.table("paper_account").select("*").eq("account_id", ACCOUNT_ID).limit(1).execute()
-        if result.data:
-            saved = result.data[0]
-            st.session_state.paper_cash = float(saved.get("cash") or 0.0)
-            st.session_state.realized_pnl = float(saved.get("realized_pnl") or 0.0)
-            st.session_state.paper_positions = saved.get("positions") or {}
-            st.session_state.paper_journal = saved.get("journal") or []
-            st.session_state.paper_account_updated_at = saved.get("updated_at")
-        else:
-            # Missing archive means empty history, not permission to recreate it.
-            st.session_state.paper_cash = 0.0
-            st.session_state.realized_pnl = 0.0
-            st.session_state.paper_positions = {}
-            st.session_state.paper_journal = []
-            st.session_state.paper_account_updated_at = None
+        saved = result.data[0] if result.data else {}
+        st.session_state.paper_cash = float(saved.get("cash") or 0.0)
+        st.session_state.realized_pnl = float(saved.get("realized_pnl") or 0.0)
+        st.session_state.paper_positions = saved.get("positions") or {}
+        st.session_state.paper_journal = saved.get("journal") or []
+        st.session_state.paper_account_updated_at = saved.get("updated_at")
         st.session_state.paper_db_loaded = True
 except Exception as exc:
     paper_account_available = False
@@ -3396,16 +3388,11 @@ with scanner_tab:
         pass
 
 with paper_tab:
-    if not paper_account_available:
-        st.error("Virtual account controls are disabled because the saved account could not be verified.")
-        st.caption("Reconnect Supabase and reload this page. No trades, automatic exits, or resets are permitted while account state is unavailable.")
-    elif data.empty:
-        st.warwith paper_tab:
     st.subheader("🗃️ Legacy $1,000 virtual account — retired")
     st.info(
-        "This Supabase simulation account is retired. Its historical positions, journal, and "
-        "performance snapshots are preserved, but this dashboard no longer opens, closes, resets, "
-        "or monitors simulated positions in it. All new paper-trading activity belongs in Alpaca Paper Trading."
+        "This Supabase simulation account is retired. Its historical positions and journal are "
+        "preserved for reference only. This dashboard no longer opens, closes, resets, or monitors "
+        "simulated positions. All new paper-trading activity belongs in Alpaca Paper Trading."
     )
     if paper_account_available:
         archived_positions = st.session_state.get("paper_positions") or {}
@@ -3415,145 +3402,44 @@ with paper_tab:
             f"{len(archived_journal)} journal entr(y/ies) · "
             f"last saved: {st.session_state.get('paper_account_updated_at') or 'not recorded'}"
         )
+        if archived_positions:
+            st.markdown("#### Archived positions")
+            st.dataframe(pd.DataFrame([
+                {"Symbol": symbol, **position} for symbol, position in archived_positions.items()
+            ]), use_container_width=True, hide_index=True)
+        if archived_journal:
+            st.markdown("#### Archived trade journal")
+            st.dataframe(pd.DataFrame(archived_journal), use_container_width=True, hide_index=True)
     else:
-        st.warning("The archived record could not be loaded. No replacement account was created.")apshot(snapshot_prices)
+        st.warning("The archived record could not be loaded. No replacement account was created.")
+
+
+# The virtual account is retired: only read preserved snapshots; never append new rows.
+snapshot_error = None
+snapshot_history = []
+if paper_account_available:
+    try:
         snapshot_history = load_snapshot_history()
     except Exception as exc:
         snapshot_error = exc
-else:
-    snapshot_error = "Snapshot skipped: verified account and market prices are both required."
+
 
 with analytics_tab:
+    st.subheader("Archived virtual-account performance")
+    st.caption(
+        "Read-only historical snapshots from the retired $1,000 Supabase simulation account. "
+        "No current market marks are applied to archived positions and no new snapshots are recorded."
+    )
     if not paper_account_available:
-        st.error("Performance is unavailable because the saved virtual account could not be verified.")
-        st.caption("Reconnect Supabase to restore verified account metrics. No fallback balances or positions are displayed.")
-    elif data.empty:
-        st.warning("Performance price marks are unavailable. Retry the market scan; no estimated equity curve is generated from stale cost basis.")
+        st.warning("Archived performance is unavailable because the historical record could not be loaded.")
+    elif snapshot_error:
+        st.error(f"Historical snapshots could not be loaded: {snapshot_error}")
+    elif snapshot_history:
+        history_df = pd.DataFrame(snapshot_history)
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
     else:
-        st.subheader("Archived virtual-account performance")
-        st.caption("Read-only historical metrics from the retired $1,000 Supabase simulation account. This is not the Alpaca broker account and no new virtual trades or snapshots are recorded.")
-    
-        positions_now = st.session_state.paper_positions
-        prices_now = dict(zip(data["Symbol"], data["Last"]))
-        open_market_value = sum(
-            float(pos.get("quantity", 0.0)) * float(prices_now.get(sym, pos.get("average_price", 0.0)))
-            for sym, pos in positions_now.items()
-        )
-        open_unrealized = sum(
-            (float(prices_now.get(sym, pos.get("average_price", 0.0))) - float(pos.get("average_price", 0.0)))
-            * float(pos.get("quantity", 0.0))
-            for sym, pos in positions_now.items()
-        )
-        current_equity = float(st.session_state.paper_cash) + open_market_value
-        total_pnl = current_equity - 1000.0
-        total_return = safe_pct(total_pnl, 1000.0)
-    
-        closed = build_closed_trade_metrics(st.session_state.paper_journal)
-        closed_pnls = [row["Realized P/L"] for row in closed]
-        wins = [x for x in closed_pnls if x > 0]
-        losses = [x for x in closed_pnls if x < 0]
-        gross_profit = sum(wins)
-        gross_loss_abs = abs(sum(losses))
-        profit_factor = gross_profit / gross_loss_abs if gross_loss_abs > 0 else None
-        win_rate = safe_pct(len(wins), len(closed_pnls))
-        avg_win = sum(wins) / len(wins) if wins else 0.0
-        avg_loss = sum(losses) / len(losses) if losses else 0.0
-    
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Account value", f"${current_equity:,.2f}", f"{total_pnl:+,.2f} vs. $1,000")
-        m2.metric("Total return", f"{total_return:+.2f}%")
-        m3.metric("Realized P/L", f"${float(st.session_state.realized_pnl):+,.2f}")
-        m4.metric("Open unrealized P/L", f"${open_unrealized:+,.2f}")
-    
-        st.markdown("#### Closed-trade statistics")
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Closed trade records", len(closed))
-        s2.metric("Win rate", f"{win_rate:.1f}%" if closed else "—")
-        s3.metric("Average winning record", f"${avg_win:+,.2f}" if wins else "—")
-        s4.metric("Average losing record", f"${avg_loss:+,.2f}" if losses else "—")
-    
-        if profit_factor is None:
-            st.metric("Profit factor", "—", help="Not meaningful until there is at least one losing closed-trade record.")
-        else:
-            st.metric("Profit factor", f"{profit_factor:.2f}")
-    
-        if closed:
-            st.markdown("#### Closed-trade journal")
-            closed_df = pd.DataFrame(closed)
-            st.dataframe(
-                closed_df.style.format({
-                    "Quantity": "{:.4f}",
-                    "Realized P/L": "${:+,.2f}",
-                }),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info("No positions have been closed yet. Win rate, average win/loss, and profit factor will become meaningful after completed simulated trades.")
-    
-        st.markdown("#### Current portfolio allocation")
-        allocation_rows = []
-        if current_equity > 0:
-            for sym, pos in positions_now.items():
-                mark = float(prices_now.get(sym, pos.get("average_price", 0.0)))
-                value = float(pos.get("quantity", 0.0)) * mark
-                allocation_rows.append({
-                    "Symbol": sym,
-                    "Market value": value,
-                    "Portfolio weight": value / current_equity * 100.0,
-                    "Unrealized P/L": (mark - float(pos.get("average_price", 0.0))) * float(pos.get("quantity", 0.0)),
-                })
-        if allocation_rows:
-            allocation_df = pd.DataFrame(allocation_rows).sort_values("Market value", ascending=False)
-            st.dataframe(
-                allocation_df.style.format({
-                    "Market value": "${:,.2f}",
-                    "Portfolio weight": "{:.1f}%",
-                    "Unrealized P/L": "${:+,.2f}",
-                }),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.caption("No open positions.")
-    
-        st.markdown("#### Account value history")
-        if snapshot_error is not None:
-            st.warning("Daily history is not available yet. Confirm that the paper_account_snapshots table has been created in Supabase, then refresh the dashboard.")
-            st.caption(f"Technical detail: {snapshot_error}")
-        elif snapshot_history:
-            history_df = pd.DataFrame(snapshot_history)
-            history_df["snapshot_date"] = pd.to_datetime(history_df["snapshot_date"])
-            history_df = history_df.sort_values("snapshot_date").drop_duplicates("snapshot_date", keep="last")
-            history_df = history_df.set_index("snapshot_date")
-            st.line_chart(history_df["equity"].rename("Account value ($)"), use_container_width=True)
-            if len(history_df) >= 2:
-                running_peak = history_df["equity"].cummax()
-                drawdown_pct = (history_df["equity"] / running_peak - 1.0) * 100.0
-                max_drawdown = float(drawdown_pct.min())
-                h1, h2 = st.columns(2)
-                h1.metric("Maximum drawdown", f"{max_drawdown:.2f}%")
-                h2.metric("Recorded days", len(history_df))
-                st.caption("Drawdown is calculated from recorded daily snapshots only. It will become more informative as more dates accumulate.")
-            else:
-                st.info("Your first daily snapshot has been saved. Maximum drawdown will appear after at least two different dates have been recorded.")
-            st.dataframe(history_df.reset_index().rename(columns={"snapshot_date": "Date", "equity": "Account value", "cash": "Cash", "position_value": "Position value", "realized_pnl": "Realized P/L", "unrealized_pnl": "Open P/L"}).style.format({"Account value": "${:,.2f}", "Cash": "${:,.2f}", "Position value": "${:,.2f}", "Realized P/L": "${:+,.2f}", "Open P/L": "${:+,.2f}"}), use_container_width=True, hide_index=True)
-        else:
-            st.info("No daily snapshots have been recorded yet. Refresh the dashboard to create the first one.")
-    
-        st.markdown("#### What these numbers do—and don't—tell us")
-        st.write(
-            "- Total return compares current account equity with the original $1,000 starting balance.\n"
-            "- Win rate and average win/loss use recorded SELL and automatic-exit journal entries. Partial exits count as separate closed-trade records in this prototype.\n"
-            "- Profit factor compares gross realized gains with gross realized losses. It is unavailable until there is at least one losing closed-trade record.\n"
-            "- Maximum drawdown is calculated from the daily snapshots recorded by this app. It is not a full intraday drawdown measure, and it becomes more useful as more dates accumulate.\n"
-            "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
-        )
-    
-    
-        pass
+        st.info("No historical performance snapshots are available in the archive.")
 
-st.caption("Version 3.38 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
 
 with intelligence_tab:
     st.subheader("🏆 Bot Intelligence & Achievement Center")

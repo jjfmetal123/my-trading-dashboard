@@ -856,3 +856,6 @@ When the user says **“Resume the trading project”**:
 
 ### Safety
 - No production worker imports, scanner changes, broker calls, paper/live orders, Supabase writes, account mutations, risk/entry/exit changes, or deployments. Production remains V5.95 / main / Alpaca paper-only. No merge or deployment was attempted.
+
+
+- PR #35 CI follow-up: initial Python tests run `44833821898` failed because the CI test environment does not install yfinance and the new research module imported it eagerly. Fixed by making the provider import lazy; deterministic tests continue to inject a mock provider. Corrected head `9d98de3a2e355ea097ba3e7b44d19199c9aa0bb0`; a fresh workflow run was not yet visible at the final check. Treat PR #35 validation as pending, not green.

@@ -128,6 +128,10 @@ def full_history_display_state(payload):
         "available": available,
         "configuration_count": len(configurations),
         "displacement_count": len(displacement),
+        "history_start_date": payload.get("history_start_date"),
+        "history_end_date": payload.get("history_end_date"),
+        "history_period": payload.get("history_period"),
+        "stable_market_session_index": payload.get("stable_market_session_index"),
         "authority": authority,
         "decision_authority": decision_authority,
     }

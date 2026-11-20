@@ -179,3 +179,46 @@ def build_edge_diagnostics(
         row["Mean excess after 20bp pp"] = mean_excess - 0.20 if mean_excess is not None else None
         rows.append(row)
     return rows
+
+def replay_sequence_risk_metrics(closed_events):
+    """Describe loss streaks and cumulative P/L drawdown for isolated replay events.
+
+    Events are ordered by exit_date then id. This is an event-sequence diagnostic,
+    not a portfolio drawdown: replay events are independently sized and not netted.
+    """
+    normalized = []
+    for event in closed_events or []:
+        try:
+            pnl = float(event.get("net_realized_pnl"))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(pnl):
+            continue
+        exit_date = _parse_signal_date(event.get("exit_date"))
+        if exit_date is None:
+            continue
+        normalized.append((exit_date, str(event.get("id") or ""), pnl))
+
+    normalized.sort(key=lambda item: (item[0], item[1]))
+    current_streak = 0
+    max_streak = 0
+    cumulative = 0.0
+    peak = 0.0
+    max_drawdown = 0.0
+    for _, _, pnl in normalized:
+        if pnl < 0:
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
+        else:
+            current_streak = 0
+        cumulative += pnl
+        peak = max(peak, cumulative)
+        max_drawdown = max(max_drawdown, peak - cumulative)
+
+    return {
+        "evaluated_events": len(normalized),
+        "current_loss_streak": current_streak,
+        "max_loss_streak": max_streak,
+        "max_sequence_drawdown": max_drawdown,
+        "ending_cumulative_pnl": cumulative,
+    }

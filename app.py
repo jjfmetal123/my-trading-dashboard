@@ -754,7 +754,7 @@ def _safe_format_number(value, template):
         return "—"
     return template.format(number)
 
-command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "🗃️ Retired virtual account", "📚 Archived performance", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner"])
+command_tab, scanner_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab, alpaca_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "📚 Historical archive", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner", "🦙 Alpaca paper trading"])
 
 with command_tab:
     @st.fragment(run_every="60s")
@@ -788,14 +788,18 @@ with command_tab:
                 age_min, scan_label = None, str(scanned_at or "Unavailable")
             coverage = health.get("coverage_pct")
             coverage_label = f"{float(coverage):.1f}%" if coverage is not None else "—"
-            equity = portfolio.get("equity_reference")
-            equity_label = f"${float(equity):,.2f}" if equity is not None else "—"
+            try:
+                broker_reference = load_latest_alpaca_paper_account_snapshot()
+                broker_equity = broker_reference.get("equity") if broker_reference else None
+                broker_equity_label = f"${float(broker_equity):,.2f}" if broker_equity is not None else "Unavailable"
+            except Exception:
+                broker_equity_label = "Unavailable"
             top_three = report.get("top_three_for_individual_review") or []
             candidates = report.get("ranked_candidates") or []
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Universe coverage", coverage_label, f"{health.get('analyzed_symbols', scan.get('symbol_count', 0))}/{health.get('requested_symbols', '—')} symbols")
             c2.metric("Last completed scan", f"{age_min} min ago" if age_min is not None else "—", scan_label)
-            c3.metric("Paper equity reference", equity_label, f"{portfolio.get('position_count', 0)} open positions")
+            c3.metric("Alpaca paper equity", broker_equity_label, "Broker-reported · paper account")
             c4.metric("Worker", f"V{review.get('worker_version', '—')}", f"AI: {scan.get('ai_model') or 'not available'}")
             if age_min is not None and age_min > 35:
                 st.warning("Cloud scan is older than expected. Check worker health before relying on this snapshot.")
@@ -3403,33 +3407,6 @@ with scanner_tab:
     
     
         pass
-
-with paper_tab:
-    st.subheader("🗃️ Legacy $1,000 virtual account — retired")
-    st.info(
-        "This Supabase simulation account is retired. Its historical positions and journal are "
-        "preserved for reference only. This dashboard no longer opens, closes, resets, or monitors "
-        "simulated positions. All new paper-trading activity belongs in Alpaca Paper Trading."
-    )
-    if paper_account_available:
-        archived_positions = st.session_state.get("paper_positions") or {}
-        archived_journal = st.session_state.get("paper_journal") or []
-        st.caption(
-            f"Archived record only · {len(archived_positions)} position record(s) · "
-            f"{len(archived_journal)} journal entr(y/ies) · "
-            f"last saved: {st.session_state.get('paper_account_updated_at') or 'not recorded'}"
-        )
-        if archived_positions:
-            st.markdown("#### Archived positions")
-            st.dataframe(pd.DataFrame([
-                {"Symbol": symbol, **position} for symbol, position in archived_positions.items()
-            ]), use_container_width=True, hide_index=True)
-        if archived_journal:
-            st.markdown("#### Archived trade journal")
-            st.dataframe(pd.DataFrame(archived_journal), use_container_width=True, hide_index=True)
-    else:
-        st.warning("The archived record could not be loaded. No replacement account was created.")
-
 
 # The virtual account is retired: only read preserved snapshots; never append new rows.
 snapshot_error = None

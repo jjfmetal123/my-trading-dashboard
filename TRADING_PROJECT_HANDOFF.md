@@ -738,3 +738,9 @@ When the user says **“Resume the trading project”**:
 - Render service remains active, auto-deploys `main`, and latest live deployment is V5.95 commit `919f5a8f73869943c3de5772e13f30cda85fca31`.
 - No production deployment, broker mutation, position/order changes, risk/entry/exit policy changes, or account setting changes.
 - Next: verify the exact PostgREST JSON-path filter on the live Data API via a read-only request if a safe query route is available; build a deterministic >500-row multi-pass backlog simulation; validate PR #9's new test in CI; then run full CI on final heads. Explicit approval remains required before merge/deploy.
+
+
+### Production heartbeat spot-check — 2026-11-20 20:52–20:57 UTC
+- Render logs show paper execution summaries continuing at 20:52:01, 20:53:06, 20:55:07, and 20:57:08 UTC.
+- Submission switch remained ENABLED and `newly_submitted=0` on those cycles; 34 candidates were evaluated per cycle, with quote-missing count 0. Most common blockers remained high-volatility class, spread/quote quality, extension from entry trigger, and setup eligibility.
+- This confirms the production paper-decision loop was still producing cycles in that interval; it does not imply trades were filled or that PR #29 has been deployed.

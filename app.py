@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, deoverlap_events
+from validation_diagnostics import build_edge_diagnostics, build_volatility_transition_study, deoverlap_events, replay_sequence_risk_metrics
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -545,6 +545,32 @@ def load_latest_cloud_scan():
 
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def load_bot_intelligence_replays():
+    """Read-only simulated replay outcomes for the Bot Intelligence Center."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_execution_replays")
+        .select("id,event_id,model_version,symbol,status,entry_date,exit_date,quantity,entry_price,exit_price,net_realized_pnl,return_pct,result,updated_at")
+        .order("updated_at", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
+
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_bot_intelligence_signal_context():
+    """Read-only setup and regime labels for replay event attribution."""
+    client = get_supabase_client()
+    result = (
+        client.table("strategy_signal_observations")
+        .select("id,setup_type,signal,market_regime,setup_score")
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
 @st.cache_data(ttl=30, show_spinner=False)
 def load_latest_paper_trade_decisions():
     """Load recent paper-only decision audit rows; this never mutates an account."""
@@ -776,7 +802,7 @@ def _safe_format_number(value, template):
         return "—"
     return template.format(number)
 
-command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "🧪 Strategy validation", "☁️ Cloud scanner"])
+command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner"])
 
 with command_tab:
     @st.fragment(run_every="60s")
@@ -3939,3 +3965,182 @@ with analytics_tab:
         pass
 
 st.caption("Version 3.38 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+
+with intelligence_tab:
+    st.subheader("🏆 Bot Intelligence & Achievement Center")
+    st.caption("A read-only scorecard built from simulated historical paper replays. It rewards repeatable process and risk discipline—not lucky wins. These are not Alpaca broker fills and this panel cannot change trading permissions.")
+    if st.button("↻ Refresh intelligence center", key="refresh_bot_intelligence"):
+        load_bot_intelligence_replays.clear()
+        load_bot_intelligence_signal_context.clear()
+    try:
+        replay_rows = load_bot_intelligence_replays()
+        signal_context = load_bot_intelligence_signal_context()
+    except Exception as exc:
+        replay_rows = []
+        signal_context = []
+        st.error(f"Could not load replay evidence: {type(exc).__name__}")
+    # Volatility-transition response research: SPY trailing realized volatility
+    # defines transitions using a threshold shifted one session to avoid lookahead.
+    st.markdown("#### 🌡️ Volatility-transition response (1 / 5 / 10 / 20 sessions)")
+    st.caption("Retrospective research only. Regimes use SPY 20-session realized volatility versus a full trailing 252-session 75th-percentile history, shifted one session so today's regime never uses today's threshold update. Strategy outcomes come from persisted signal observations; Yahoo daily history can be delayed, revised, incomplete, and is not point-in-time.")
+    try:
+        transition_history = load_history(("SPY",), period="5y")
+        transition_signals = load_strategy_signal_events()
+        if "SPY" not in transition_history or transition_history["SPY"].empty:
+            st.info("SPY daily history is unavailable; volatility-transition study is waiting for source bars.")
+        else:
+            transition_close = transition_history["SPY"]["Close"]
+            transition_study = build_volatility_transition_study(transition_close, transition_signals)
+            transition_cols = st.columns(3)
+            transition_cols[0].metric("Detected transitions", len(transition_study["transitions"]))
+            transition_cols[1].metric("Signal observations loaded", len(transition_signals))
+            transition_cols[2].metric("Matched response groups", len(transition_study["rows"]))
+            coverage = transition_study["diagnostics"]
+            with st.expander("Signal coverage & exclusions", expanded=True):
+                coverage_cols = st.columns(4)
+                coverage_cols[0].metric("Matched signals", coverage["matched_signals"])
+                coverage_cols[1].metric("Valid outcome observations", coverage["valid_outcome_observations"])
+                coverage_cols[2].metric("Dates outside SPY history", coverage["date_not_in_spy_history"])
+                coverage_cols[3].metric("No prior transition", coverage["no_prior_transition"])
+                st.caption(
+                    f"Loaded {coverage['signals_total']} signals · "
+                    f"{coverage['invalid_signal_dates']} invalid dates · "
+                    f"{coverage['transition_day_excluded']} transition-day signals excluded · "
+                    f"{coverage['outside_20_session_window']} older than 20 sessions · "
+                    f"{coverage['signals_with_valid_outcomes']} matched signals had at least one valid stored outcome. "
+                    "Signals are assigned only to the latest preceding transition, so overlapping windows are not double-counted."
+                )
+            transition_cols = st.columns(2)
+            transition_cols[0].metric("High-volatility sessions", int((transition_study["regime"] == "HIGH").sum()))
+            transition_cols[1].metric("Baseline sessions", int((transition_study["regime"] == "BASELINE").sum()))
+            if transition_study["transitions"]:
+                transition_frame = pd.DataFrame(transition_study["transitions"]).tail(12)
+                st.dataframe(transition_frame, use_container_width=True, hide_index=True)
+            if transition_study["rows"]:
+                response_frame = pd.DataFrame(transition_study["rows"])
+                st.dataframe(response_frame, use_container_width=True, hide_index=True)
+            else:
+                st.info("No signal outcomes currently align to the first 20 sessions after a detected SPY volatility transition. More history or matched observations are needed.")
+            st.caption("Age buckets are measured in SPY trading sessions after each transition: session 1, sessions 2–5, 6–10, and 11–20. Rows are grouped by transition direction, setup, and persisted 1d/5d/10d/20d outcome horizon. Samples under 30 are exploratory; this is not a readiness score or trading instruction.")
+    except Exception as exc:
+        st.warning(f"Volatility-transition research is temporarily unavailable: {type(exc).__name__}")
+
+    replay_df = pd.DataFrame(replay_rows)
+    context_df = pd.DataFrame(signal_context)
+    if not replay_df.empty and not context_df.empty:
+        replay_df = replay_df.merge(context_df, how="left", left_on="event_id", right_on="id", suffixes=("", "_signal"))
+    if replay_df.empty:
+        st.info("No replay evidence is available yet. Achievements will appear as completed simulated outcomes are recorded.")
+    else:
+        for col in ("net_realized_pnl", "return_pct", "entry_price", "exit_price", "quantity"):
+            if col in replay_df:
+                replay_df[col] = pd.to_numeric(replay_df[col], errors="coerce")
+        closed_status = replay_df["status"].astype(str).str.upper().str.startswith("CLOSED")
+        closed = replay_df[closed_status & replay_df["net_realized_pnl"].notna()].copy()
+        open_count = int((~closed_status).sum())
+        closed_missing_pnl_count = int((closed_status & replay_df["net_realized_pnl"].isna()).sum())
+        if not closed.empty:
+            closed["is_win"] = closed["net_realized_pnl"] > 0
+            closed["result_data"] = closed["result"].apply(lambda value: value if isinstance(value, dict) else {})
+            closed["sizing_data"] = closed["result_data"].apply(lambda value: value.get("sizing") or {})
+            def _within_recorded_risk_budget(sizing):
+                """Fail closed on missing, malformed, non-finite, or non-positive risk budgets."""
+                if not isinstance(sizing, dict) or sizing.get("status") != "SIZED":
+                    return False
+                try:
+                    projected = float(sizing.get("projected_position_risk"))
+                    budget = float(sizing.get("trade_risk_budget"))
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                return bool(np.isfinite(projected) and np.isfinite(budget) and budget > 0 and 0 <= projected <= budget)
+
+            closed["risk_disciplined"] = closed["sizing_data"].apply(_within_recorded_risk_budget)
+            n_closed = len(closed)
+            wins = int(closed["is_win"].sum())
+            win_rate = wins / n_closed * 100
+            total_pnl = float(closed["net_realized_pnl"].sum())
+            avg_return = float(closed["return_pct"].mean()) if closed["return_pct"].notna().any() else np.nan
+            discipline_rate = float(closed["risk_disciplined"].mean() * 100)
+            sequence_risk = replay_sequence_risk_metrics(closed.to_dict("records"))
+            # A transparent process score: risk-budget adherence (50%), win rate (25%),
+            # and positive aggregate replay P/L (25%). It is descriptive, not predictive.
+            pnl_component = 25.0 if total_pnl > 0 else (12.5 if total_pnl == 0 else 0.0)
+            score = int(round(50 * discipline_rate / 100 + 25 * win_rate / 100 + pnl_component))
+            grade = "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "Needs work"
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Process score", f"{score}/100", grade)
+            m2.metric("Closed replay outcomes", f"{n_closed}", f"{open_count} open / unresolved · {closed_missing_pnl_count} closed missing P/L")
+            m3.metric("Replay win rate", f"{win_rate:.1f}%")
+            m4.metric("Net simulated P/L", f"${total_pnl:,.2f}")
+            st.progress(max(0.0, min(1.0, score / 100)), text=f"Process score · {grade}")
+            st.caption(f"Risk-budget adherence: {discipline_rate:.1f}% · Average closed replay return: {avg_return:.2f}% · Formula: 50% risk adherence + 25% win rate + 25% aggregate P/L sign. Current sample: {n_closed} closed outcomes.")
+            st.markdown("#### 🧯 Loss-streak & drawdown intelligence")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Current consecutive losses", sequence_risk["current_loss_streak"])
+            r2.metric("Longest loss streak", sequence_risk["max_loss_streak"])
+            r3.metric("Replay sequence drawdown", f"${sequence_risk['max_sequence_drawdown']:,.2f}")
+            st.caption("These are chronological isolated-replay diagnostics, ordered by exit date. Replay events are independently sized and are not netted into a portfolio; this is not Alpaca account drawdown or a portfolio-equity curve.")
+            st.markdown("#### 🎖️ Achievements")
+            achievements = [
+                ("🛡️ Risk-aware operator", "At least 90% of closed replays stayed within their recorded per-trade risk budget.", discipline_rate >= 90 and n_closed >= 5),
+                ("🎯 First ten evaluated", "Ten closed simulated outcomes recorded.", n_closed >= 10),
+                ("🏅 Fifty-trade sample", "Fifty closed simulated outcomes recorded; enough to begin more meaningful comparisons.", n_closed >= 50),
+                ("🔥 Positive replay aggregate", "Aggregate net simulated P/L is positive across closed outcomes.", total_pnl > 0 and n_closed >= 10),
+                ("🧠 Model diversity", "At least three distinct replay model versions have been evaluated.", closed["model_version"].nunique() >= 3),
+            ]
+            ach_cols = st.columns(2)
+            for idx, (name, detail, earned) in enumerate(achievements):
+                with ach_cols[idx % 2]:
+                    if earned:
+                        st.success(f"{name} · UNLOCKED\n\n{detail}")
+                    else:
+                        st.info(f"{name} · IN PROGRESS\n\n{detail}")
+            st.markdown("#### 📊 Strategy / model leaderboard")
+            leaderboard = (
+                closed.groupby("model_version", dropna=False)
+                .agg(Closed=("id", "count"), Win_Rate=("is_win", "mean"),
+                     Net_PnL=("net_realized_pnl", "sum"), Avg_Return=("return_pct", "mean"),
+                     Risk_Adherence=("risk_disciplined", "mean"))
+                .reset_index()
+            )
+            leaderboard = leaderboard[leaderboard["Closed"] >= 5].copy()
+            if leaderboard.empty:
+                st.caption("Leaderboard rankings unlock at five closed outcomes per model. This prevents tiny samples from looking like proven winners.")
+            else:
+                leaderboard["Win rate %"] = leaderboard.pop("Win_Rate") * 100
+                leaderboard["Risk adherence %"] = leaderboard.pop("Risk_Adherence") * 100
+                leaderboard["Average return %"] = leaderboard.pop("Avg_Return")
+                leaderboard = leaderboard.rename(columns={"model_version": "Model", "Closed": "Closed outcomes", "Net_PnL": "Net simulated P/L"})
+                leaderboard = leaderboard.sort_values(["Net simulated P/L", "Win rate %"], ascending=False)
+                st.dataframe(leaderboard, use_container_width=True, hide_index=True)
+            st.markdown("#### 🧭 Setup & volatility-regime intelligence")
+            st.caption("Each segment is linked to its original signal. Rankings require at least five closed replay outcomes; smaller samples remain unranked.")
+            for dimension, heading in (("setup_type", "Setup leaderboard"), ("market_regime", "Market-regime leaderboard")):
+                if dimension not in closed.columns:
+                    continue
+                segment = closed[closed[dimension].notna()].copy()
+                if segment.empty:
+                    continue
+                summary = segment.groupby(dimension).agg(Closed=("id", "count"), Wins=("is_win", "sum"), Net_PnL=("net_realized_pnl", "sum"), Avg_Return=("return_pct", "mean")).reset_index()
+                summary["Win rate %"] = summary["Wins"] / summary["Closed"] * 100
+                summary["Evidence"] = np.where(summary["Closed"] >= 5, "Rank eligible", "Early sample")
+                summary = summary.rename(columns={dimension: "Segment", "Closed": "Closed outcomes", "Net_PnL": "Net simulated P/L", "Avg_Return": "Average return %"}).sort_values("Closed outcomes", ascending=False)
+                st.markdown("**" + heading + "**")
+                st.dataframe(summary[["Segment", "Closed outcomes", "Wins", "Win rate %", "Average return %", "Net simulated P/L", "Evidence"]], use_container_width=True, hide_index=True)
+                for _, row in summary[summary["Closed outcomes"] >= 5].iterrows():
+                    if row["Average return %"] < 0:
+                        st.warning(str(row["Segment"]) + ": negative average replay return (" + format(row["Average return %"], ".2f") + "%). Flagged for research only; no strategy settings or permissions are changed.")
+                    elif row["Average return %"] > 0:
+                        st.success(str(row["Segment"]) + ": positive average replay return (" + format(row["Average return %"], ".2f") + "%). Observational, not proof of an edge.")
+            if "market_regime" in closed.columns and closed["market_regime"].dropna().nunique() < 2:
+                st.caption("Only one market regime is represented in closed replays; regime-to-regime comparisons are not yet supported.")
+
+            st.markdown("#### 🧾 Recent evaluated outcomes")
+            recent = closed.sort_values("updated_at", ascending=False).head(20)
+            display = recent[["symbol", "model_version", "status", "entry_date", "exit_date", "net_realized_pnl", "return_pct", "risk_disciplined"]].copy()
+            display = display.rename(columns={"symbol": "Symbol", "model_version": "Model", "status": "Replay result", "entry_date": "Entry", "exit_date": "Exit", "net_realized_pnl": "Net simulated P/L", "return_pct": "Return %", "risk_disciplined": "Within risk budget"})
+            st.dataframe(display, use_container_width=True, hide_index=True)
+            st.caption("Scoring is descriptive and sample-size aware. Open/unresolved replays are excluded from win rate and realized P/L. No XP, badge, grade, or leaderboard position changes strategy readiness, sizing, risk gates, or order routing.")
+        else:
+            st.info(f"{len(replay_df)} replay records found, but none has a closed outcome with realized simulated P/L yet. Open and unresolved records are not scored as wins or losses.")
+

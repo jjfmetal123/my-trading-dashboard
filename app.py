@@ -559,6 +559,20 @@ def load_latest_paper_trade_decisions():
     return result.data or []
 
 
+@st.cache_data(ttl=15, show_spinner=False)
+def load_latest_alpaca_paper_account_snapshot():
+    """Read the latest worker-persisted GET-only Alpaca paper brokerage snapshot."""
+    client = get_supabase_client()
+    result = (
+        client.table("alpaca_paper_account_snapshots")
+        .select("snapshot_fetched_at,source,status,currency,cash,portfolio_value,buying_power,equity,last_equity,is_market_open,next_open,next_close,positions,open_orders,recent_orders,updated_at")
+        .eq("account_id", "primary-paper-account")
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
 @st.cache_data(ttl=30, show_spinner=False)
 def load_latest_paper_execution_guardrail():
     """Load the latest Alpaca paper-account daily-loss guardrail; read-only."""
@@ -1741,6 +1755,145 @@ with cloud_tab:
                     st.warning(f"Data-quality status: {status}. Review missing symbols and stale prices before relying on rankings.")
                 st.caption(scan_health.get("freshness_method", "Freshness warnings use calendar-day thresholds and may need holiday/provider context."))
                 st.caption(scan_health.get("note", "Coverage is based on symbols with sufficient usable daily history."))
+
+            st.divider()
+            st.markdown("### 🛰️ Alpaca live paper account")
+            st.caption(
+                "Broker-reported account, holdings, and orders from the Alpaca paper API. "
+                "Read-only GET data persisted by the cloud worker; separate from the dashboard's $1,000 virtual simulation."
+            )
+            refresh_broker = st.button("↻ Refresh broker snapshot", key="refresh_alpaca_broker_snapshot")
+            if refresh_broker:
+                load_latest_alpaca_paper_account_snapshot.clear()
+            try:
+                broker_snapshot = load_latest_alpaca_paper_account_snapshot()
+            except Exception as exc:
+                broker_snapshot = None
+                st.error("The Alpaca paper-account snapshot could not be loaded.")
+                st.caption(f"Technical detail: {exc}")
+
+            if not broker_snapshot:
+                st.info(
+                    "No persisted Alpaca broker snapshot is available yet. "
+                    "The worker must be running with the new snapshot migration applied before live broker values appear."
+                )
+            else:
+                snapshot_time = broker_snapshot.get("snapshot_fetched_at")
+                snapshot_age_seconds = None
+                try:
+                    fetched_dt = pd.to_datetime(snapshot_time, utc=True)
+                    snapshot_age_seconds = max(0.0, (pd.Timestamp.now(tz="UTC") - fetched_dt).total_seconds())
+                except Exception:
+                    pass
+                if snapshot_age_seconds is None:
+                    st.warning("Broker snapshot timestamp is invalid; freshness cannot be verified.")
+                elif snapshot_age_seconds > 180:
+                    st.warning(f"Broker snapshot is stale ({snapshot_age_seconds / 60:.1f} minutes old). Do not treat these values as current.")
+                else:
+                    st.success(f"Latest Alpaca paper snapshot · {snapshot_age_seconds:.0f}s old")
+                st.caption(
+                    f"Source: {broker_snapshot.get('source') or 'Alpaca paper API'} · "
+                    f"Fetched: {snapshot_time or 'unknown'} · Persisted: {broker_snapshot.get('updated_at') or 'unknown'}"
+                )
+                if str(broker_snapshot.get("status") or "").upper() not in ("ACTIVE", "ACTIVE_TRADING"):
+                    st.warning(f"Alpaca account status: {broker_snapshot.get('status') or 'UNKNOWN'}")
+
+                def broker_money(value):
+                    try:
+                        return f"{float(value):,.2f}"
+                    except (TypeError, ValueError):
+                        return "Unavailable"
+
+                a1, a2, a3, a4 = st.columns(4)
+                a1.metric("Broker equity", ("$" + broker_money(broker_snapshot.get("equity"))) if broker_snapshot.get("equity") is not None else "Unavailable")
+                a2.metric("Cash", ("$" + broker_money(broker_snapshot.get("cash"))) if broker_snapshot.get("cash") is not None else "Unavailable")
+                a3.metric("Buying power", ("$" + broker_money(broker_snapshot.get("buying_power"))) if broker_snapshot.get("buying_power") is not None else "Unavailable")
+                a4.metric("Portfolio value", ("$" + broker_money(broker_snapshot.get("portfolio_value"))) if broker_snapshot.get("portfolio_value") is not None else "Unavailable")
+                market_state = "OPEN" if broker_snapshot.get("is_market_open") is True else "CLOSED" if broker_snapshot.get("is_market_open") is False else "UNKNOWN"
+                st.caption(
+                    f"Broker status: {broker_snapshot.get('status') or 'Unknown'} · "
+                    f"Market clock: {market_state} · "
+                    f"Next open: {broker_snapshot.get('next_open') or '—'} · "
+                    f"Next close: {broker_snapshot.get('next_close') or '—'} · "
+                    f"Currency: {broker_snapshot.get('currency') or '—'}"
+                )
+
+                positions = broker_snapshot.get("positions") or []
+                st.markdown(f"#### Open positions ({len(positions)})")
+                if positions:
+                    position_df = pd.DataFrame(positions)
+                    position_columns = [x for x in [
+                        "symbol", "qty", "side", "avg_entry_price", "current_price",
+                        "market_value", "cost_basis", "unrealized_pl", "unrealized_plpc",
+                        "asset_class", "change_today"
+                    ] if x in position_df.columns]
+                    position_df = position_df[position_columns].rename(columns={
+                        "symbol": "Symbol", "qty": "Quantity", "side": "Side",
+                        "avg_entry_price": "Avg entry", "current_price": "Current price",
+                        "market_value": "Market value", "cost_basis": "Cost basis",
+                        "unrealized_pl": "Unrealized P/L", "unrealized_plpc": "Unrealized P/L %",
+                        "asset_class": "Asset class", "change_today": "Today's change"
+                    })
+                    st.dataframe(position_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Alpaca reports no open positions.")
+
+                open_orders = broker_snapshot.get("open_orders") or []
+                st.markdown(f"#### Working orders ({len(open_orders)})")
+                if open_orders:
+                    order_rows = []
+                    for order in open_orders:
+                        order_rows.append({
+                            "Symbol": order.get("symbol"), "Side": order.get("side"),
+                            "Status": order.get("status"), "Type": order.get("type"),
+                            "Quantity": order.get("qty"), "Filled": order.get("filled_qty"),
+                            "Limit price": order.get("limit_price"), "Stop price": order.get("stop_price"),
+                            "Order class": order.get("order_class"), "Order ID": order.get("id"),
+                            "Submitted": order.get("submitted_at")
+                        })
+                        for leg in order.get("legs") or []:
+                            if isinstance(leg, dict):
+                                order_rows.append({
+                                    "Symbol": leg.get("symbol") or order.get("symbol"),
+                                    "Side": leg.get("side"), "Status": leg.get("status"),
+                                    "Type": leg.get("type"), "Quantity": leg.get("qty"),
+                                    "Filled": leg.get("filled_qty"), "Limit price": leg.get("limit_price"),
+                                    "Stop price": leg.get("stop_price"),
+                                    "Order class": "BRACKET LEG", "Order ID": leg.get("id"),
+                                    "Submitted": leg.get("submitted_at")
+                                })
+                    st.dataframe(pd.DataFrame(order_rows), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Alpaca reports no currently working orders.")
+
+                recent_orders = broker_snapshot.get("recent_orders") or []
+                st.markdown(f"#### Recent order history ({len(recent_orders)} of up to 100)")
+                if recent_orders:
+                    recent_df = pd.DataFrame(recent_orders)
+                    recent_columns = [x for x in [
+                        "symbol", "side", "lifecycle_state", "type", "order_class",
+                        "qty", "filled_qty", "remaining_qty", "filled_avg_price",
+                        "limit_price", "stop_price", "submitted_at", "updated_at", "filled_at",
+                        "canceled_at", "id", "replaces", "replaced_by"
+                    ] if x in recent_df.columns]
+                    recent_df = recent_df[recent_columns].rename(columns={
+                        "symbol": "Symbol", "side": "Side", "lifecycle_state": "Lifecycle",
+                        "type": "Type", "order_class": "Order class", "qty": "Quantity",
+                        "filled_qty": "Filled", "remaining_qty": "Remaining",
+                        "filled_avg_price": "Avg fill price", "limit_price": "Limit price",
+                        "stop_price": "Stop price", "submitted_at": "Submitted",
+                        "updated_at": "Updated", "filled_at": "Filled at",
+                        "canceled_at": "Canceled at", "id": "Order ID",
+                        "replaces": "Replaces", "replaced_by": "Replaced by"
+                    })
+                    st.dataframe(recent_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No recent broker order history was included in this snapshot.")
+                st.caption(
+                    "Broker values are reported by Alpaca paper trading, not simulated. "
+                    "This panel does not submit, replace, or cancel orders. "
+                    "Unrealized P/L is broker-reported; realized P/L is not inferred from account equity."
+                )
 
             st.divider()
             st.markdown("### 🤖 Alpaca paper-trading decisions")

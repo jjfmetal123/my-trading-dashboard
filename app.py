@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, build_volatility_transition_study, deoverlap_events, replay_sequence_risk_metrics
+from dashboard_validation_diagnostics import build_edge_diagnostics, build_volatility_transition_study, deoverlap_events, replay_sequence_risk_metrics
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")

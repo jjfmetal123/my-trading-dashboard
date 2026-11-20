@@ -131,5 +131,26 @@ class ValidationDiagnosticsTests(unittest.TestCase):
         self.assertTrue(all(row["Sessions after transition"] == "1 session" for row in result["rows"]))
 
 
+    def test_volatility_transition_requires_full_prior_lookback_and_valid_config(self):
+        import pandas as pd
+        from validation_diagnostics import build_volatility_transition_study
+        index = pd.bdate_range("2024-01-02", periods=100)
+        close = pd.Series([100 + i * 0.1 for i in range(100)], index=index)
+        result = build_volatility_transition_study(close, [], vol_window=5, lookback=30)
+        # The threshold is shifted one session and needs a full 30-volatility-observation lookback.
+        first_valid = result["regime"].first_valid_index()
+        self.assertIsNotNone(first_valid)
+        self.assertGreaterEqual(index.get_loc(first_valid), 35)
+        for kwargs in (
+            {"quantile": float("nan")},
+            {"quantile": 1.5},
+            {"horizons": ("5d", "5d")},
+            {"horizons": ("0d",)},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    build_volatility_transition_study(close, [], vol_window=5, lookback=30, **kwargs)
+
+
 if __name__ == "__main__":
     unittest.main()

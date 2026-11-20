@@ -675,3 +675,11 @@ When the user says **“Resume the trading project”**:
 - PR #9 remains stacked/draft/unmerged at `8ff9cc682f46d8a2291d69348ce9c7dbb5ad374d`; latest recorded CI is 481 tests. PR #7 remains stacked/draft on the dashboard side. Neither should be merged independently.
 - No changes were made to production, Render configuration, paper switch, brokerage account, existing ORLY position/orders, strategy gates, sizing, stops, or live credentials. Paper-only boundary remains intact.
 - Next major engineering batch: (1) validate PR #29 under simulated slow scans, DB failures, stale snapshots, and shutdown races; (2) fix/test PR #28 collector fairness and retry semantics; (3) finish PR #9 persisted-row calendar-provenance and holdout-purge end-to-end tests; (4) re-run complete CI on final heads; (5) update this handoff. Do not merge/deploy without explicit approval.
+
+
+## 2026-11-20 continuation — PR #28 collector backlog fairness
+
+- Code review identified a starvation mode in the shadow-outcome collector: selecting the newest 500 decision rows on each five-minute pass, while refreshing `updated_at` for pending rows, could repeatedly select the same newest batch and leave older pending rows unprocessed.
+- Worker PR #28 was updated at commit `da04e08afba5bf3731a2e25347058c50237d86e6`: the collector now excludes rows whose `near_miss_future_outcomes_status` is already `MATURED` and selects the oldest pending rows first. Successful CAS updates advance their timestamps, moving those rows behind untouched backlog rows on the next pass.
+- PR #28 description records the fairness change and explicitly distinguishes previous green CI (459 tests at `a032382ba18e4e38fa674f6a1677ce829733bbd1`) from the new head. No CI run for the new head was visible at the time of this update; rerun/verify the full suite before treating this change as validated.
+- PR #28 remains open/unmerged/undeployed. No production deployment, paper switch, strategy policy, order handling, or broker account changes.

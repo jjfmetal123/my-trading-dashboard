@@ -1699,10 +1699,16 @@ with cloud_tab:
                     if displacement_rows:
                         st.markdown("**Transition-date displacement versus baseline**")
                         st.dataframe(pd.DataFrame(displacement_rows), use_container_width=True, hide_index=True)
+                    coverage_start = full_history_state.get("history_start_date") or "not reported"
+                    coverage_end = full_history_state.get("history_end_date") or "not reported"
+                    coverage_period = full_history_state.get("history_period") or "not reported"
+                    stable_index = full_history_state.get("stable_market_session_index")
+                    index_label = "stable indexed SPY sessions" if stable_index is True else "date-based fallback; stable index not verified"
                     st.caption(
                         f"Baseline: {full_history_display.get('baseline_configuration', 'not reported')}. "
+                        f"SPY history coverage: {coverage_start} through {coverage_end} ({coverage_period}); {index_label}. "
                         "Occupancy uses all available SPY sessions with a known point-in-time label; unknown sessions are shown separately. "
-                        "Transition dates are matched one-to-one by transition direction/type within a 20-session window, then measured in trading-session index units. "
+                        "Transition dates are matched one-to-one by transition direction/type within a 20-session window. "
                         "These are descriptive definition-sensitivity diagnostics, not return-based threshold selection or trading signals."
                     )
                 else:

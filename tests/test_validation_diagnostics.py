@@ -29,6 +29,10 @@ def valid_full_history_payload():
             "status": "AVAILABLE",
         }],
         "method": "FULL_AVAILABLE_SPY_SESSION_HISTORY_POINT_IN_TIME_NO_RETURN_BASED_SELECTION",
+        "history_start_date": "1993-01-29",
+        "history_end_date": "2026-11-20",
+        "history_period": "max",
+        "stable_market_session_index": True,
         "authority": "NONE",
         "decision_authority": "NONE",
     }
@@ -39,6 +43,10 @@ class ValidationDiagnosticsTests(unittest.TestCase):
         display = full_history_display_rows(valid_full_history_payload())
         self.assertTrue(display["state"]["available"])
         self.assertEqual(display["baseline_configuration"], "BASELINE")
+        self.assertEqual(display["state"]["history_start_date"], "1993-01-29")
+        self.assertEqual(display["state"]["history_end_date"], "2026-11-20")
+        self.assertEqual(display["state"]["history_period"], "max")
+        self.assertTrue(display["state"]["stable_market_session_index"])
         self.assertEqual(display["occupancy_rows"][0]["Known / unknown"], "90 / 10")
         self.assertEqual(display["occupancy_rows"][0]["LOW / NORMAL / HIGH (%)"], "25.0 / 50.0 / 25.0")
         self.assertEqual(display["occupancy_rows"][0]["NORMAL→HIGH"], 5)

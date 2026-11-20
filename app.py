@@ -474,55 +474,11 @@ def get_supabase_client():
         raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in Streamlit Secrets.")
     return create_client(str(url), str(secret_key))
 
-def account_payload():
-    return {
-        "account_id": ACCOUNT_ID,
-        "cash": round(float(st.session_state.paper_cash), 2),
-        "realized_pnl": round(float(st.session_state.realized_pnl), 2),
-        "positions": st.session_state.paper_positions,
-        "journal": st.session_state.paper_journal,
-        "updated_at": datetime.now().astimezone().isoformat(),
-    }
-
-def save_account():
-    db.table("paper_account").upsert(account_payload(), on_conflict="account_id").execute()
-
-
-def save_daily_snapshot(prices):
-    """Upsert one end-of-day-style snapshot per app-server calendar date.
-
-    Repeated app runs on the same date update that date's row instead of
-    creating duplicate daily observations. This is not a scheduled process.
-    """
-    positions = st.session_state.paper_positions
-    position_value = sum(
-        float(pos.get("quantity", 0.0)) * float(prices.get(sym, pos.get("average_price", 0.0)))
-        for sym, pos in positions.items()
-    )
-    unrealized = sum(
-        (float(prices.get(sym, pos.get("average_price", 0.0))) - float(pos.get("average_price", 0.0)))
-        * float(pos.get("quantity", 0.0))
-        for sym, pos in positions.items()
-    )
-    cash = float(st.session_state.paper_cash)
-    equity = cash + position_value
-    snapshot_date = date.today().isoformat()
-    payload = {
-        "account_id": ACCOUNT_ID,
-        "snapshot_date": snapshot_date,
-        "cash": round(cash, 2),
-        "position_value": round(position_value, 2),
-        "equity": round(equity, 2),
-        "realized_pnl": round(float(st.session_state.realized_pnl), 2),
-        "unrealized_pnl": round(unrealized, 2),
-        "positions": positions,
-        "updated_at": datetime.now().astimezone().isoformat(),
-    }
-    db.table("paper_account_snapshots").upsert(
-        payload, on_conflict="account_id,snapshot_date"
-    ).execute()
-    return payload
-
+def load_snapshot_history():
+    """Read preserved snapshots from the retired virtual account archive."""
+    result = (db.table("paper_account_snapshots").select("snapshot_date,equity,cash,position_value,realized_pnl,unrealized_pnl")
+              .eq("account_id", ACCOUNT_ID).order("snapshot_date").execute())
+    return result.data or []
 
 def load_snapshot_history():
     result = (db.table("paper_account_snapshots").select("snapshot_date,equity,cash,position_value,realized_pnl,unrealized_pnl")
@@ -657,6 +613,8 @@ def load_strategy_signal_events():
     )
     return result.data or []
 
+# The legacy $1,000 Supabase virtual account is retired. Load it read-only
+# for archived performance/history; never create, reset, trade, or write to it.
 paper_account_available = True
 paper_account_error = None
 try:
@@ -665,44 +623,29 @@ try:
         result = db.table("paper_account").select("*").eq("account_id", ACCOUNT_ID).limit(1).execute()
         if result.data:
             saved = result.data[0]
-            st.session_state.paper_cash = float(saved["cash"])
-            st.session_state.realized_pnl = float(saved["realized_pnl"])
+            st.session_state.paper_cash = float(saved.get("cash") or 0.0)
+            st.session_state.realized_pnl = float(saved.get("realized_pnl") or 0.0)
             st.session_state.paper_positions = saved.get("positions") or {}
             st.session_state.paper_journal = saved.get("journal") or []
+            st.session_state.paper_account_updated_at = saved.get("updated_at")
         else:
-            # One-time migration of the user's confirmed first AAPL paper trade.
-            # Original $1,000 less 0.9460 x $351.86 = $667.14044 cash.
-            st.session_state.paper_cash = 667.14
-            st.session_state.realized_pnl = 0.00
-            st.session_state.paper_positions = {
-                "AAPL": {
-                    "quantity": 0.9460,
-                    "average_price": 351.86,
-                    "stop_price": 341.2945,
-                    "target_price": 372.9910,
-                }
-            }
-            st.session_state.paper_journal = [{
-                "Time": "2026-11-16 20:34 UTC",
-                "Action": "BUY",
-                "Symbol": "AAPL",
-                "Quantity": 0.9460,
-                "Reference price": 351.86,
-                "Value": 332.85956,
-                "Realized P/L": 0.0,
-            }]
-            save_account()
+            # Missing archive means empty history, not permission to recreate it.
+            st.session_state.paper_cash = 0.0
+            st.session_state.realized_pnl = 0.0
+            st.session_state.paper_positions = {}
+            st.session_state.paper_journal = []
+            st.session_state.paper_account_updated_at = None
         st.session_state.paper_db_loaded = True
 except Exception as exc:
     paper_account_available = False
     paper_account_error = exc
-    st.error("The saved virtual paper account is unavailable. No account values were reset or recreated, and account-changing actions are disabled for this session.")
-    st.caption(f"Supabase error type: {type(exc).__name__}. Check the connection and database permissions.")
+    st.error("Archived virtual-account history could not be loaded. No account was recreated or changed.")
+    st.caption(f"Supabase error type: {type(exc).__name__}. Check the read-only history connection.")
 
 if paper_account_available:
-    st.sidebar.success("Paper account connected · changes save automatically")
+    st.sidebar.info("Legacy $1,000 virtual account retired · archive is read-only")
 else:
-    st.sidebar.error("Virtual paper account unavailable · trading disabled")
+    st.sidebar.warning("Legacy virtual-account archive unavailable · no trading controls")
 
 with st.sidebar:
     st.header("Scanner settings")
@@ -802,7 +745,7 @@ def _safe_format_number(value, template):
         return "—"
     return template.format(number)
 
-command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "💵 $1,000 paper account", "📈 Performance", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner"])
+command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "🗃️ Retired virtual account", "📚 Archived performance", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner"])
 
 with command_tab:
     @st.fragment(run_every="60s")
@@ -3457,377 +3400,23 @@ with paper_tab:
         st.error("Virtual account controls are disabled because the saved account could not be verified.")
         st.caption("Reconnect Supabase and reload this page. No trades, automatic exits, or resets are permitted while account state is unavailable.")
     elif data.empty:
-        st.warning("The saved account is available, but price-dependent monitoring and trade entry are paused until market data returns.")
-        st.caption("Account values and journal are preserved; no simulated trades or automatic exits are processed without market prices.")
+        st.warwith paper_tab:
+    st.subheader("🗃️ Legacy $1,000 virtual account — retired")
+    st.info(
+        "This Supabase simulation account is retired. Its historical positions, journal, and "
+        "performance snapshots are preserved, but this dashboard no longer opens, closes, resets, "
+        "or monitors simulated positions in it. All new paper-trading activity belongs in Alpaca Paper Trading."
+    )
+    if paper_account_available:
+        archived_positions = st.session_state.get("paper_positions") or {}
+        archived_journal = st.session_state.get("paper_journal") or []
+        st.caption(
+            f"Archived record only · {len(archived_positions)} position record(s) · "
+            f"{len(archived_journal)} journal entr(y/ies) · "
+            f"last saved: {st.session_state.get('paper_account_updated_at') or 'not recorded'}"
+        )
     else:
-        st.subheader("Virtual account")
-        st.info("Simulation only. Scanner and trade-entry references use Yahoo Finance DAILY bars. Open positions are separately checked against frequently refreshed one-minute Yahoo Finance bars while this dashboard session remains open. Neither feed is a guaranteed real-time executable quote. Your paper account is saved in Supabase.")
-        prices = dict(zip(data["Symbol"], data["Last"]))
-        @st.fragment(run_every="60s")
-        def render_intraday_exit_monitor():
-            st.markdown("#### Intraday exit monitor")
-            st.caption(
-                "Checks one-minute Yahoo Finance bars about once per minute while this dashboard session is open. "
-                "It stops checking when the dashboard is closed. Quotes may be delayed or missing; this is paper simulation only."
-            )
-            held = dict(st.session_state.paper_positions)
-            if not held:
-                st.info("No open positions to monitor.")
-                return
-    
-            try:
-                bars_by_symbol = load_intraday_bars(tuple(sorted(held.keys())))
-            except Exception as exc:
-                st.warning(f"Intraday data could not be refreshed. No automatic exit was recorded. Details: {exc}")
-                return
-    
-            now_utc = pd.Timestamp.now(tz="UTC")
-            original_cash = float(st.session_state.paper_cash)
-            original_realized = float(st.session_state.realized_pnl)
-            original_positions = json.loads(json.dumps(st.session_state.paper_positions))
-            original_journal = json.loads(json.dumps(st.session_state.paper_journal))
-            quote_rows = []
-            stale_symbols = []
-            triggered = []
-    
-            for sym, pos in held.items():
-                frame = bars_by_symbol.get(sym)
-                if frame is None or frame.empty:
-                    quote_rows.append({
-                        "Symbol": sym, "Intraday price": None, "Bar low": None, "Bar high": None,
-                        "Stop": pos.get("stop_price"), "2R target": pos.get("target_price"), "Last bar time": "Unavailable",
-                        "Data age": "—", "Monitor": "NO DATA — no auto-exit"
-                    })
-                    stale_symbols.append(sym)
-                    continue
-    
-                row = frame.dropna(subset=["Close"]).iloc[-1]
-                bar_time = pd.Timestamp(frame.dropna(subset=["Close"]).index[-1])
-                if bar_time.tzinfo is None:
-                    bar_time = bar_time.tz_localize("America/New_York")
-                bar_utc = bar_time.tz_convert("UTC")
-                age_seconds = max(0.0, (now_utc - bar_utc).total_seconds())
-                fresh = age_seconds <= 300
-    
-                close_px = float(row["Close"])
-                open_px = float(row["Open"]) if "Open" in row and pd.notna(row["Open"]) else close_px
-                low_px = float(row["Low"]) if "Low" in row and pd.notna(row["Low"]) else close_px
-                high_px = float(row["High"]) if "High" in row and pd.notna(row["High"]) else close_px
-                stop_level = float(pos["stop_price"]) if pos.get("stop_price") is not None else None
-                target_level = float(pos["target_price"]) if pos.get("target_price") is not None else None
-                local_bar_time = bar_time.tz_convert(datetime.now().astimezone().tzinfo)
-                monitor_status = "MONITORING" if fresh else "STALE — no auto-exit"
-    
-                # Never trigger from stale bars. If both stop and target are touched
-                # in the same one-minute candle, assume the stop happened first.
-                exit_reason = None
-                trigger_price = None
-                estimated_fill = None
-                gap_note = ""
-                if fresh:
-                    if stop_level is not None and low_px <= stop_level:
-                        exit_reason = "STOP (intraday)"
-                        trigger_price = stop_level
-                        estimated_fill = open_px if open_px < stop_level else stop_level
-                        if open_px < stop_level:
-                            gap_note = "Opened below stop; estimated fill uses bar open (gap-through)."
-                        else:
-                            gap_note = "Estimated fill at stop; actual execution can differ."
-                    elif target_level is not None and high_px >= target_level:
-                        exit_reason = "TARGET (intraday)"
-                        trigger_price = target_level
-                        estimated_fill = open_px if open_px > target_level else target_level
-                        gap_note = "Target touched; estimated fill uses target/open, not a broker fill."
-    
-                quote_rows.append({
-                    "Symbol": sym, "Intraday price": close_px, "Bar low": low_px,
-                    "Bar high": high_px, "Stop": stop_level, "2R target": target_level,
-                    "Last bar time": local_bar_time.strftime("%b %d %I:%M:%S %p %Z"),
-                    "Data age": f"{age_seconds / 60:.1f} min",
-                    "Monitor": monitor_status
-                })
-                if not fresh:
-                    stale_symbols.append(sym)
-    
-                if exit_reason:
-                    qty = float(pos.get("quantity", 0.0))
-                    avg = float(pos.get("average_price", 0.0))
-                    proceeds = qty * float(estimated_fill)
-                    pnl = (float(estimated_fill) - avg) * qty
-                    now_local = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
-                    st.session_state.paper_cash += proceeds
-                    st.session_state.realized_pnl += pnl
-                    st.session_state.paper_journal.insert(0, {
-                        "Time": now_local,
-                        "Action": "AUTO " + exit_reason,
-                        "Symbol": sym,
-                        "Quantity": qty,
-                        "Trigger price": float(trigger_price),
-                        "Observed execution price": float(estimated_fill),
-                        "Last bar close": close_px,
-                        "Quote bar time": local_bar_time.isoformat(),
-                        "Data source": "Yahoo Finance 1-minute OHLC",
-                        "Gap / fill note": gap_note,
-                        "Value": proceeds,
-                        "Realized P/L": pnl
-                    })
-                    st.session_state.paper_journal = st.session_state.paper_journal[:500]
-                    st.session_state.paper_positions.pop(sym, None)
-                    triggered.append(
-                        f"{sym} {exit_reason}: trigger ${trigger_price:,.2f}, estimated fill ${estimated_fill:,.2f}, P/L ${pnl:+,.2f}"
-                    )
-    
-            if triggered:
-                try:
-                    save_account()
-                except Exception as exc:
-                    # Roll back in-memory changes if persistence fails so the next
-                    # rerun cannot silently treat an unsaved exit as completed.
-                    st.session_state.paper_cash = original_cash
-                    st.session_state.realized_pnl = original_realized
-                    st.session_state.paper_positions = original_positions
-                    st.session_state.paper_journal = original_journal
-                    st.error(f"An intraday exit was detected, but saving the paper-account update failed. The simulated account was restored and no exit was recorded: {exc}")
-                    return
-                st.session_state.intraday_exit_notice = " · ".join(triggered)
-                st.rerun()
-    
-            notice = st.session_state.pop("intraday_exit_notice", None)
-            if notice:
-                st.success("Simulated intraday exit recorded: " + notice)
-    
-            if quote_rows:
-                live_df = pd.DataFrame(quote_rows)
-                st.dataframe(
-                    live_df.style.format({
-                        "Intraday price": "${:,.4f}", "Bar low": "${:,.4f}",
-                        "Bar high": "${:,.4f}", "Stop": "${:,.4f}",
-                        "2R target": "${:,.4f}"
-                    }, na_rep="—"),
-                    use_container_width=True, hide_index=True
-                )
-            if stale_symbols:
-                st.warning(
-                    "No automatic exit was evaluated for stale or unavailable intraday data: "
-                    + ", ".join(stale_symbols)
-                    + ". A stale quote is never treated as a fresh trigger."
-                )
-            st.caption(
-                "Simulation method: a fresh one-minute candle touching the stop/target can trigger a paper exit. "
-                "For a stop gap, the estimated fill uses the candle open when it is below the stop; otherwise it uses the stop. "
-                "One-minute OHLC cannot establish the exact tick sequence or a real fill."
-            )
-    
-        render_intraday_exit_monitor()
-        trade_notice = st.session_state.pop("paper_trade_notice", None)
-        if trade_notice:
-            st.success(trade_notice)
-        positions = st.session_state.paper_positions
-        market_value = sum(pos["quantity"] * prices.get(sym, pos["average_price"]) for sym, pos in positions.items())
-        equity = st.session_state.paper_cash + market_value
-        a, b, c, d = st.columns(4)
-        a.metric("Cash available", f'${st.session_state.paper_cash:,.2f}')
-        b.metric("Position value", f"${market_value:,.2f}")
-        c.metric("Account value", f"${equity:,.2f}", f"${equity-1000:+,.2f} vs. start")
-        d.metric("Realized P/L", f'${st.session_state.realized_pnl:+,.2f}')
-        st.markdown("#### Portfolio risk manager")
-        st.caption("Existing positions are kept intact. A separate 1% risk allowance is available for NEW positions opened under this version. The dashboard shows both buckets and their combined estimated stop risk; this policy can temporarily put total account risk above 1%.")
-        open_risk_rows = []
-        unknown_risk_positions = []
-        existing_position_risk = 0.0
-        new_position_risk = 0.0
-        for open_sym, open_pos in st.session_state.paper_positions.items():
-            open_qty = float(open_pos.get("quantity", 0.0))
-            open_entry = float(open_pos.get("average_price", 0.0))
-            open_stop = open_pos.get("stop_price")
-            bucket = open_pos.get("risk_bucket", "existing")
-            bucket_label = "New allocation" if bucket == "new" else "Existing position"
-            if open_stop is None or open_entry <= 0 or float(open_stop) >= open_entry:
-                unknown_risk_positions.append(open_sym)
-                open_risk_rows.append({"Symbol": open_sym, "Risk category": bucket_label, "Quantity": open_qty, "Entry": open_entry, "Stop": open_stop, "Estimated risk to stop": None, "Status": "Risk unavailable — review"})
-            else:
-                one_position_risk = max(0.0, open_entry - float(open_stop)) * open_qty
-                if bucket == "new":
-                    new_position_risk += one_position_risk
-                else:
-                    existing_position_risk += one_position_risk
-                open_risk_rows.append({"Symbol": open_sym, "Risk category": bucket_label, "Quantity": open_qty, "Entry": open_entry, "Stop": float(open_stop), "Estimated risk to stop": one_position_risk, "Status": "Estimated"})
-        total_open_risk = existing_position_risk + new_position_risk
-        new_trade_risk_cap = max(0.0, equity * 0.01)
-        remaining_new_risk = max(0.0, new_trade_risk_cap - new_position_risk)
-        pm1, pm2, pm3 = st.columns(3)
-        pm1.metric("Existing-position risk", f"${existing_position_risk:,.2f}")
-        pm2.metric("New-position risk used", f"${new_position_risk:,.2f}")
-        pm3.metric("New-position risk available", f"${remaining_new_risk:,.2f}")
-        pm4, pm5 = st.columns(2)
-        pm4.metric("New-position risk allowance (1%)", f"${new_trade_risk_cap:,.2f}")
-        pm5.metric("Combined estimated open risk", f"${total_open_risk:,.2f}")
-        if open_risk_rows:
-            st.dataframe(pd.DataFrame(open_risk_rows), use_container_width=True, hide_index=True)
-        else:
-            st.caption("No open positions. Existing and new-position risk are both zero.")
-        if unknown_risk_positions:
-            st.error("New simulated buys are blocked until stop risk is reviewed for these open positions: " + ", ".join(unknown_risk_positions))
-        st.info("Policy: the existing AAPL/MSFT positions are classified as existing and are not changed. New positions share one separate 1% risk allowance. Combined risk is always displayed so the distinction is transparent.")
-        st.markdown("#### Risk planner and simulated trade")
-        candidate_symbols = data.loc[data["Signal"] == "BUY CANDIDATE", "Symbol"].tolist()
-        default_symbol = candidate_symbols[0] if candidate_symbols else data.iloc[0]["Symbol"]
-        default_index = data["Symbol"].tolist().index(default_symbol)
-        st.caption("The asset selector starts with the highest-ranked scanner candidate when one exists. A buy plan uses the illustrative stop reference and a 2-to-1 reward/risk target. New positions are entered using the displayed daily reference; open-position exits are monitored separately using one-minute bars while the dashboard session is open.")
-        action = st.selectbox("Action", ["Buy", "Sell"])
-        trade_symbol = st.selectbox("Asset", data["Symbol"].tolist(), index=default_index)
-        selected_signal = data.loc[data["Symbol"] == trade_symbol].iloc[0]
-        estimated_price = float(prices[trade_symbol])
-        price_date = str(selected_signal["Price date"])
-        stop_reference = float(selected_signal["Illustrative risk level"])
-        risk_pct = st.select_slider("Maximum planned account risk per buy", options=[0.5, 1.0, 1.5, 2.0], value=1.0, format_func=lambda x: f"{x:.1f}%")
-        selected_risk_cap = max(0.0, equity * risk_pct / 100.0)
-        # Existing legacy positions are displayed separately and do not consume the
-        # new-position allowance. All positions opened under this policy share one
-        # 1% aggregate allowance.
-        new_position_cap = min(selected_risk_cap, new_trade_risk_cap)
-        risk_budget = max(0.0, new_position_cap - new_position_risk)
-        risk_per_unit = estimated_price - stop_reference
-        target_reference = estimated_price + (2.0 * risk_per_unit) if risk_per_unit > 0 else estimated_price
-        cash_limited_qty = st.session_state.paper_cash / estimated_price if estimated_price > 0 else 0.0
-        if risk_per_unit > 0:
-            risk_limited_qty = risk_budget / risk_per_unit
-            suggested_qty = min(risk_limited_qty, cash_limited_qty)
-            planned_loss = suggested_qty * risk_per_unit
-        else:
-            suggested_qty = 0.0
-            planned_loss = 0.0
-        st.caption(f"Scanner status: {selected_signal['Signal']} — {selected_signal['Signal reason']}")
-        r1, r2, r3, r4, r5 = st.columns(5)
-        r1.metric("Daily reference price", f"${estimated_price:,.2f}")
-        r2.metric("Illustrative stop reference", f"${stop_reference:,.2f}")
-        r3.metric("2R profit target", f"${target_reference:,.2f}")
-        r4.metric("New-position risk available", f"${risk_budget:,.2f}")
-        r5.metric("Estimated position size", f"{suggested_qty:.3f}")
-        if risk_per_unit > 0:
-            st.caption(f"Estimated risk per unit: ${risk_per_unit:,.2f} · Planned new-position risk: ${planned_loss:,.2f} · Existing-position risk: ${existing_position_risk:,.2f} · Already-used new-position risk: ${new_position_risk:,.2f} · Cash available: ${st.session_state.paper_cash:,.2f}")
-            if risk_budget <= 0:
-                st.warning("No remaining new-position risk allowance. A new simulated buy will be blocked until new-position risk falls or the allowance is reviewed.")
-        else:
-            st.error("The calculated stop reference is not below the current price. The risk planner cannot size a long buy for this asset.")
-        st.warning("Important: intraday exits are paper simulations based on Yahoo Finance one-minute bars, not broker stop orders. Monitoring runs about once per minute only while this dashboard session is open. If the app is closed, data is delayed/missing, or price gaps through a stop, losses can exceed the planned amount. Estimated fills are not guaranteed.")
-        with st.form("paper_trade_form"):
-            default_qty = max(0.001, round(suggested_qty, 3)) if action == "Buy" else max(0.001, round(min(st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.001), 1.0), 3))
-            trade_qty = st.number_input("Quantity (fractional shares/units allowed)", min_value=0.001, value=float(default_qty), step=0.1, format="%.3f")
-            acknowledge_price = st.checkbox("I understand this simulated entry uses a daily reference price, not a live executable quote.")
-            preview_clicked = st.form_submit_button("Preview quantity")
-            confirmed = st.form_submit_button(f"Approve simulated {action.lower()}", type="primary")
-        preview_order_value = estimated_price * float(trade_qty)
-        preview_risk = max(0.0, risk_per_unit) * float(trade_qty) if action == "Buy" else 0.0
-        if preview_clicked:
-            st.info(
-                f"PREVIEW ONLY — {trade_qty:.3f} {trade_symbol} · "
-                f"Estimated order value: ${preview_order_value:,.2f} · "
-                f"Estimated added stop risk: ${preview_risk:,.2f} · "
-                f"Daily market-data date: {price_date}. "
-                "Nothing has been bought or sold."
-            )
-            if action == "Buy" and trade_qty > suggested_qty + 1e-6:
-                st.error(f"Preview exceeds the current risk-and-cash limit of {suggested_qty:.3f} units. Reduce the quantity.")
-            elif action == "Buy" and preview_order_value > st.session_state.paper_cash + 1e-8:
-                st.error("Preview exceeds available virtual cash.")
-            elif action == "Sell" and trade_qty > st.session_state.paper_positions.get(trade_symbol, {}).get("quantity", 0.0) + 1e-8:
-                st.error("Preview exceeds the quantity currently held.")
-            else:
-                st.success("Preview is within the displayed quantity, risk, and cash limits. This is not an executed paper trade.")
-        if confirmed and not acknowledge_price:
-            st.error("Please acknowledge that this simulated entry uses a daily reference price before recording the trade.")
-        if confirmed and acknowledge_price:
-            price = float(prices[trade_symbol])
-            cost = price * float(trade_qty)
-            current = st.session_state.paper_positions.get(trade_symbol, {"quantity": 0.0, "average_price": 0.0})
-            if action == "Buy":
-                if unknown_risk_positions:
-                    st.error("Buy blocked: at least one existing position has missing or invalid stop information. Review portfolio risk first.")
-                elif risk_budget <= 0:
-                    st.error("Buy blocked: the separate new-position risk allowance is already fully used.")
-                elif risk_per_unit <= 0:
-                    st.error("Buy blocked: no valid illustrative stop reference is available for this asset.")
-                elif trade_symbol in st.session_state.paper_positions:
-                    st.error("Adding to an existing position is disabled in this prototype. Close the existing position first.")
-                elif float(trade_qty) > suggested_qty + 1e-6:
-                    st.error(f"Buy blocked: quantity exceeds the portfolio-risk-and-cash limit of {suggested_qty:.3f}. Reduce quantity or choose another asset.")
-                elif new_position_risk + (float(trade_qty) * risk_per_unit) > new_position_cap + 1e-6:
-                    st.error("Buy blocked: this order would exceed the separate new-position risk allowance.")
-                elif cost > st.session_state.paper_cash + 1e-8:
-                    st.error("Not enough virtual cash for this purchase.")
-                else:
-                    st.session_state.paper_positions[trade_symbol] = {
-                        "quantity": float(trade_qty),
-                        "average_price": price,
-                        "stop_price": float(stop_reference),
-                        "target_price": float(target_reference),
-                        "risk_bucket": "new"
-                    }
-                    st.session_state.paper_cash -= cost
-                    st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "BUY", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": 0.0})
-                    st.session_state.paper_trade_notice = (
-                        f"Simulated buy recorded: {trade_qty:g} {trade_symbol} at ${price:,.4f}. "
-                        f"Stop rule ${stop_reference:,.2f}; 2R target ${target_reference:,.2f}. Saved to your account."
-                    )
-                    save_account()
-                    st.rerun()
-            else:
-                if float(trade_qty) > current["quantity"] + 1e-8:
-                    st.error("You cannot sell more units than you hold in the virtual account.")
-                elif current["quantity"] <= 0:
-                    st.error("There is no position in this asset to sell.")
-                else:
-                    pnl = (price - current["average_price"]) * float(trade_qty)
-                    remaining = current["quantity"] - float(trade_qty)
-                    if remaining <= 1e-8:
-                        st.session_state.paper_positions.pop(trade_symbol, None)
-                    else:
-                        st.session_state.paper_positions[trade_symbol] = {**current, "quantity": remaining}
-                    st.session_state.paper_cash += cost
-                    st.session_state.realized_pnl += pnl
-                    st.session_state.paper_journal.insert(0, {"Time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"), "Action": "SELL", "Symbol": trade_symbol, "Quantity": float(trade_qty), "Reference price": price, "Value": cost, "Realized P/L": pnl})
-                    st.session_state.paper_trade_notice = (
-                        f"Simulated sale recorded. Realized P/L: ${pnl:+,.2f} before costs. Saved to your account."
-                    )
-                    save_account()
-                    st.rerun()
-        st.markdown("#### Open positions")
-        if st.session_state.paper_positions:
-            position_rows = []
-            for sym, pos in st.session_state.paper_positions.items():
-                mark = prices.get(sym, pos["average_price"])
-                value = pos["quantity"] * mark
-                unrealized = (mark - pos["average_price"]) * pos["quantity"]
-                position_rows.append({"Symbol": sym, "Quantity": pos["quantity"], "Average cost": pos["average_price"], "Daily reference": mark, "Stop rule": pos.get("stop_price"), "2R target": pos.get("target_price"), "Market value": value, "Unrealized P/L": unrealized})
-            st.dataframe(pd.DataFrame(position_rows).style.format({"Quantity": "{:.4f}", "Average cost": "${:,.4f}", "Daily reference": "${:,.4f}", "Stop rule": "${:,.4f}", "2R target": "${:,.4f}", "Market value": "${:,.2f}", "Unrealized P/L": "${:+,.2f}"}), use_container_width=True, hide_index=True)
-        else:
-            st.caption("No virtual positions yet. Your full $1,000 is in cash.")
-        st.markdown("#### Trade journal")
-        if st.session_state.paper_journal:
-            st.dataframe(pd.DataFrame(st.session_state.paper_journal), use_container_width=True, hide_index=True)
-        else:
-            st.caption("Approved simulated trades will appear here.")
-        if st.button("Reset virtual account to $1,000", help="Clears all simulated positions and journal entries."):
-            st.session_state.paper_cash = 1000.00
-            st.session_state.paper_positions = {}
-            st.session_state.paper_journal = []
-            st.session_state.realized_pnl = 0.00
-            save_account()
-            st.rerun()
-    
-    
-    
-        pass
-
-# Record/update today's snapshot after any simulated trade or daily-close exit
-# has been processed. The database unique key prevents duplicate daily rows.
-snapshot_error = None
-snapshot_history = []
-if paper_account_available and not data.empty:
-    try:
-        snapshot_prices = dict(zip(data["Symbol"], data["Last"]))
-        save_daily_snapshot(snapshot_prices)
+        st.warning("The archived record could not be loaded. No replacement account was created.")apshot(snapshot_prices)
         snapshot_history = load_snapshot_history()
     except Exception as exc:
         snapshot_error = exc
@@ -3841,8 +3430,8 @@ with analytics_tab:
     elif data.empty:
         st.warning("Performance price marks are unavailable. Retry the market scan; no estimated equity curve is generated from stale cost basis.")
     else:
-        st.subheader("Paper-trading performance")
-        st.caption("Metrics are calculated from the saved paper-account journal and the latest available DAILY reference prices. They are simulation metrics, not verified live-trading results.")
+        st.subheader("Archived virtual-account performance")
+        st.caption("Read-only historical metrics from the retired $1,000 Supabase simulation account. This is not the Alpaca broker account and no new virtual trades or snapshots are recorded.")
     
         positions_now = st.session_state.paper_positions
         prices_now = dict(zip(data["Symbol"], data["Last"]))

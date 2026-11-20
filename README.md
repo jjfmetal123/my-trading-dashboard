@@ -125,3 +125,20 @@ The unified shadow research panel now displays strategy response at exact sessio
 - Displays unique signal-date coverage, regime-label agreement, transition-label agreement, and observed transition dates for each definition.
 - These are point-in-time classification diagnostics only. No strategy returns are used to select thresholds, and no ranking, sizing, stops, gates, execution, or order authority changes.
 - Requires Worker PR #8 sensitivity metadata and the existing research evidence snapshot pipeline.
+
+
+### Version 3.53 — Full-history volatility sensitivity
+- Adds read-only full-session LOW/NORMAL/HIGH occupancy and unknown-session coverage across the seven pre-specified volatility definitions.
+- Displays transition counts and alternative-definition transition-date displacement versus the unchanged baseline.
+- Diagnostics are descriptive, point-in-time, and have no ranking, sizing, stop, gate, or order authority.
+
+
+### Version 3.54 — Holdout-boundary purge visibility
+- Shows how many training observations are purged because their forward-return windows overlap the chronological holdout period.
+- Keeps the 1/5/10/20-session transition-age and forward-horizon matrix descriptive and shadow-only.
+
+
+### Within-cohort volatility transition-age profiles
+- Displays the 1/5/10/20-session post-transition checkpoints as profiles only within an exact setup, score bucket, trend, current volatility regime, transition type, and forward-horizon cohort.
+- Each checkpoint keeps its holdout difference, confidence interval status, supported holdout years, and annual direction status visible. The profile also reports how many checkpoints have a weekly-block 95% interval wholly below zero.
+- No pooled cross-setup ranking is created; the view remains descriptive and has no trading authority.

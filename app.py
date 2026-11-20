@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, deoverlap_events
+from validation_diagnostics import build_edge_diagnostics, deoverlap_events, full_history_display_rows
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -69,7 +69,7 @@ ASSET_CLASS = {
 }
 
 st.title("📈 AI Market Intelligence")
-st.caption("Version 3.49 · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
+st.caption("Version 3.55 · Volatility-transition response research · Classification sensitivity · Full-history regime occupancy · Transition-date robustness · Broad-market stress scenarios · Historical risk · Portfolio exposure telemetry · Historical portfolio replay · Asset-class attribution · Validation pipeline capture status · Persistent signal validation · Live command center · Cloud scan health · AI research shortlist · Sector rotation intelligence · Portfolio concentration · Historical setup diagnostics · Intraday paper-exit monitor · Expanded multi-market scanner · Supabase-saved paper account")
 st.warning("Research and simulation only—not financial advice. Scanner scores are rules-based. The optional AI analyst provides a second opinion, not a prediction or guarantee. Yahoo Finance data may be delayed, incomplete, or unavailable. This app does not place real orders.")
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1636,6 +1636,7 @@ with cloud_tab:
                             "Transition": pair.get("transition"),
                             "Transition train n": train.get("sample_count"),
                             "Stable train n": stable_train.get("sample_count"),
+                            "Purged training n": pair.get("purged_training_event_count", 0),
                             "Training mean difference (pp)": pair.get("training_mean_return_difference_pp"),
                             "Transition holdout n": hold.get("sample_count"),
                             "Stable holdout n": stable_hold.get("sample_count"),
@@ -1685,6 +1686,48 @@ with cloud_tab:
                     )
                 else:
                     st.info("Volatility classification sensitivity is not available yet. The worker must record signal-date labels under the pre-specified definitions before this panel can populate.")
+                full_history = classification_sensitivity.get("full_history") if isinstance(classification_sensitivity, dict) else {}
+                full_history_display = full_history_display_rows(full_history)
+                full_history_state = full_history_display["state"]
+                st.markdown("#### Full-history volatility regime occupancy and transition-date shifts · shadow-only")
+                if full_history_state["available"]:
+                    st.dataframe(
+                        pd.DataFrame(full_history_display["occupancy_rows"]),
+                        use_container_width=True, hide_index=True
+                    )
+                    displacement_rows = full_history_display["displacement_rows"]
+                    if displacement_rows:
+                        st.markdown("**Transition-date displacement versus baseline**")
+                        st.dataframe(pd.DataFrame(displacement_rows), use_container_width=True, hide_index=True)
+                    coverage_start = full_history_state.get("history_start_date") or "not reported"
+                    coverage_end = full_history_state.get("history_end_date") or "not reported"
+                    coverage_period = full_history_state.get("history_period") or "not reported"
+                    stable_index = full_history_state.get("stable_market_session_index")
+                    index_label = "stable indexed SPY sessions" if stable_index is True else "date-based fallback; stable index not verified"
+                    st.caption(
+                        f"Baseline: {full_history_display.get('baseline_configuration', 'not reported')}. "
+                        f"SPY history coverage: {coverage_start} through {coverage_end} ({coverage_period}); {index_label}. "
+                        "Occupancy uses all available SPY sessions with a known point-in-time label; unknown sessions are shown separately. "
+                        "Transition dates are matched one-to-one by transition direction/type within a 20-session window. "
+                        "These are descriptive definition-sensitivity diagnostics, not return-based threshold selection or trading signals."
+                    )
+                else:
+                    status_messages = {
+                        "WAITING_FOR_SIGNAL_HISTORY_METADATA": "Waiting for the worker to persist a full-history SPY summary on a recent signal observation.",
+                        "WAITING_FOR_SIGNAL_DATE_LABELS": "Waiting for point-in-time volatility labels on persisted signal dates.",
+                        "NO_MATCHED_TRANSITIONS": "Full-history data is available, but no alternative-definition transitions matched the baseline within the 20-session window.",
+                        "MISSING_PAYLOAD": "The full-history field is absent from this research snapshot. No result is inferred.",
+                    }
+                    message = status_messages.get(
+                        full_history_state["status"],
+                        "Full-history diagnostics are not available yet. Status: " + full_history_state["status"],
+                    )
+                    st.info(message)
+                    st.caption(
+                        f"Configurations: {full_history_state['configuration_count']} · "
+                        f"Transition comparisons: {full_history_state['displacement_count']} · "
+                        "Research and decision authority: NONE."
+                    )
                 response_study = evidence_report.get("volatility_transition_response_study")
                 response_pairs = response_study.get("comparisons") if isinstance(response_study, dict) else []
                 st.markdown("#### Strategy response by time since volatility transition · shadow-only")
@@ -1722,9 +1765,13 @@ with cloud_tab:
                             "Training supported years": calendar_train.get("supported_period_count"),
                             "Training positive / negative years": f"{calendar_train.get('positive_difference_period_count', 0)}/{calendar_train.get('negative_difference_period_count', 0)}",
                             "Training calendar status": calendar_train.get("status", "NOT_REPORTED"),
+                            "Training year-direction consistency %": calendar_train.get("direction_consistency_pct"),
+                            "Training direction status": calendar_train.get("direction_status", "NOT_REPORTED"),
                             "Holdout supported years": calendar_hold.get("supported_period_count"),
                             "Holdout positive / negative years": f"{calendar_hold.get('positive_difference_period_count', 0)}/{calendar_hold.get('negative_difference_period_count', 0)}",
                             "Holdout calendar status": calendar_hold.get("status", "NOT_REPORTED"),
+                            "Holdout year-direction consistency %": calendar_hold.get("direction_consistency_pct"),
+                            "Holdout direction status": calendar_hold.get("direction_status", "NOT_REPORTED"),
                             "Transition holdout win %": transition_hold.get("win_rate_pct"),
                             "Stable holdout win %": stable_hold.get("win_rate_pct"),
                             "Transition worst-decile %": transition_hold.get("worst_decile_average_pct"),
@@ -1735,6 +1782,35 @@ with cloud_tab:
                         })
                     if response_rows:
                         st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+                    age_profile_rows = []
+                    age_profiles = response_study.get("transition_age_profiles") if isinstance(response_study, dict) else []
+                    for profile in age_profiles or []:
+                        if not isinstance(profile, dict):
+                            continue
+                        for checkpoint in profile.get("checkpoint_profile") or []:
+                            if not isinstance(checkpoint, dict):
+                                continue
+                            age_profile_rows.append({
+                                "Setup": profile.get("setup_type"),
+                                "Score bucket": profile.get("score_bucket"),
+                                "Trend": profile.get("trend_regime"),
+                                "Current volatility": profile.get("current_volatility_regime"),
+                                "Transition": profile.get("transition"),
+                                "Forward horizon": profile.get("horizon_sessions"),
+                                "Sessions after transition": checkpoint.get("sessions_after_transition"),
+                                "Holdout difference (pp)": checkpoint.get("holdout_mean_return_difference_pp"),
+                                "CI upper (pp)": checkpoint.get("holdout_ci_upper_95_pct"),
+                                "CI status": checkpoint.get("holdout_ci_status"),
+                                "Supported holdout years": checkpoint.get("holdout_supported_calendar_years"),
+                                "Year direction": checkpoint.get("holdout_year_direction_status"),
+                                "Profile checkpoints with CI upper below zero": profile.get("holdout_checkpoints_with_ci_below_zero"),
+                                "Comparison status": checkpoint.get("status"),
+                            })
+                    if age_profile_rows:
+                        st.markdown("##### Within-cohort transition-age profiles · no cross-setup pooling")
+                        st.dataframe(pd.DataFrame(age_profile_rows), use_container_width=True, hide_index=True)
+                        st.caption("Each profile preserves one exact setup, score bucket, trend, current volatility regime, transition type, and forward horizon. Checkpoints remain separate; confidence intervals and year-direction support are displayed without creating a pooled transition ranking.")
+
                     calendar_rows = []
                     for pair in response_pairs:
                         if not isinstance(pair, dict):
@@ -1771,7 +1847,8 @@ with cloud_tab:
                         "Each row compares an exact transition-age cohort with a stable same-regime baseline matched "
                         "on setup, score bucket, trend, current volatility, and horizon. Recent post-transition sessions "
                         "through the 20-session checkpoint are excluded from the stable baseline. Each pair uses a shared "
-                        "chronological 70/30 cutoff. Holdout mean-difference intervals use a weekly date-block bootstrap; " 
+                        "chronological 70/30 cutoff, with training forward-return windows purged at the holdout boundary. "
+                        "The purged training count is shown so sample reductions remain visible. Holdout mean-difference intervals use a weekly date-block bootstrap; "
                         "intervals are withheld when either cohort has fewer than eight weekly blocks. These are observational historical comparisons, not causal or predictive "
                         "signals, and have no readiness, ranking, sizing, stop, gate, or order authority."
                     )
@@ -3789,4 +3866,4 @@ with analytics_tab:
         "- These results exclude commissions, spreads, slippage, taxes and any execution differences."
     )
 
-st.caption("Version 3.52 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")
+st.caption("Version 3.53 limitations: the scanner and cloud worker use daily Yahoo Finance bars, which may be delayed, incomplete, or revised. Historical portfolio results are simulations, not forecasts or evidence of a durable edge; the current universe is not point-in-time and may contain survivorship bias. The dashboard displays worker results and manages a separate virtual paper account; it does not submit brokerage orders. The historical asset-class panel separates standalone fresh-capital simulations from closed-trade attribution in the combined portfolio. Intraday position monitoring is a read-only research check, not a broker execution feed. All strategy and execution tests remain simulation-only.")

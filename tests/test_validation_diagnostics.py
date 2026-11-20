@@ -1,8 +1,105 @@
 import unittest
-from validation_diagnostics import deoverlap_events, score_bucket
+from validation_diagnostics import (deoverlap_events, score_bucket, full_history_display_state, full_history_display_rows)
+
+
+def valid_full_history_payload():
+    return {
+        "status": "AVAILABLE",
+        "baseline_configuration": "BASELINE",
+        "configurations": [{
+            "configuration": "BASELINE",
+            "session_count": 100,
+            "known_session_count": 90,
+            "unknown_session_count": 10,
+            "regime_occupancy_pct": {"LOW": 25.0, "NORMAL": 50.0, "HIGH": 25.0},
+            "transition_counts": {
+                "LOW_TO_HIGH": 2, "HIGH_TO_LOW": 1, "LOW_TO_NORMAL": 3,
+                "NORMAL_TO_LOW": 4, "NORMAL_TO_HIGH": 5, "HIGH_TO_NORMAL": 6,
+            },
+        }],
+        "transition_date_displacement": [{
+            "configuration": "ALTERNATIVE",
+            "max_match_shift_sessions": 20,
+            "matched_baseline_transitions": 8,
+            "unmatched_baseline_transitions": 2,
+            "unmatched_alternative_transitions": 1,
+            "median_absolute_session_shift": 3.5,
+            "maximum_absolute_session_shift": 9,
+            "median_signed_session_shift": -1.0,
+            "status": "AVAILABLE",
+        }],
+        "method": "FULL_AVAILABLE_SPY_SESSION_HISTORY_POINT_IN_TIME_NO_RETURN_BASED_SELECTION",
+        "history_start_date": "1993-01-29",
+        "history_end_date": "2026-11-20",
+        "history_period": "max",
+        "stable_market_session_index": True,
+        "authority": "NONE",
+        "decision_authority": "NONE",
+    }
 
 
 class ValidationDiagnosticsTests(unittest.TestCase):
+    def test_full_history_worker_contract_maps_to_dashboard_rows(self):
+        display = full_history_display_rows(valid_full_history_payload())
+        self.assertTrue(display["state"]["available"])
+        self.assertEqual(display["baseline_configuration"], "BASELINE")
+        self.assertEqual(display["state"]["history_start_date"], "1993-01-29")
+        self.assertEqual(display["state"]["history_end_date"], "2026-11-20")
+        self.assertEqual(display["state"]["history_period"], "max")
+        self.assertTrue(display["state"]["stable_market_session_index"])
+        self.assertEqual(display["occupancy_rows"][0]["Known / unknown"], "90 / 10")
+        self.assertEqual(display["occupancy_rows"][0]["LOW / NORMAL / HIGH (%)"], "25.0 / 50.0 / 25.0")
+        self.assertEqual(display["occupancy_rows"][0]["NORMAL→HIGH"], 5)
+        self.assertEqual(display["displacement_rows"][0]["Match window (sessions)"], 20)
+        self.assertEqual(display["displacement_rows"][0]["Unmatched baseline / alternative"], "2 / 1")
+        self.assertEqual(display["displacement_rows"][0]["Median signed shift (sessions)"], -1.0)
+        self.assertEqual(display["state"]["authority"], "NONE")
+        self.assertEqual(display["state"]["decision_authority"], "NONE")
+
+    def test_full_history_waiting_for_signal_metadata(self):
+        state = full_history_display_state({
+            "status": "WAITING_FOR_SIGNAL_HISTORY_METADATA",
+            "authority": "NONE",
+            "decision_authority": "NONE",
+        })
+        self.assertFalse(state["available"])
+        self.assertEqual(state["status"], "WAITING_FOR_SIGNAL_HISTORY_METADATA")
+        self.assertEqual(state["configuration_count"], 0)
+
+    def test_full_history_no_matched_transitions_keeps_occupancy_available(self):
+        payload = valid_full_history_payload()
+        payload["transition_date_displacement"][0]["status"] = "NO_MATCHED_TRANSITIONS"
+        payload["transition_date_displacement"][0]["matched_baseline_transitions"] = 0
+        display = full_history_display_rows(payload)
+        self.assertTrue(display["state"]["available"])
+        self.assertEqual(display["state"]["displacement_count"], 1)
+        self.assertEqual(display["displacement_rows"][0]["Status"], "NO_MATCHED_TRANSITIONS")
+
+    def test_full_history_missing_authority_or_worker_fields_fails_closed(self):
+        payload = valid_full_history_payload()
+        payload.pop("decision_authority")
+        self.assertFalse(full_history_display_state(payload)["available"])
+        payload = valid_full_history_payload()
+        payload["configurations"][0].pop("transition_counts")
+        self.assertFalse(full_history_display_state(payload)["available"])
+        payload = valid_full_history_payload()
+        payload.pop("transition_date_displacement")
+        self.assertFalse(full_history_display_state(payload)["available"])
+
+    def test_full_history_absent_nested_field_fails_closed(self):
+        evidence_report = {"status": "COMPLETE"}
+        payload = evidence_report.get("volatility_classification_sensitivity", {}).get("full_history")
+        state = full_history_display_state(payload)
+        self.assertFalse(state["available"])
+        self.assertEqual(state["status"], "MISSING_PAYLOAD")
+        self.assertEqual(state["authority"], "NONE")
+        self.assertEqual(state["decision_authority"], "NONE")
+
+    def test_full_history_available_without_configurations_is_not_available(self):
+        state = full_history_display_state({"status": "AVAILABLE", "configurations": []})
+        self.assertFalse(state["available"])
+        self.assertEqual(state["configuration_count"], 0)
+
     def test_score_buckets_match_worker_boundaries(self):
         self.assertEqual(score_bucket(0), "00-49")
         self.assertEqual(score_bucket(49.9), "00-49")

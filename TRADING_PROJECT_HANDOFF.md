@@ -890,3 +890,31 @@ When the user says **“Resume the trading project”**:
 - Build a faithful baseline only if the production daily scanner feature calculations and candidate thresholds can be reconstructed exactly from chronological OHLCV; keep quote/execution gates as a separately labeled execution feasibility layer.
 
 - PR #36 CI follow-up: head `5c42439f5680a1e05e583b9460a6f92354ddf082` passed Python tests run `44835034920` (run #941). Module compilation and the full unit-test step succeeded; no separate Python checks workflow is claimed. PR remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive research-validation batch — Worker PR #37
+
+### PR #37 — chronological holdout purge and independent-event diagnostics
+- Added realized `exit_date_{horizon}s` to each shadow replay event, enabling validation to reason about the actual end date of each forward-return window rather than guessing from calendar days.
+- Added `short_study_validation.py`:
+  - Chronological event-level split based on unique signal dates.
+  - Per-horizon purge removes training events whose measured forward window reaches or crosses the first holdout signal date.
+  - Per-horizon, per-symbol non-overlap diagnostic retains the earliest entry and only accepts another after the prior event's measured horizon end.
+  - Reports train/test sample sizes, purged counts, holdout gross return/win-rate summaries, and independent sample counts; insufficient history fails closed.
+- Integrated the validation output into the study JSON and Markdown report. Added tests for horizon-boundary purging, non-overlap selection, insufficient dates, invalid parameters, and runner integration.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/37
+- Branch: `research/short-study-validation-20261120`; head `17bd2fafc3cd08bbcb67786b9309a73971f070f9`. Draft/open/unmerged/undeployed, stacked on PR #36.
+- CI workflow run was not yet visible at the final check. Validation is pending; do not claim tests passed until a fresh PR-triggered test run completes.
+- No live Yahoo data download or empirical strategy replay was performed. This is validation infrastructure, not a performance result.
+
+### Methodology and safety boundaries
+- Holdout is event-level, chronological, and horizon-purged; it is not a portfolio simulation and does not model capital allocation, concurrent exposure, borrow, slippage, intraday barriers, stop/target fills, or market impact.
+- The non-overlap sample is a diagnostic selection (earliest event per symbol, then wait until the previous event's horizon end), not a deployable trade schedule.
+- No tuning on holdout, no baseline proxy, no claims of edge/profitability.
+- All research events remain non-executable. No production imports, worker loop changes, broker calls, paper/live orders, Supabase writes, account mutations, entry/exit/risk-policy changes, or deployment.
+- Production remains V5.95 / main, paper-only. PR #37 is draft/open/unmerged/undeployed.
+
+### Next exact step
+- Verify PR #37 CI on the exact head above. Fix any failures and re-run.
+- Then validate all stacked research PRs (#35–#37) from the top branch, run the runner with a real provider only if external access is available, archive exact JSON/Markdown outputs and coverage, and review the results before making any strategy conclusions.
+- Keep the production bearish-pullback comparator marked NOT_RUN until its daily scanner calculations can be faithfully reconstructed; do not invent a baseline.

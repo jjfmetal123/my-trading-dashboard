@@ -762,3 +762,28 @@ When the user says **“Resume the trading project”**:
 - No merges, deployments, broker mutations, or production writes were performed.
 - Production remains on main / V5.95 until explicit approval to merge and deploy. Keep Alpaca paper-only.
 - Next hardening target: build a deterministic multi-pass simulation with >500 mixed rows, including ordinary decisions, legacy NULL statuses, pending observations, matured observations, old backlog, CAS conflicts, and transient query/bar/write failures; prove eventual queue drainage and per-row failure isolation. Also verify the exact PostgREST JSON-path filters safely and validate PR #9's latest head in CI.
+
+
+## 2026-11-20 massive short-side observability batch — Worker PR #32
+
+### Production finding
+- Read-only Render log review showed the bearish short watchlist was populated: the 19:58 UTC log listed 20 candidates, and the 20:19 UTC paper execution cycle evaluated 20 shorts plus 15 longs.
+- That cycle had 0 quote misses, 0 ready candidates, and 0 newly submitted orders. Combined blockers included 11 HIGH_VOLATILITY_CLASS, 5 SHORT_ENTRY_TOO_EXTENDED across the cycle, 2 INVALID_SHORT_SETUP_LEVELS, plus long-side and shared quote/spread blockers. Later cycles through 20:59 UTC continued to show 0 ready / 0 submitted.
+- Important interpretation: the short scanner is not absent. It is producing candidates; the entry gates are rejecting/waiting on them. The combined summary does not make short-only blockers obvious enough.
+
+### PR #32 — side-specific paper execution diagnostics
+- Added a deterministic summary helper grouping execution outcomes by long, short, and unknown side, each with evaluated count, status counts, and reason counts.
+- Paper execution cycle log now emits `side_breakdown` while retaining the existing combined status/reason summary for backward compatibility.
+- Added two tests for side separation, deterministic counts, unknown-side handling, and malformed rows.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/32
+- Branch: `feat/short-side-diagnostics-20261120`
+- Head: `2c17975a805a4758d50f2ff774556d8b1e1c6767`; 3 files changed, 53 additions / 2 deletions. Draft/open/unmerged/undeployed. CI was not yet visible when checked; do not treat as validated until green.
+- This is observability only. No short-entry thresholds, volatility treatment, setup logic, sizing, stops/targets, order submission, paper switch, or account settings changed.
+
+### Next short-side research
+- Use the new per-side reason report to isolate short rejection rates.
+- Investigate the 0.30% short entry extension constraint and the SMA20-based pullback trigger under fast downside moves; separately evaluate breakdown and breakdown-retest hypotheses in historical/shadow research before any execution-policy changes.
+- Audit why some short candidates have invalid geometry when current bid has moved through the precomputed target. Do not relax geometry checks or volatility blocks just to increase trade count.
+
+### Production safety
+- Render production remains main / V5.95; PR #32 is not deployed. No merges, broker writes, paper orders, account mutations, or policy changes were made.

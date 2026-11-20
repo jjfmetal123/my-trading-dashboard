@@ -226,11 +226,11 @@ def replay_sequence_risk_metrics(closed_events):
 
 
 def build_volatility_transition_study(close, signal_events, *, vol_window=20, lookback=252, quantile=0.75, horizons=("1d", "5d", "10d", "20d")):
-    """Measure signal outcomes by sessions since a trailing-volatility regime transition.
+    """Measure persisted signal outcomes by sessions since a trailing-volatility transition.
 
-    Regime thresholds are calculated from prior observations only (rolling
-    quantile shifted one session). Signal outcomes are precomputed observation
-    fields; this helper never uses future prices to label a transition.
+    Regime thresholds use prior observations only. Signal dates must exactly match
+    an SPY session; diagnostics account for every skipped/matched signal. Outcomes
+    are persisted observation fields, not recalculated from future prices.
     """
     import pandas as pd
 
@@ -260,8 +260,11 @@ def build_volatility_transition_study(close, signal_events, *, vol_window=20, lo
     prior_threshold = realized_vol.rolling(lookback, min_periods=lookback).quantile(quantile_value).shift(1)
     regime = pd.Series(index=prices.index, dtype="object")
     valid = realized_vol.notna() & prior_threshold.notna()
-    regime.loc[valid] = ["HIGH" if value > threshold else "BASELINE"
-                         for value, threshold in zip(realized_vol.loc[valid], prior_threshold.loc[valid])]
+    regime.loc[valid] = [
+        "HIGH" if value > threshold else "BASELINE"
+        for value, threshold in zip(realized_vol.loc[valid], prior_threshold.loc[valid])
+    ]
+
     transitions = []
     prior_state = None
     for timestamp, state in regime.items():
@@ -279,31 +282,51 @@ def build_volatility_transition_study(close, signal_events, *, vol_window=20, lo
 
     session_dates = list(prices.index)
     date_positions = {str(pd.Timestamp(value).date()): i for i, value in enumerate(session_dates)}
-    transition_positions = []
-    for item in transitions:
-        key = item["transition_date"]
-        if key in date_positions:
-            transition_positions.append((date_positions[key], item))
+    transition_positions = [
+        (date_positions[item["transition_date"]], item)
+        for item in transitions if item["transition_date"] in date_positions
+    ]
 
+    diagnostics = {
+        "signals_total": 0, "invalid_signal_dates": 0, "date_not_in_spy_history": 0,
+        "no_prior_transition": 0, "transition_day_excluded": 0,
+        "outside_20_session_window": 0, "matched_signals": 0,
+        "signals_with_valid_outcomes": 0, "valid_outcome_observations": 0,
+    }
     groups = {}
     for event in signal_events or []:
+        diagnostics["signals_total"] += 1
         signal_date = _parse_signal_date(event.get("signal_date"))
         if signal_date is None:
+            diagnostics["invalid_signal_dates"] += 1
             continue
         pos = date_positions.get(signal_date.isoformat())
         if pos is None:
+            diagnostics["date_not_in_spy_history"] += 1
             continue
+        # The latest transition owns the signal. This avoids double-counting a
+        # signal across overlapping transition windows.
         prior_transitions = [entry for entry in transition_positions if entry[0] <= pos]
         if not prior_transitions:
+            diagnostics["no_prior_transition"] += 1
             continue
         transition_pos, transition = prior_transitions[-1]
         age = pos - transition_pos
-        if age < 1 or age > 20:
+        if age == 0:
+            diagnostics["transition_day_excluded"] += 1
             continue
-        age_band = "1 session" if age == 1 else "2–5 sessions" if age <= 5 else "6–10 sessions" if age <= 10 else "11–20 sessions"
+        if age > 20:
+            diagnostics["outside_20_session_window"] += 1
+            continue
+        diagnostics["matched_signals"] += 1
+        age_band = (
+            "1 session" if age == 1 else "2–5 sessions" if age <= 5
+            else "6–10 sessions" if age <= 10 else "11–20 sessions"
+        )
         outcomes = event.get("outcomes") or {}
         if not isinstance(outcomes, dict):
             continue
+        valid_for_signal = 0
         for horizon in horizons:
             outcome = outcomes.get(horizon)
             if not isinstance(outcome, dict):
@@ -314,10 +337,15 @@ def build_volatility_transition_study(close, signal_events, *, vol_window=20, lo
                 continue
             if not math.isfinite(value):
                 continue
-            key = (transition["from_regime"] + " → " + transition["to_regime"], age_band, horizon,
-                   str(event.get("setup_type") or "UNCLASSIFIED").upper())
-            bucket = groups.setdefault(key, [])
-            bucket.append(value)
+            valid_for_signal += 1
+            diagnostics["valid_outcome_observations"] += 1
+            key = (
+                transition["from_regime"] + " → " + transition["to_regime"],
+                age_band, horizon, str(event.get("setup_type") or "UNCLASSIFIED").upper()
+            )
+            groups.setdefault(key, []).append(value)
+        if valid_for_signal:
+            diagnostics["signals_with_valid_outcomes"] += 1
 
     rows = []
     for (transition, age_band, horizon, setup), values in sorted(groups.items()):
@@ -328,4 +356,7 @@ def build_volatility_transition_study(close, signal_events, *, vol_window=20, lo
             "Win rate %": sum(value > 0 for value in values) / len(values) * 100,
             "Evidence": "Exploratory" if len(values) < 30 else "30+ observations",
         })
-    return {"transitions": transitions, "rows": rows, "regime": regime, "realized_vol": realized_vol}
+    return {
+        "transitions": transitions, "rows": rows, "regime": regime,
+        "realized_vol": realized_vol, "diagnostics": diagnostics,
+    }

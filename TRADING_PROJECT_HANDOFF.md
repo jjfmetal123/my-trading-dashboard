@@ -864,3 +864,27 @@ When the user says **“Resume the trading project”**:
 - PR #35 validation follow-up: after the lazy-import correction, Python tests run `44833904597` (head `9d98de3a2e355ea097ba3e7b44d19199c9aa0bb0`) compiled successfully but failed two new test fixtures because a pandas DatetimeIndex was used in boolean context. Corrected the fixture to test `dates is None` explicitly. Latest head: `3a191a0a856a2b75edd0e26db8f88e7294fa3ad0`; fresh CI run was not yet visible. PR #35 remains unvalidated until that run completes.
 
 - Final PR #35 validation: corrected head `3a191a0a856a2b75edd0e26db8f88e7294fa3ad0` passed Python tests run `44833996119` (run #940). Module compilation and complete unit-test step succeeded. The earlier two failures and their corrections are retained above for auditability. PR remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive short-study orchestration batch — Worker PR #36
+
+### PR #36 — reproducible historical study runner and report
+- Added `run_short_strategy_study.py`, a CLI orchestration layer over PR #35's injectable adjusted-daily data adapter and PR #34's shadow replay.
+- Accepts an explicit fixed symbol universe, benchmark, period and minimum sample threshold; fetches universe plus benchmark; records retrieval metadata, exact requested/usable/unavailable symbols, per-symbol date coverage, rejected rows, benchmark availability, and a UTC run timestamp.
+- Emits machine-readable JSON and a Markdown report with data coverage and per-setup / regime / horizon metrics (sample count, average/median gross return, win rate, MFE/MAE, cost sensitivity and interpretation flags).
+- Important methodological correction: the production BEARISH PULLBACK baseline is explicitly marked NOT_RUN. The production candidate builder uses scanner fields and its execution gate depends on intraday quote freshness/spread, trigger/chase, volatility, sizing and account-risk state. A daily-OHLCV approximation would not faithfully reproduce it, so no fake baseline comparison was added.
+- Added deterministic mocked-provider tests for study orchestration, invalid-universe fail-closed behavior, and report coverage/limitations.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/36
+- Branch: `research/short-study-runner-20261120`; head `5c42439f5680a1e05e583b9460a6f92354ddf082`. Draft/open/unmerged/undeployed; stacked on PR #35.
+- CI workflow runs were not returned for this PR head at the final check. Validation is pending; do not claim tests passed until a PR-triggered run or equivalent full test evidence is available.
+- No actual Yahoo Finance download or empirical replay was run in this batch. The runner is built, but there are no strategy-performance conclusions yet.
+
+### Safety and limitations
+- Research-only, shadow-only, all replay events non-executable. No production imports, worker loop changes, broker calls, paper/live orders, Supabase writes, account changes, risk/entry/exit policy changes, or deployment.
+- Default universe is a small convenience set, not survivorship-bias-free and not evidence of broad-market performance. A later study should use a documented point-in-time universe or clearly retain this limitation.
+- Existing fixed-universe and Yahoo-provider limitations remain visible in the generated report. No portfolio-level fills, intraday stop/target sequencing, borrow/locate costs, market impact or independent observations are assumed.
+- Production remains main / V5.95 and paper-only. PRs #32–#36 remain separate open research/diagnostic branches; no merge or deployment was attempted.
+
+### Next research milestone
+- Validate PR #36 on CI, then run the runner against an explicitly selected historical universe and benchmark where the environment permits provider access. Save and inspect the exact coverage manifest and raw replay output before interpreting results.
+- Build a faithful baseline only if the production daily scanner feature calculations and candidate thresholds can be reconstructed exactly from chronological OHLCV; keep quote/execution gates as a separately labeled execution feasibility layer.

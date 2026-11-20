@@ -152,5 +152,39 @@ class ValidationDiagnosticsTests(unittest.TestCase):
                     build_volatility_transition_study(close, [], vol_window=5, lookback=30, **kwargs)
 
 
+
+    def test_volatility_transition_reports_signal_coverage_and_exclusions(self):
+        import pandas as pd
+        index = pd.bdate_range("2023-01-02", periods=180)
+        returns = [0.001 if i % 2 else -0.001 for i in range(180)]
+        for i in range(100, 180):
+            returns[i] = 0.035 if i % 2 else -0.035
+        prices = [100.0]
+        for value in returns[1:]:
+            prices.append(prices[-1] * (1 + value))
+        close = pd.Series(prices, index=index)
+        events = [
+            {"signal_date": index[101].date().isoformat(), "setup_type": "PULLBACK",
+             "outcomes": {"1d": {"close_return_pct": 1.0}}},
+            {"signal_date": index[100].date().isoformat(), "setup_type": "PULLBACK",
+             "outcomes": {"1d": {"close_return_pct": 1.0}}},
+            {"signal_date": index[179].date().isoformat(), "setup_type": "BREAKOUT",
+             "outcomes": {"1d": {"close_return_pct": 2.0}}},
+            {"signal_date": "2099-01-01", "setup_type": "PULLBACK",
+             "outcomes": {"1d": {"close_return_pct": 1.0}}},
+            {"signal_date": "not-a-date", "setup_type": "PULLBACK",
+             "outcomes": {"1d": {"close_return_pct": 1.0}}},
+        ]
+        result = build_volatility_transition_study(close, events, vol_window=10, lookback=60)
+        diag = result["diagnostics"]
+        self.assertEqual(diag["signals_total"], 5)
+        self.assertEqual(diag["matched_signals"], 1)
+        self.assertEqual(diag["transition_day_excluded"], 1)
+        self.assertEqual(diag["outside_20_session_window"], 1)
+        self.assertEqual(diag["date_not_in_spy_history"], 1)
+        self.assertEqual(diag["invalid_signal_dates"], 1)
+        self.assertEqual(diag["valid_outcome_observations"], 1)
+        self.assertEqual(diag["signals_with_valid_outcomes"], 1)
+
 if __name__ == "__main__":
     unittest.main()

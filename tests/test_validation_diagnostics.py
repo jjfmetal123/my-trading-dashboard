@@ -1,5 +1,5 @@
 import unittest
-from validation_diagnostics import deoverlap_events, score_bucket
+from validation_diagnostics import deoverlap_events, replay_sequence_risk_metrics, score_bucket
 
 
 class ValidationDiagnosticsTests(unittest.TestCase):
@@ -38,6 +38,22 @@ class ValidationDiagnosticsTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     deoverlap_events([], cooldown_sessions=value)
+
+
+    def test_replay_sequence_risk_metrics_orders_events_and_resets_streak(self):
+        events = [
+            {"id": "c", "exit_date": "2025-01-03", "net_realized_pnl": 5},
+            {"id": "a", "exit_date": "2025-01-01", "net_realized_pnl": -10},
+            {"id": "b", "exit_date": "2025-01-02", "net_realized_pnl": -20},
+            {"id": "d", "exit_date": "2025-01-04", "net_realized_pnl": -3},
+            {"id": "bad", "exit_date": "bad-date", "net_realized_pnl": -100},
+        ]
+        metrics = replay_sequence_risk_metrics(events)
+        self.assertEqual(metrics["evaluated_events"], 4)
+        self.assertEqual(metrics["current_loss_streak"], 1)
+        self.assertEqual(metrics["max_loss_streak"], 2)
+        self.assertAlmostEqual(metrics["max_sequence_drawdown"], 30)
+        self.assertAlmostEqual(metrics["ending_cumulative_pnl"], -28)
 
     def test_edge_diagnostics_separate_signal_and_benchmark_support(self):
         from validation_diagnostics import build_edge_diagnostics

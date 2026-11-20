@@ -789,3 +789,24 @@ When the user says **“Resume the trading project”**:
 - Render production remains main / V5.95; PR #32 is not deployed. No merges, broker writes, paper orders, account mutations, or policy changes were made.
 
 - Follow-up CI verification: PR #32 head `2c17975a805a4758d50f2ff774556d8b1e1c6767` passed Python tests run `44819614648` and Python checks run `44819614626`; both completed SUCCESS. PR remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive short-strategy research batch — Worker PR #33
+
+### PR #33 — shadow-only breakdown and breakdown-retest classifiers
+- Added a standalone pure-Python classifier consuming chronological completed daily OHLCV bars. It labels the latest bar as `SHORT_BREAKDOWN_SHADOW`, `SHORT_BREAKDOWN_RETEST_SHADOW`, `NO_SHADOW_SETUP`, or `NOT_CLASSIFIED`.
+- Breakdown requires a close below the preceding rolling support, ATR-normalized penetration, relative-volume confirmation, and a close in the lower 40% of the daily range.
+- Retest requires a prior confirmed breakdown within a bounded window, a return to the broken support zone, a close back below that level, and a bearish rejection candle.
+- Support/ATR/volume references are calculated only from bars preceding the bar under evaluation. Invalid/incomplete OHLCV fails closed. All outputs explicitly set `executable: false`.
+- Six deterministic tests cover breakdown confirmation, volume rejection, retest rejection, support reclaim rejection, invalid/insufficient bars, and temporal behavior.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/33
+- Branch: `research/short-breakdown-setups-20261120`; head `b9e307ea2f8c04214d6e14cac49e184b9ba87837`.
+- PR #33 is draft/open/unmerged/undeployed and stacked on PR #32's diagnostics branch (`feat/short-side-diagnostics-20261120`) so its diff contains only the two new research files. CI not yet visible at last check; validation pending.
+
+### Research boundary and next steps
+- This classifier is not wired into the production worker, scanner, short candidate builder, short evaluator, or order path. It does not produce paper trades and no historical performance claims have been made.
+- Current short-engine candidate payloads contain daily indicators but not the complete daily OHLCV history required for rigorous breakdown/retest replay. Next step is a separate historical-data adapter/replay that builds features chronologically, prevents look-ahead, and compares the baseline pullback against the two shadow setups across selloff, normal, and rising/choppy regimes.
+- Do not loosen the high-volatility block, 0.30% chase limit, reward/risk, geometry, sizing, or other execution gates to increase trade count.
+
+### Safety
+- No changes to production main, no merges/deployments, no broker writes/orders, no account mutations, and no risk/entry/exit policy changes. Production remains V5.95 / main. PR #32 remains draft/open/unmerged/undeployed; its CI passed (Python tests `44819614648`, Python checks `44819614626`).

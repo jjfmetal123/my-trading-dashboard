@@ -654,3 +654,12 @@ When the user says **“Resume the trading project”**:
 - PR #29 independent paper-execution scheduler remains draft/open/unmerged/undeployed at head `f490d448ba0821387041efd9b3207a418feca090`; Python tests run `44811180007` SUCCESS (**453 tests**) and checks run `44811179981` SUCCESS.
 - Production remains deployed from worker main commit `919f5a8f73869943c3de5772e13f30cda85fca31` (V5.95); no PR changes have been merged or deployed. Keep the paper-only switch, broker account, existing positions/orders, risk gates, and protective-order handling unchanged.
 - Next: continue end-to-end validation of the volatility timeline's session-age labels and event-study purge/holdout behavior against real persisted rows, and verify that the dashboard clearly distinguishes stable full-history provenance from waiting/fallback states. Keep research non-authoritative.
+
+
+
+## 2026-11-20 latest live verification — 20:32 UTC
+
+- Render still reports the production worker on the previously deployed V5.95 main commit `919f5a8f73869943c3de5772e13f30cda85fca31`; all research/engineering PRs remain unmerged and no new deployment was triggered.
+- Fresh production execution starts and summaries continued at 20:26, 20:28, 20:30, and 20:32 UTC. Each used `submission_switch=ENABLED`, `paper_only=true`, and a present broker snapshot. The 20:32 summary evaluated 35 candidates (15 long / 20 short), zero missing quotes, zero ready candidates, zero newly submitted orders; blockers included wide spreads, high-volatility classification, entry extension, and setup validity. This confirms the current production execution loop remains alive; it does not mean the independent scheduler PR #29 is deployed.
+- Fresh 20:32:48 UTC broker protection audit reports ORLY position **PROTECTED**: 2 shares, active stop at 91.09 in HELD state and target at 100.23 ACCEPTED, quantities matched.
+- Latest PR #28 collector head `a032382ba18e4e38fa674f6a1677ce829733bbd1` passes 459 tests and Python checks; latest PR #9 volatility calendar provenance head `8ff9cc682f46d8a2291d69348ce9c7dbb5ad374d` passes 481 tests. PR #29 scheduler head `f490d448ba0821387041efd9b3207a418feca090` remains green at 453 tests plus Python checks.

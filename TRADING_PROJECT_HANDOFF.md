@@ -711,3 +711,30 @@ When the user says **“Resume the trading project”**:
 - PR #9 remains stacked and draft. Its calendar-ID checks and date fallback are preserved; no merge attempted.
 - Production worker remains V5.95 on main. Render auto-deploys main only. No deployment, no broker writes, no position/order modifications, no risk/policy changes.
 - Next review: test that the JSON-path OR predicate is accepted by the actual Supabase/PostgREST endpoint in a safe read-only diagnostic (not a write); stress-test collector backlog with more than 500 mixed legacy/pending/matured rows; add mixed-calendar holdout-purge regression; then re-run complete CI.
+
+
+## 2026-11-20 massive batch — collector eligibility and execution isolation
+
+### PR #28 — Shadow outcome collector queue eligibility
+- Re-reviewed the collector after the NULL-safe maturity predicate and found another starvation source: ordinary paper decision rows without a near-miss price reference could consume all 500 query slots before Python-side filtering.
+- Added a PostgREST `NOT IS NULL` predicate on `decision->>near_miss_price_reference`, limiting the batch to actual shadow-outcome observations before maturity filtering and oldest-first ordering.
+- Regression test now asserts: near-miss reference non-null filter, NULL-safe future-status OR condition, oldest-first `updated_at`, and 500-row cap.
+- Latest head `84a18fca482d1f3aa6a90f402048efce1b1c29c6`: Python tests `44816502673` SUCCESS (**460 tests passed**); Python checks `44816502616` SUCCESS.
+- PR #28 remains open, unmerged, and undeployed.
+
+### PR #29 — Direct scan/execution isolation stress test
+- Added an integration-level test that deliberately blocks a simulated market scan on a separate thread while the independent paper-execution supervisor runs its cycle.
+- Initial CI caught two test harness issues (missing `threading` import and unmocked Supabase client factory); both were corrected. Final CI is green.
+- Latest head `7c0fa479dd52c3760cf1f384e63fcb22393ad562`: Python tests `44816771601` SUCCESS (**457 tests passed**); Python checks `44816773612` SUCCESS.
+- PR #29 remains draft, open, unmerged, and undeployed. The test validates the supervisor isolation model; it does not prove production has received the fix.
+
+### PR #9 — Volatility transition research
+- Added a mixed-market-calendar holdout-purge regression test. When cutoff rows contain incompatible calendar IDs, the study must fall back to conservative date-based business-session purging rather than comparing incompatible session ordinals.
+- New head: `2163f59c3aafb37f41ec681471c195232a9a453f`. No new CI workflow run is currently reported for this head; earlier recorded successful CI on the prior head does not validate this added test. Treat as pending verification.
+- PR #9 remains stacked/draft/unmerged.
+
+### Production and data verification
+- Supabase read-only sample of `paper_trade_decisions` updated in the last 30 minutes: 69 rows; 69 had no `near_miss_future_outcomes_status`; 0 had near-miss price references. This supports keeping the collector's legacy/null handling and query eligibility precise; it does not demonstrate collection is active because PR #28 is not deployed.
+- Render service remains active, auto-deploys `main`, and latest live deployment is V5.95 commit `919f5a8f73869943c3de5772e13f30cda85fca31`.
+- No production deployment, broker mutation, position/order changes, risk/entry/exit policy changes, or account setting changes.
+- Next: verify the exact PostgREST JSON-path filter on the live Data API via a read-only request if a safe query route is available; build a deterministic >500-row multi-pass backlog simulation; validate PR #9's new test in CI; then run full CI on final heads. Explicit approval remains required before merge/deploy.

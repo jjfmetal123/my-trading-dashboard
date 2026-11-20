@@ -155,8 +155,8 @@ class ValidationDiagnosticsTests(unittest.TestCase):
 
     def test_volatility_transition_reports_signal_coverage_and_exclusions(self):
         import pandas as pd
-        index = pd.bdate_range("2023-01-02", periods=180)
-        returns = [0.001 if i % 2 else -0.001 for i in range(180)]
+        index = pd.bdate_range("2023-01-02", periods=230)
+        returns = [0.001 if i % 2 else -0.001 for i in range(230)]
         for i in range(100, 180):
             returns[i] = 0.035 if i % 2 else -0.035
         prices = [100.0]
@@ -168,7 +168,7 @@ class ValidationDiagnosticsTests(unittest.TestCase):
              "outcomes": {"1d": {"close_return_pct": 1.0}}},
             {"signal_date": index[100].date().isoformat(), "setup_type": "PULLBACK",
              "outcomes": {"1d": {"close_return_pct": 1.0}}},
-            {"signal_date": index[179].date().isoformat(), "setup_type": "BREAKOUT",
+            {"signal_date": index[229].date().isoformat(), "setup_type": "BREAKOUT",
              "outcomes": {"1d": {"close_return_pct": 2.0}}},
             {"signal_date": "2099-01-01", "setup_type": "PULLBACK",
              "outcomes": {"1d": {"close_return_pct": 1.0}}},

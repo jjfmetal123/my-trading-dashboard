@@ -240,13 +240,24 @@ def build_volatility_transition_study(close, signal_events, *, vol_window=20, lo
         raise ValueError("vol_window must be an integer >= 2")
     if isinstance(lookback, bool) or not isinstance(lookback, int) or lookback < 30:
         raise ValueError("lookback must be an integer >= 30")
-    if not 0.5 <= float(quantile) <= 0.99:
-        raise ValueError("quantile must be between 0.5 and 0.99")
+    try:
+        quantile_value = float(quantile)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("quantile must be a finite number between 0.5 and 0.99")
+    if not math.isfinite(quantile_value) or not 0.5 <= quantile_value <= 0.99:
+        raise ValueError("quantile must be a finite number between 0.5 and 0.99")
+    if not horizons or len(set(horizons)) != len(horizons) or any(
+        not isinstance(h, str) or not h.endswith("d") or not h[:-1].isdigit() or int(h[:-1]) < 1
+        for h in horizons
+    ):
+        raise ValueError("horizons must be unique positive session labels such as '5d'")
 
     prices = pd.to_numeric(close, errors="coerce").dropna().sort_index()
+    if prices.index.has_duplicates:
+        prices = prices[~prices.index.duplicated(keep="last")]
     returns = prices.pct_change()
     realized_vol = returns.rolling(vol_window, min_periods=vol_window).std() * (252 ** 0.5) * 100
-    prior_threshold = realized_vol.rolling(lookback, min_periods=30).quantile(float(quantile)).shift(1)
+    prior_threshold = realized_vol.rolling(lookback, min_periods=lookback).quantile(quantile_value).shift(1)
     regime = pd.Series(index=prices.index, dtype="object")
     valid = realized_vol.notna() & prior_threshold.notna()
     regime.loc[valid] = ["HIGH" if value > threshold else "BASELINE"

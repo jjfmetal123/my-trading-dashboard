@@ -528,7 +528,7 @@ When the user says **“Resume the trading project”**:
 
 ### Dashboard
 - Repository: `jjfmetal123/my-trading-dashboard`
-- Current `main` commit: `5efe7fb14ba5b6a37db005b305a17f2df92431ee` (PR #17).
+- Current `main` head after the handoff update: `4a68771107159113d3f35b4d9c732653800ef767` (feature commit `5efe7fb14ba5b6a37db005b305a17f2df92431ee`, followed by the handoff checkpoint).
 - Dashboard PR #8 (resilience/responsive layout), PR #14 (unique diagnostics-module import), PR #16 (restore missing read-only data loaders), and PR #17 (dedicated read-only Alpaca Paper Trading tab) are merged.
 - Current `app.py` imports `dashboard_validation_diagnostics`; that exact module exists in `main`. Dashboard CI for current main commit passed (compile-and-test).
 - Streamlit Community Cloud runtime still requires user-side visual confirmation; GitHub CI does not prove the hosted app has refreshed.
@@ -536,7 +536,7 @@ When the user says **“Resume the trading project”**:
 ### Cloud worker
 - Repository: `jjfmetal123/trading-cloud-worker`
 - Current `main` commit: `438910d1e3fc9979d721178bb90a624992e593ce`.
-- Worker source/README version: **V5.93**.
+- Worker runtime version: **V5.95** (confirmed by Render startup log at 2026-11-20 19:57:49 UTC). The worker source constant is V5.95; its module docstring and README heading still say V5.93 and need a documentation consistency pass.
 - Render service: `srv-dbua8frm8hqs73f895h0`, workspace `tea-dbu9vo6tlv9c73bqbdh0`.
 - Latest deploy for current main commit is LIVE: `dep-dc0abrntfofc73a4n7b0`.
 - PR #24 corrected Alpaca bracket-stop lifecycle handling: raw `held` is normalized to `HELD` and counts as active only for the conditional stop-loss leg, never for a held take-profit leg.
@@ -549,14 +549,14 @@ When the user says **“Resume the trading project”**:
 - Render logs at 2026-11-20 19:57 UTC report the Alpaca paper account ACTIVE with equity approximately **$4,998** and one open symbol, **ORLY**.
 - Execution-cycle logs report `auto_enabled=True`; automatic execution is currently enabled for the paper account. Keep this setting unchanged unless the user explicitly directs otherwise.
 - The worker is paper-only. The order adapter is hard-pinned to Alpaca's paper endpoint; live brokerage endpoints are prohibited.
-- The current strategy allocation is **$5,000**, with the fixed **$50 daily-loss stop** from PR #23. Do not reset, reseed, or alter the broker account or the separate retired Supabase virtual-account archive.
+- The current strategy allocation is **$5,000**, with the fixed **$50 daily-loss stop** from PR #23. The worker source also keeps ICE excluded from new-entry candidates while its separate exit/reconciliation issue is unresolved; this is not an instruction to close or modify the existing ICE position. Do not reset, reseed, or alter the broker account or the separate retired Supabase virtual-account archive.
 - Recent cycles evaluated 35 candidates (15 long / 20 short) and submitted zero new orders because no candidate passed all gates. This is not a stopped worker; the scanner and paper decision cycle continue.
 - The previous ORLY protection warnings were caused by the `held` stop-leg normalization gap addressed in PR #24. Confirm a fresh post-deploy `BROKER POSITION PROTECTION AUDIT` before claiming ORLY is protected; do not cancel, replace, or modify any broker order as part of verification.
 
 ### Open engineering work
 - PR #28 (`Add shadow-only near-miss diagnostics`) remains a draft and is **not merged or deployed**. It adds distance-to-trigger margins and 1/5/10-minute shadow outcome observations.
 - Review identified a concurrency hazard: the shadow collector read and replaced the entire `paper_trade_decisions.decision` JSONB value, potentially overwriting a simultaneous broker lifecycle update.
-- A compare-and-set guard has now been added to PR #28: the update must match both row ID and the original `updated_at`. If broker reconciliation has advanced the row, the shadow write becomes a no-op and can be retried on a later pass. Regression tests were added for the successful write, concurrent broker update, and missing row version. Latest PR head: `acf4861e6a4f8b6a59ebfb77a031ca81fe8e478a`; verify fresh CI before merge.
+- A compare-and-set guard has now been added to PR #28: the update must match both row ID and the original `updated_at`. If broker reconciliation has advanced the row, the shadow write becomes a no-op and can be retried on a later pass. Regression tests were added for the successful write, concurrent broker update, and missing row version. Latest PR head: `acf4861e6a4f8b6a59ebfb77a031ca81fe8e478a`; fresh CI has not appeared yet (zero check runs/statuses), so verify the workflow trigger and run tests before merge.
 - PR #28 must remain unmerged until the latest CI is green and the persistence guard is reviewed.
 - The volatility-transition research chain remains open in stacked PRs #4–#9. It targets post-transition sessions 1, 5, 10, and 20, matched against stable-volatility observations, with chronological holdout and uncertainty checks. Preserve its shadow/research-only authority boundary and inspect branch ancestry before merging any stacked PR.
 - PR #16 (449-symbol universe expansion) remains open; do not merge without a separate data-coverage/runtime review.

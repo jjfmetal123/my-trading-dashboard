@@ -51,9 +51,14 @@ class ValidationDiagnosticsTests(unittest.TestCase):
                     "excess_vs_spy_pp": 0.5 if index == 0 else None,
                 }},
             })
+        # One-session outcomes are supported alongside the existing 5/10/20-session horizons.
+        events[0]["outcomes"]["1d"] = {"close_return_pct": 0.25, "excess_vs_spy_pp": 0.10}
         rows = build_edge_diagnostics(
-            events, min_return_samples=3, min_benchmark_samples=2
+            events, horizons=("1d", "5d"), min_return_samples=3, min_benchmark_samples=2
         )
+        one_day = next(row for row in rows if row["Horizon"] == "1d")
+        self.assertEqual(one_day["Signal_samples"], 1)
+        self.assertAlmostEqual(one_day["Gross_mean_return_pct"], 0.25)
         self.assertEqual(len(rows), 1)
         row = rows[0]
         self.assertEqual(row["Score band"], "90-100")

@@ -3982,7 +3982,7 @@ with intelligence_tab:
     # Volatility-transition response research: SPY trailing realized volatility
     # defines transitions using a threshold shifted one session to avoid lookahead.
     st.markdown("#### 🌡️ Volatility-transition response (1 / 5 / 10 / 20 sessions)")
-    st.caption("Retrospective research only. Regimes use SPY 20-session realized volatility versus its trailing 252-session 75th-percentile threshold, shifted one session so today's regime never uses today's threshold update. Strategy outcomes come from persisted signal observations; Yahoo daily history can be delayed, revised, incomplete, and is not point-in-time.")
+    st.caption("Retrospective research only. Regimes use SPY 20-session realized volatility versus a full trailing 252-session 75th-percentile history, shifted one session so today's regime never uses today's threshold update. Strategy outcomes come from persisted signal observations; Yahoo daily history can be delayed, revised, incomplete, and is not point-in-time.")
     try:
         transition_history = load_history(("SPY",), period="5y")
         transition_signals = load_strategy_signal_events()
@@ -3995,6 +3995,9 @@ with intelligence_tab:
             transition_cols[0].metric("Detected transitions", len(transition_study["transitions"]))
             transition_cols[1].metric("Signal observations loaded", len(transition_signals))
             transition_cols[2].metric("Matched response groups", len(transition_study["rows"]))
+            transition_cols = st.columns(2)
+            transition_cols[0].metric("High-volatility sessions", int((transition_study["regime"] == "HIGH").sum()))
+            transition_cols[1].metric("Baseline sessions", int((transition_study["regime"] == "BASELINE").sum()))
             if transition_study["transitions"]:
                 transition_frame = pd.DataFrame(transition_study["transitions"]).tail(12)
                 st.dataframe(transition_frame, use_container_width=True, hide_index=True)

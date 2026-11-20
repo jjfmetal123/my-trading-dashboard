@@ -787,3 +787,5 @@ When the user says **“Resume the trading project”**:
 
 ### Production safety
 - Render production remains main / V5.95; PR #32 is not deployed. No merges, broker writes, paper orders, account mutations, or policy changes were made.
+
+- Follow-up CI verification: PR #32 head `2c17975a805a4758d50f2ff774556d8b1e1c6767` passed Python tests run `44819614648` and Python checks run `44819614626`; both completed SUCCESS. PR remains draft/open/unmerged/undeployed.

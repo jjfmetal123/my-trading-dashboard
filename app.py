@@ -754,7 +754,7 @@ def _safe_format_number(value, template):
         return "—"
     return template.format(number)
 
-command_tab, scanner_tab, paper_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "🗃️ Retired virtual account", "📚 Archived performance", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner"])
+command_tab, scanner_tab, analytics_tab, validation_tab, intelligence_tab, cloud_tab, alpaca_tab = st.tabs(["🚀 Command center", "📊 Market scanner", "📚 Historical archive", "🧪 Strategy validation", "🏆 Bot intelligence", "☁️ Cloud scanner", "🦙 Alpaca paper trading"])
 
 with command_tab:
     @st.fragment(run_every="60s")
@@ -788,14 +788,18 @@ with command_tab:
                 age_min, scan_label = None, str(scanned_at or "Unavailable")
             coverage = health.get("coverage_pct")
             coverage_label = f"{float(coverage):.1f}%" if coverage is not None else "—"
-            equity = portfolio.get("equity_reference")
-            equity_label = f"${float(equity):,.2f}" if equity is not None else "—"
+            try:
+                broker_reference = load_latest_alpaca_paper_account_snapshot()
+                broker_equity = broker_reference.get("equity") if broker_reference else None
+                broker_equity_label = f"${float(broker_equity):,.2f}" if broker_equity is not None else "Unavailable"
+            except Exception:
+                broker_equity_label = "Unavailable"
             top_three = report.get("top_three_for_individual_review") or []
             candidates = report.get("ranked_candidates") or []
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Universe coverage", coverage_label, f"{health.get('analyzed_symbols', scan.get('symbol_count', 0))}/{health.get('requested_symbols', '—')} symbols")
             c2.metric("Last completed scan", f"{age_min} min ago" if age_min is not None else "—", scan_label)
-            c3.metric("Paper equity reference", equity_label, f"{portfolio.get('position_count', 0)} open positions")
+            c3.metric("Alpaca paper equity", broker_equity_label, "Broker-reported · paper account")
             c4.metric("Worker", f"V{review.get('worker_version', '—')}", f"AI: {scan.get('ai_model') or 'not available'}")
             if age_min is not None and age_min > 35:
                 st.warning("Cloud scan is older than expected. Check worker health before relying on this snapshot.")
@@ -1665,6 +1669,107 @@ with validation_tab:
     st.write("- Returns are compared with SPY over the same horizon; MFE and MAE show the best and worst observed price excursion.")
     st.warning("Stop/target results use daily OHLC bars: if both levels are touched in the same session, that event is marked ambiguous rather than guessing which came first. Gap fills are approximated from the daily open. The test still excludes slippage, commissions, taxes, dividends, partial fills and portfolio constraints. Signals can overlap, and the universe is curated rather than survivorship-bias-free. Do not interpret these statistics as proof of a tradable edge.")
 
+
+
+with alpaca_tab:
+    @st.fragment(run_every="30s")
+    def render_alpaca_paper_trading():
+        st.subheader("🦙 Alpaca paper trading")
+        st.caption("Broker-connected paper account monitor. Read-only dashboard view; the separate cloud worker manages strategy decisions and order lifecycle.")
+        if st.button("↻ Refresh Alpaca account", key="refresh_alpaca_dedicated"):
+            load_latest_alpaca_paper_account_snapshot.clear()
+            load_latest_paper_trade_decisions.clear()
+            load_latest_paper_execution_guardrail.clear()
+        try:
+            snapshot = load_latest_alpaca_paper_account_snapshot()
+        except Exception as exc:
+            snapshot = None
+            st.error("Could not load the Alpaca paper-account snapshot.")
+            st.caption(f"Technical detail: {exc}")
+        if not snapshot:
+            st.warning("No Alpaca paper snapshot is available yet. Check the worker broker poller and Supabase persistence.")
+        else:
+            fetched = snapshot.get("snapshot_fetched_at")
+            try:
+                fetched_dt = pd.to_datetime(fetched, utc=True)
+                age = max(0, (pd.Timestamp.now(tz="UTC") - fetched_dt).total_seconds())
+                age_label = f"{age:.0f}s ago"
+            except Exception:
+                age, age_label = None, "timestamp unavailable"
+            if age is None:
+                st.warning("Snapshot freshness cannot be verified.")
+            elif age > 180:
+                st.warning(f"Broker snapshot is stale ({age / 60:.1f} minutes old).")
+            else:
+                st.success(f"Alpaca paper account connected · snapshot {age_label}")
+            status = str(snapshot.get("status") or "UNKNOWN").upper()
+            if status not in ("ACTIVE", "ACTIVE_TRADING"):
+                st.warning(f"Broker account status: {status}")
+            def money(value):
+                try:
+                    return f"${float(value):,.2f}"
+                except (TypeError, ValueError):
+                    return "Unavailable"
+            m1,m2,m3,m4 = st.columns(4)
+            m1.metric("Broker equity", money(snapshot.get("equity")))
+            m2.metric("Cash", money(snapshot.get("cash")))
+            m3.metric("Buying power", money(snapshot.get("buying_power")))
+            m4.metric("Portfolio value", money(snapshot.get("portfolio_value")))
+            market_state = "OPEN" if snapshot.get("is_market_open") is True else "CLOSED" if snapshot.get("is_market_open") is False else "UNKNOWN"
+            st.caption(f"Account: {status} · Market: {market_state} · Source: {snapshot.get('source') or 'Alpaca paper API'} · Fetched: {fetched or 'unknown'}")
+            positions = snapshot.get("positions") or []
+            st.markdown(f"#### Open positions ({len(positions)})")
+            if positions:
+                df = pd.DataFrame(positions)
+                cols = [c for c in ["symbol","qty","side","avg_entry_price","current_price","market_value","unrealized_pl","unrealized_plpc"] if c in df.columns]
+                st.dataframe(df[cols],use_container_width=True,hide_index=True)
+            else:
+                st.info("Alpaca currently reports no open positions.")
+            orders = snapshot.get("open_orders") or []
+            st.markdown(f"#### Working orders ({len(orders)})")
+            if orders:
+                st.dataframe(pd.DataFrame(orders),use_container_width=True,hide_index=True)
+            else:
+                st.info("No currently working orders.")
+            recent = snapshot.get("recent_orders") or []
+            st.markdown(f"#### Recent order activity ({len(recent)})")
+            if recent:
+                st.dataframe(pd.DataFrame(recent),use_container_width=True,hide_index=True)
+            else:
+                st.info("No recent order history was included in the latest snapshot.")
+        st.divider()
+        st.markdown("### 🛡️ Daily loss guardrail")
+        try:
+            guard = load_latest_paper_execution_guardrail()
+        except Exception as exc:
+            guard = None
+            st.warning(f"Guardrail snapshot unavailable: {exc}")
+        if guard:
+            g1,g2,g3,g4 = st.columns(4)
+            g1.metric("Daily P/L", money(guard.get("daily_pnl")))
+            g2.metric("Daily loss", f"{float(guard.get('daily_loss_pct') or 0):.2f}%")
+            g3.metric("Starting equity", money(guard.get("starting_equity")))
+            g4.metric("Entry circuit breaker", "HALTED" if guard.get("halted") else "CLEAR")
+            if guard.get("halted"):
+                st.error(f"New paper entries blocked: {guard.get('halt_reason') or 'Daily loss limit reached'}.")
+            st.caption(f"Trading date: {guard.get('trading_date')} · Updated: {guard.get('updated_at')}")
+        else:
+            st.info("No daily-loss guardrail record is available yet.")
+        st.divider()
+        st.markdown("### 🤖 Paper decision & execution audit")
+        try:
+            decisions = load_latest_paper_trade_decisions()
+        except Exception as exc:
+            decisions = []
+            st.warning(f"Paper decision audit unavailable: {exc}")
+        if decisions:
+            df = pd.DataFrame(decisions)
+            cols = [c for c in ["symbol","status","reason","quantity","estimated_notional","estimated_risk_dollars","broker_order_id","updated_at"] if c in df.columns]
+            st.dataframe(df[cols],use_container_width=True,hide_index=True)
+        else:
+            st.info("No paper-trading decision records are available yet.")
+        st.caption("Paper environment only. This dashboard is read-only and cannot submit, replace, or cancel broker orders.")
+    render_alpaca_paper_trading()
 
 with cloud_tab:
     @st.fragment(run_every="60s")
@@ -3403,33 +3508,6 @@ with scanner_tab:
     
     
         pass
-
-with paper_tab:
-    st.subheader("🗃️ Legacy $1,000 virtual account — retired")
-    st.info(
-        "This Supabase simulation account is retired. Its historical positions and journal are "
-        "preserved for reference only. This dashboard no longer opens, closes, resets, or monitors "
-        "simulated positions. All new paper-trading activity belongs in Alpaca Paper Trading."
-    )
-    if paper_account_available:
-        archived_positions = st.session_state.get("paper_positions") or {}
-        archived_journal = st.session_state.get("paper_journal") or []
-        st.caption(
-            f"Archived record only · {len(archived_positions)} position record(s) · "
-            f"{len(archived_journal)} journal entr(y/ies) · "
-            f"last saved: {st.session_state.get('paper_account_updated_at') or 'not recorded'}"
-        )
-        if archived_positions:
-            st.markdown("#### Archived positions")
-            st.dataframe(pd.DataFrame([
-                {"Symbol": symbol, **position} for symbol, position in archived_positions.items()
-            ]), use_container_width=True, hide_index=True)
-        if archived_journal:
-            st.markdown("#### Archived trade journal")
-            st.dataframe(pd.DataFrame(archived_journal), use_container_width=True, hide_index=True)
-    else:
-        st.warning("The archived record could not be loaded. No replacement account was created.")
-
 
 # The virtual account is retired: only read preserved snapshots; never append new rows.
 snapshot_error = None

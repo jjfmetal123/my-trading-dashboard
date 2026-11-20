@@ -559,6 +559,18 @@ def load_bot_intelligence_replays():
     return result.data or []
 
 
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_bot_intelligence_signal_context():
+    """Read-only setup and regime labels for replay event attribution."""
+    client = get_supabase_client()
+    result = (
+        client.table("strategy_signal_observations")
+        .select("id,setup_type,signal,market_regime,setup_score")
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
 @st.cache_data(ttl=30, show_spinner=False)
 def load_latest_paper_trade_decisions():
     """Load recent paper-only decision audit rows; this never mutates an account."""
@@ -3959,12 +3971,18 @@ with intelligence_tab:
     st.caption("A read-only scorecard built from simulated historical paper replays. It rewards repeatable process and risk discipline—not lucky wins. These are not Alpaca broker fills and this panel cannot change trading permissions.")
     if st.button("↻ Refresh intelligence center", key="refresh_bot_intelligence"):
         load_bot_intelligence_replays.clear()
+        load_bot_intelligence_signal_context.clear()
     try:
         replay_rows = load_bot_intelligence_replays()
+        signal_context = load_bot_intelligence_signal_context()
     except Exception as exc:
         replay_rows = []
+        signal_context = []
         st.error(f"Could not load replay evidence: {type(exc).__name__}")
     replay_df = pd.DataFrame(replay_rows)
+    context_df = pd.DataFrame(signal_context)
+    if not replay_df.empty and not context_df.empty:
+        replay_df = replay_df.merge(context_df, how="left", left_on="event_id", right_on="id", suffixes=("", "_signal"))
     if replay_df.empty:
         st.info("No replay evidence is available yet. Achievements will appear as completed simulated outcomes are recorded.")
     else:
@@ -4039,6 +4057,28 @@ with intelligence_tab:
                 leaderboard = leaderboard.rename(columns={"model_version": "Model", "Closed": "Closed outcomes", "Net_PnL": "Net simulated P/L"})
                 leaderboard = leaderboard.sort_values(["Net simulated P/L", "Win rate %"], ascending=False)
                 st.dataframe(leaderboard, use_container_width=True, hide_index=True)
+            st.markdown("#### 🧭 Setup & volatility-regime intelligence")
+            st.caption("Each segment is linked to its original signal. Rankings require at least five closed replay outcomes; smaller samples remain unranked.")
+            for dimension, heading in (("setup_type", "Setup leaderboard"), ("market_regime", "Market-regime leaderboard")):
+                if dimension not in closed.columns:
+                    continue
+                segment = closed[closed[dimension].notna()].copy()
+                if segment.empty:
+                    continue
+                summary = segment.groupby(dimension).agg(Closed=("id", "count"), Wins=("is_win", "sum"), Net_PnL=("net_realized_pnl", "sum"), Avg_Return=("return_pct", "mean")).reset_index()
+                summary["Win rate %"] = summary["Wins"] / summary["Closed"] * 100
+                summary["Evidence"] = np.where(summary["Closed"] >= 5, "Rank eligible", "Early sample")
+                summary = summary.rename(columns={dimension: "Segment", "Closed": "Closed outcomes", "Net_PnL": "Net simulated P/L", "Avg_Return": "Average return %"}).sort_values("Closed outcomes", ascending=False)
+                st.markdown("**" + heading + "**")
+                st.dataframe(summary[["Segment", "Closed outcomes", "Wins", "Win rate %", "Average return %", "Net simulated P/L", "Evidence"]], use_container_width=True, hide_index=True)
+                for _, row in summary[summary["Closed outcomes"] >= 5].iterrows():
+                    if row["Average return %"] < 0:
+                        st.warning(str(row["Segment"]) + ": negative average replay return (" + format(row["Average return %"], ".2f") + "%). Flagged for research only; no strategy settings or permissions are changed.")
+                    elif row["Average return %"] > 0:
+                        st.success(str(row["Segment"]) + ": positive average replay return (" + format(row["Average return %"], ".2f") + "%). Observational, not proof of an edge.")
+            if "market_regime" in closed.columns and closed["market_regime"].dropna().nunique() < 2:
+                st.caption("Only one market regime is represented in closed replays; regime-to-regime comparisons are not yet supported.")
+
             st.markdown("#### 🧾 Recent evaluated outcomes")
             recent = closed.sort_values("updated_at", ascending=False).head(20)
             display = recent[["symbol", "model_version", "status", "entry_date", "exit_date", "net_realized_pnl", "return_pct", "risk_disciplined"]].copy()

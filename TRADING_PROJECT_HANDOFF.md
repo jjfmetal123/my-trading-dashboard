@@ -921,3 +921,5 @@ When the user says **“Resume the trading project”**:
 
 
 - PR #37 CI failure/correction audit: first run `44838284967` compiled all modules but failed one new test because its fixture had only four unique signal dates; the validator correctly returned `INSUFFICIENT_DATES`, while the test incorrectly expected a completed result. Expanded the fixture to five unique dates (corrective head `367f2410978e1b4c877afaa0f130dc0ee22631bd`). Fresh CI for the corrective head was not yet visible at handoff update; status remains pending, not green.
+
+- Second PR #37 CI audit: run `44838359811` reached unit tests and failed only the non-overlap fixture's expected count (actual 4, expected 3); the implementation retained valid independent events across separate symbols. Corrected the assertion to 4 in head `bac9f20ab64a592baa2fa029c642281e2a419786`. Fresh CI not yet visible; keep PR #37 validation pending.

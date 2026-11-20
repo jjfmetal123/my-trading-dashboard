@@ -812,3 +812,24 @@ When the user says **“Resume the trading project”**:
 - No changes to production main, no merges/deployments, no broker writes/orders, no account mutations, and no risk/entry/exit policy changes. Production remains V5.95 / main. PR #32 remains draft/open/unmerged/undeployed; its CI passed (Python tests `44819614648`, Python checks `44819614626`).
 
 - Follow-up CI verification: PR #33 head `b9e307ea2f8c04214d6e14cac49e184b9ba87837` passed Python tests run `44820031670` and Python checks run `44820031921`; both completed SUCCESS. PR remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive short-strategy replay batch — Worker PR #34
+
+### PR #34 — chronological historical replay for shadow short setups
+- Added `short_strategy_replay.py`, a pure research harness that consumes injected per-symbol daily OHLCV histories and optionally aligned benchmark bars. It uses the PR #33 breakdown/retest classifier on each completed historical prefix; it never classifies a bar using future bars.
+- Entry convention is explicitly the NEXT session open after the signal close. It measures short-side close returns, favorable/adverse price excursions (MFE/MAE), and 1/5/10/20-session horizons when the full horizon exists.
+- Added round-trip cost sensitivity at 0, 10, and 25 bps. Optional benchmark regime labels use only trailing 20-session benchmark returns: sell-off <= -5%, rising >= +5%, otherwise range/chop.
+- Overlapping events are retained and flagged by symbol rather than silently treated as independent. Small samples are labeled `LOW_SAMPLE_DO_NOT_INFER`. Every event is `executable: false`.
+- Four deterministic tests cover fail-closed malformed input, next-session-open timing and short-return math, future-bar invariance of prior signal/entry, and monotonic cost sensitivity.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/34
+- Branch: `research/short-historical-replay-20261120`; head `e0bae855c19c1f3ef30070df3f94038c478c9072`. Draft/open/unmerged/undeployed; stacked on PR #33 so the incremental diff contains only the replay module and tests.
+- CI at handoff update: Python tests run `44822106190` was IN_PROGRESS. No successful result is claimed yet; check this exact head again before calling it validated.
+
+### Interpretation limits / next research step
+- This is a historical event-study harness, not a portfolio backtest and not proof of profitability. It does not model broker fills, stop/target execution, same-day barrier ordering, borrow availability/fees, dividends, corporate actions, or full market impact. MFE/MAE are excursions, not fills.
+- No real historical replay result is claimed yet; no provider dataset was downloaded or run through the harness in this batch. The next step is a reproducible data adapter and actual symbol/benchmark history replay, with date coverage and data-quality reporting, followed by independent/non-overlapping sample analysis and a holdout period.
+- No production imports, worker behavior, scanner, order path, risk gates, entry/exit rules, sizing, stops/targets, paper switch, account state, or broker calls were changed.
+
+### Production safety
+- Production remains V5.95 / main, paper-only. PR #34 is draft/open/unmerged/undeployed. No deployment, broker mutation, account mutation, order submission, or risk-policy change occurred. Explicit approval remains required before any merge or deployment.

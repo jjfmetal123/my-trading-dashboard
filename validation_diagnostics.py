@@ -80,7 +80,7 @@ def deoverlap_events(events, cooldown_sessions=20):
 def build_edge_diagnostics(
     events,
     *,
-    horizons=("5d", "10d", "20d"),
+    horizons=("1d", "5d", "10d", "20d"),
     min_return_samples=30,
     min_benchmark_samples=20,
     cost_scenarios_bps=(10, 20, 40, 60),

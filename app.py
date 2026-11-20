@@ -501,6 +501,124 @@ def load_snapshot_history():
     return result.data or []
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def load_latest_cloud_scan():
+    """Read the latest observation-only market scan saved by the cloud worker."""
+    client = get_supabase_client()
+    result = (
+        client.table("market_scan_runs")
+        .select("id,scanned_at,symbol_count,signal_counts,ranked_results,watchlist,data_source,scan_type,ai_review,ai_reviewed_at,ai_model")
+        .order("scanned_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_bot_intelligence_replays():
+    """Read-only simulated replay outcomes for the Bot Intelligence Center."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_execution_replays")
+        .select("id,event_id,model_version,symbol,status,entry_date,exit_date,quantity,entry_price,exit_price,net_realized_pnl,return_pct,result,updated_at")
+        .order("updated_at", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_bot_intelligence_signal_context():
+    """Read-only setup and regime labels for replay event attribution."""
+    client = get_supabase_client()
+    result = (
+        client.table("strategy_signal_observations")
+        .select("id,setup_type,signal,market_regime,setup_score")
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
+@st.cache_data(ttl=30, show_spinner=False)
+def load_latest_paper_trade_decisions():
+    """Load recent paper-only decision audit rows; this never mutates an account."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_trade_decisions")
+        .select("symbol,status,reason,quote_timestamp,quote_feed,bid,ask,midpoint,spread_pct,quantity,estimated_notional,estimated_risk_dollars,current_reward_risk,broker_order_id,client_order_id,decision,updated_at")
+        .order("updated_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return result.data or []
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_latest_paper_trade_decisions():
+    """Load recent paper-only decision audit rows; this never mutates an account."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_trade_decisions")
+        .select("symbol,status,reason,quote_timestamp,quote_feed,bid,ask,midpoint,spread_pct,quantity,estimated_notional,estimated_risk_dollars,current_reward_risk,broker_order_id,client_order_id,decision,updated_at")
+        .order("updated_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return result.data or []
+
+@st.cache_data(ttl=15, show_spinner=False)
+def load_latest_alpaca_paper_account_snapshot():
+    """Read the latest worker-persisted GET-only Alpaca paper brokerage snapshot."""
+    client = get_supabase_client()
+    result = (
+        client.table("alpaca_paper_account_snapshots")
+        .select("snapshot_fetched_at,source,status,currency,cash,portfolio_value,buying_power,equity,last_equity,is_market_open,next_open,next_close,positions,open_orders,recent_orders,updated_at")
+        .eq("account_id", "primary-paper-account")
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_latest_paper_execution_guardrail():
+    """Load the latest Alpaca paper-account daily-loss guardrail; read-only."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_execution_guardrails")
+        .select("trading_date,starting_equity,current_equity,daily_pnl,daily_loss_pct,halted,halt_reason,updated_at")
+        .order("trading_date", desc=True)
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_latest_historical_portfolio_replay():
+    """Load the newest historical shared-capital replay, preferring V7 when present."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_portfolio_replay_runs")
+        .select("model_version,as_of_date,updated_at,total_return_pct,final_equity,max_drawdown_pct,closed_trades,result")
+        .in_("model_version", ["HISTORICAL_PORTFOLIO_REPLAY_V7", "HISTORICAL_PORTFOLIO_REPLAY_V6"])
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_prior_historical_portfolio_replay():
+    """Load V6 for a source-history fingerprint comparison with the V7 replay."""
+    client = get_supabase_client()
+    result = (
+        client.table("paper_portfolio_replay_runs")
+        .select("model_version,as_of_date,updated_at,result")
+        .eq("model_version", "HISTORICAL_PORTFOLIO_REPLAY_V6")
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
 def load_strategy_signal_events():
     """Load persisted first-seen signals and their observed forward outcomes."""
     client = get_supabase_client()

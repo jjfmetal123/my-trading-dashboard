@@ -521,3 +521,45 @@ When the user says **“Resume the trading project”**:
 - V5.45 final runtime verification: latest worker version commit `181405be91bd` and README commit `82e289b89a91`; worker CI runs `44414488862` and `44414501474` SUCCESS. Render deploy `dep-dbv2ki0qsg7c73e7soa0` LIVE on `82e289b89a91`. Startup at 22:45:48 UTC confirms `WORKER_VERSION=5.45`; fresh Alpaca paper read-only snapshot at 22:45:50 UTC confirms ACTIVE, $100,000 equity, $200,000 buying power, zero broker positions, and all three restriction flags false. Safety mode still reports order submission disabled unless explicitly enabled. Dashboard handoff syntax CI run `44414534868` SUCCESS. The Supabase virtual paper account's separate AAPL/MSFT positions were read-only monitored; their stale intraday bars were explicitly skipped, with no exit evaluation on stale data.
 
 - V5.45 final verification: test/compile run `44414376412` SUCCESS on nested child-symbol test commit `8e77c12b9550451cc57ac4630c146314b52e32fc`; full suite passed **189 tests**. Version commit `181405be91bd07c0c7ebea9eea0ea7c72b4827c9` and README commit `82e289b89a9135a53de547fdcfffebb00c235454` passed CI. Render deploy `dep-dbv2ki0qsg7c73e7soa0` is LIVE; startup at 22:45:48 UTC confirms `WORKER_VERSION=5.45` and paper-only safety mode. No brokerage orders submitted; order switch remains OFF.
+
+## 2026-11-20 live continuation checkpoint
+
+**Verified current repositories and deployment state (do not rely on the older V5.45 checkpoint above):**
+
+### Dashboard
+- Repository: `jjfmetal123/my-trading-dashboard`
+- Current `main` commit: `5efe7fb14ba5b6a37db005b305a17f2df92431ee` (PR #17).
+- Dashboard PR #8 (resilience/responsive layout), PR #14 (unique diagnostics-module import), PR #16 (restore missing read-only data loaders), and PR #17 (dedicated read-only Alpaca Paper Trading tab) are merged.
+- Current `app.py` imports `dashboard_validation_diagnostics`; that exact module exists in `main`. Dashboard CI for current main commit passed (compile-and-test).
+- Streamlit Community Cloud runtime still requires user-side visual confirmation; GitHub CI does not prove the hosted app has refreshed.
+
+### Cloud worker
+- Repository: `jjfmetal123/trading-cloud-worker`
+- Current `main` commit: `438910d1e3fc9979d721178bb90a624992e593ce`.
+- Worker source/README version: **V5.93**.
+- Render service: `srv-dbua8frm8hqs73f895h0`, workspace `tea-dbu9vo6tlv9c73bqbdh0`.
+- Latest deploy for current main commit is LIVE: `dep-dc0abrntfofc73a4n7b0`.
+- PR #24 corrected Alpaca bracket-stop lifecycle handling: raw `held` is normalized to `HELD` and counts as active only for the conditional stop-loss leg, never for a held take-profit leg.
+- PR #25 merged as `7a3c42189fc0ed4113d747adfa06a0a0120717d6` and deployed. It adds explicit paper-execution switch logs, per-position protection audits, and per-cycle decision/reason summaries; no execution policy changed.
+- PR #26 merged as `83b6648514606434c319be2df1b82f66573f5654` and deployed. Adds shadow-only annualized-volatility bands, ATR context, stop-risk-per-share, and theoretical whole-share capacity against strategy capital.
+- PR #27 merged as `438910d1e3fc9979d721178bb90a624992e593ce` and deployed. Preserves Alpaca quote exchange/condition/tape metadata and marks locked quotes as diagnostic CAUTION; it does not change execution quote acceptance.
+- CI passed on the PR #25, #26, and #27 heads.
+
+### Current paper-account observation and safety
+- Render logs at 2026-11-20 19:57 UTC report the Alpaca paper account ACTIVE with equity approximately **$4,998** and one open symbol, **ORLY**.
+- Execution-cycle logs report `auto_enabled=True`; automatic execution is currently enabled for the paper account. Keep this setting unchanged unless the user explicitly directs otherwise.
+- The worker is paper-only. The order adapter is hard-pinned to Alpaca's paper endpoint; live brokerage endpoints are prohibited.
+- The current strategy allocation is **$5,000**, with the fixed **$50 daily-loss stop** from PR #23. Do not reset, reseed, or alter the broker account or the separate retired Supabase virtual-account archive.
+- Recent cycles evaluated 35 candidates (15 long / 20 short) and submitted zero new orders because no candidate passed all gates. This is not a stopped worker; the scanner and paper decision cycle continue.
+- The previous ORLY protection warnings were caused by the `held` stop-leg normalization gap addressed in PR #24. Confirm a fresh post-deploy `BROKER POSITION PROTECTION AUDIT` before claiming ORLY is protected; do not cancel, replace, or modify any broker order as part of verification.
+
+### Open engineering work
+- PR #28 (`Add shadow-only near-miss diagnostics`) remains a draft and is **not merged or deployed**. It adds distance-to-trigger margins and 1/5/10-minute shadow outcome observations.
+- Review identified a concurrency hazard: the shadow collector read and replaced the entire `paper_trade_decisions.decision` JSONB value, potentially overwriting a simultaneous broker lifecycle update.
+- A compare-and-set guard has now been added to PR #28: the update must match both row ID and the original `updated_at`. If broker reconciliation has advanced the row, the shadow write becomes a no-op and can be retried on a later pass. Regression tests were added for the successful write, concurrent broker update, and missing row version. Latest PR head: `acf4861e6a4f8b6a59ebfb77a031ca81fe8e478a`; verify fresh CI before merge.
+- PR #28 must remain unmerged until the latest CI is green and the persistence guard is reviewed.
+- The volatility-transition research chain remains open in stacked PRs #4–#9. It targets post-transition sessions 1, 5, 10, and 20, matched against stable-volatility observations, with chronological holdout and uncertainty checks. Preserve its shadow/research-only authority boundary and inspect branch ancestry before merging any stacked PR.
+- PR #16 (449-symbol universe expansion) remains open; do not merge without a separate data-coverage/runtime review.
+- Next exact actions: (1) verify the latest V5.93 startup and post-PR #24 ORLY protection audit; (2) verify the post-PR #25 execution-cycle summary and current switch state; (3) confirm PR #28 CAS tests pass and keep it draft until safe; (4) continue the 1/5/10/20-session volatility-transition study; (5) visually confirm the Streamlit dashboard deployment.
+
+**Non-negotiable:** paper-only execution, no live endpoint/credentials, no broker/account reset, no mutation of the archived Supabase virtual account, and no enabling/disabling of automatic paper execution without explicit user direction.

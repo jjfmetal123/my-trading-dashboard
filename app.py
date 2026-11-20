@@ -29,9 +29,29 @@ h2 { font-size: clamp(1.35rem, 2.2vw, 1.75rem) !important; }
 h3 { font-size: 1.18rem !important; }
 p, li, label, [data-testid="stCaptionContainer"] { line-height: 1.55; }
 [data-testid="stCaptionContainer"] { color: #9eafc4; }
-[data-testid="stAlert"] {
-  border-radius: 12px; border: 1px solid rgba(148, 163, 184, .18);
-  background: rgba(25, 39, 58, .72); padding: .8rem 1rem;
+/* Keep Streamlit alerts readable in dark mode, including nested severity wrappers. */
+[data-testid="stAlert"],
+[data-testid="stAlert"] > div,
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+  background: #1b2b40 !important;
+  color: #f3f7fc !important;
+  border: 1px solid #60758d !important;
+  border-radius: 12px !important;
+  padding: .8rem 1rem;
+}
+[data-testid="stAlert"] *,
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span,
+[data-testid="stAlert"] li,
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
+  color: #f3f7fc !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #f3f7fc !important;
+}
+[data-testid="stAlert"] svg { opacity: 1 !important; }
+[data-testid="stAlert"] [data-testid="stAlertContent"],
+[data-testid="stAlert"] [data-testid="stAlertContent"] > div {
+  background: transparent !important;
 }
 [data-testid="stMetric"] {
   background: linear-gradient(145deg, rgba(24, 39, 58, .92), rgba(16, 28, 44, .88));

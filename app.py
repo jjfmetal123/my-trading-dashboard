@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, deoverlap_events, replay_sequence_risk_metrics
+from validation_diagnostics import build_edge_diagnostics, build_volatility_transition_study, deoverlap_events, replay_sequence_risk_metrics
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -3995,6 +3995,21 @@ with intelligence_tab:
             transition_cols[0].metric("Detected transitions", len(transition_study["transitions"]))
             transition_cols[1].metric("Signal observations loaded", len(transition_signals))
             transition_cols[2].metric("Matched response groups", len(transition_study["rows"]))
+            coverage = transition_study["diagnostics"]
+            with st.expander("Signal coverage & exclusions", expanded=True):
+                coverage_cols = st.columns(4)
+                coverage_cols[0].metric("Matched signals", coverage["matched_signals"])
+                coverage_cols[1].metric("Valid outcome observations", coverage["valid_outcome_observations"])
+                coverage_cols[2].metric("Dates outside SPY history", coverage["date_not_in_spy_history"])
+                coverage_cols[3].metric("No prior transition", coverage["no_prior_transition"])
+                st.caption(
+                    f"Loaded {coverage['signals_total']} signals · "
+                    f"{coverage['invalid_signal_dates']} invalid dates · "
+                    f"{coverage['transition_day_excluded']} transition-day signals excluded · "
+                    f"{coverage['outside_20_session_window']} older than 20 sessions · "
+                    f"{coverage['signals_with_valid_outcomes']} matched signals had at least one valid stored outcome. "
+                    "Signals are assigned only to the latest preceding transition, so overlapping windows are not double-counted."
+                )
             transition_cols = st.columns(2)
             transition_cols[0].metric("High-volatility sessions", int((transition_study["regime"] == "HIGH").sum()))
             transition_cols[1].metric("Baseline sessions", int((transition_study["regime"] == "BASELINE").sum()))

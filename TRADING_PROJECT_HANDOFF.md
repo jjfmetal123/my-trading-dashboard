@@ -833,3 +833,5 @@ When the user says **“Resume the trading project”**:
 
 ### Production safety
 - Production remains V5.95 / main, paper-only. PR #34 is draft/open/unmerged/undeployed. No deployment, broker mutation, account mutation, order submission, or risk-policy change occurred. Explicit approval remains required before any merge or deployment.
+
+- Follow-up CI verification: PR #34 Python tests run `44822106190` (run #937) completed SUCCESS, including module compilation and unit tests. No PR-triggered Python checks workflow appeared in the run list at the final check, so checks are not claimed green. PR remains draft/open/unmerged/undeployed.

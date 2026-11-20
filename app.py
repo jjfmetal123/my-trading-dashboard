@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import yfinance as yf
-from validation_diagnostics import build_edge_diagnostics, deoverlap_events
+from validation_diagnostics import build_edge_diagnostics, deoverlap_events, replay_sequence_risk_metrics
 from datetime import datetime, date
 
 st.set_page_config(page_title="AI Market Intelligence", page_icon="📈", layout="wide")
@@ -4016,6 +4016,7 @@ with intelligence_tab:
             total_pnl = float(closed["net_realized_pnl"].sum())
             avg_return = float(closed["return_pct"].mean()) if closed["return_pct"].notna().any() else np.nan
             discipline_rate = float(closed["risk_disciplined"].mean() * 100)
+            sequence_risk = replay_sequence_risk_metrics(closed.to_dict("records"))
             # A transparent process score: risk-budget adherence (50%), win rate (25%),
             # and positive aggregate replay P/L (25%). It is descriptive, not predictive.
             pnl_component = 25.0 if total_pnl > 0 else (12.5 if total_pnl == 0 else 0.0)
@@ -4028,6 +4029,12 @@ with intelligence_tab:
             m4.metric("Net simulated P/L", f"${total_pnl:,.2f}")
             st.progress(max(0.0, min(1.0, score / 100)), text=f"Process score · {grade}")
             st.caption(f"Risk-budget adherence: {discipline_rate:.1f}% · Average closed replay return: {avg_return:.2f}% · Formula: 50% risk adherence + 25% win rate + 25% aggregate P/L sign. Current sample: {n_closed} closed outcomes.")
+            st.markdown("#### 🧯 Loss-streak & drawdown intelligence")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Current consecutive losses", sequence_risk["current_loss_streak"])
+            r2.metric("Longest loss streak", sequence_risk["max_loss_streak"])
+            r3.metric("Replay sequence drawdown", f"${sequence_risk['max_sequence_drawdown']:,.2f}")
+            st.caption("These are chronological isolated-replay diagnostics, ordered by exit date. Replay events are independently sized and are not netted into a portfolio; this is not Alpaca account drawdown or a portfolio-equity curve.")
             st.markdown("#### 🎖️ Achievements")
             achievements = [
                 ("🛡️ Risk-aware operator", "At least 90% of closed replays stayed within their recorded per-trade risk budget.", discipline_rate >= 90 and n_closed >= 5),

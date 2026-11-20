@@ -59,8 +59,9 @@ class ValidationDiagnosticsTests(unittest.TestCase):
         one_day = next(row for row in rows if row["Horizon"] == "1d")
         self.assertEqual(one_day["Signal_samples"], 1)
         self.assertAlmostEqual(one_day["Gross_mean_return_pct"], 0.25)
-        self.assertEqual(len(rows), 1)
-        row = rows[0]
+        self.assertEqual(len(rows), 2)
+        five_day = next(row for row in rows if row["Horizon"] == "5d")
+        row = five_day
         self.assertEqual(row["Score band"], "90-100")
         self.assertEqual(row["Signal_samples"], 3)
         self.assertEqual(row["Benchmark_matched_samples"], 1)

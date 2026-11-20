@@ -4012,7 +4012,7 @@ with intelligence_tab:
                 ("🎯 First ten evaluated", "Ten closed simulated outcomes recorded.", n_closed >= 10),
                 ("🏅 Fifty-trade sample", "Fifty closed simulated outcomes recorded; enough to begin more meaningful comparisons.", n_closed >= 50),
                 ("🔥 Positive replay aggregate", "Aggregate net simulated P/L is positive across closed outcomes.", total_pnl > 0 and n_closed >= 10),
-                ("🧠 Learning in motion", "At least three distinct strategy/setup labels have been evaluated.", closed["model_version"].nunique() >= 3),
+                ("🧠 Model diversity", "At least three distinct replay model versions have been evaluated.", closed["model_version"].nunique() >= 3),
             ]
             ach_cols = st.columns(2)
             for idx, (name, detail, earned) in enumerate(achievements):

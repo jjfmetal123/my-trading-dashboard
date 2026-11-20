@@ -744,3 +744,21 @@ When the user says **“Resume the trading project”**:
 - Render logs show paper execution summaries continuing at 20:52:01, 20:53:06, 20:55:07, and 20:57:08 UTC.
 - Submission switch remained ENABLED and `newly_submitted=0` on those cycles; 34 candidates were evaluated per cycle, with quote-missing count 0. Most common blockers remained high-volatility class, spread/quote quality, extension from entry trigger, and setup eligibility.
 - This confirms the production paper-decision loop was still producing cycles in that interval; it does not imply trades were filled or that PR #29 has been deployed.
+
+
+## 2026-11-20 massive improvement — shadow collector outage/backlog recovery
+
+### Worker PR #31 — prevent pending observations from aging out
+- A deeper queue audit found a starvation/data-loss edge in PR #28: the collector selected rows with `updated_at >= now - 30 minutes`. Since each successful compare-and-set collection pass advances `updated_at`, this age filter could hide older pending observations after an outage or long backlog, preventing them from ever being finalized.
+- Removed the 30-minute `updated_at` cutoff. The queue remains restricted to actual near-miss rows, excludes matured rows with NULL-safe status logic, orders oldest-first, and keeps the 500-row cap.
+- Stale pending records can now drain as explicit `DATA_UNAVAILABLE` outcomes when one-minute provider history is no longer retained, rather than silently aging out of the queue.
+- Added a regression assertion that the collector does not apply an `updated_at` age cutoff.
+- PR #31: https://github.com/jjfmetal123/trading-cloud-worker/pull/31
+- Head: `6e665e877ba976f4fe1ea563fab54d1dfffb4d86`. CI workflow runs were not yet visible when checked; validation is pending. This is stacked on PR #28 and is not merged or deployed.
+- PR #28 remains open/unmerged; PR #29 remains draft/unmerged; PR #9 remains draft/unmerged and its mixed-calendar test still needs a fresh CI run.
+
+### Safety and production status
+- This change is shadow-collector queue eligibility only. It does not change ranking, candidate gates, entry/exit logic, sizing, stops/targets, broker API calls, protective orders, account settings, or the paper switch.
+- No merges, deployments, broker mutations, or production writes were performed.
+- Production remains on main / V5.95 until explicit approval to merge and deploy. Keep Alpaca paper-only.
+- Next hardening target: build a deterministic multi-pass simulation with >500 mixed rows, including ordinary decisions, legacy NULL statuses, pending observations, matured observations, old backlog, CAS conflicts, and transient query/bar/write failures; prove eventual queue drainage and per-row failure isolation. Also verify the exact PostgREST JSON-path filters safely and validate PR #9's latest head in CI.

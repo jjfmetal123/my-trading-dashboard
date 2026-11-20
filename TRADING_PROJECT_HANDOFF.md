@@ -835,3 +835,24 @@ When the user says **“Resume the trading project”**:
 - Production remains V5.95 / main, paper-only. PR #34 is draft/open/unmerged/undeployed. No deployment, broker mutation, account mutation, order submission, or risk-policy change occurred. Explicit approval remains required before any merge or deployment.
 
 - Follow-up CI verification: PR #34 Python tests run `44822106190` (run #937) completed SUCCESS, including module compilation and unit tests. No PR-triggered Python checks workflow appeared in the run list at the final check, so checks are not claimed green. PR remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive historical-data infrastructure batch — Worker PR #35
+
+### PR #35 — reproducible adjusted daily OHLCV acquisition
+- Added `short_history_data.py`, a standalone, injectable Yahoo Finance daily-history adapter using the repository's existing `yfinance` dependency. It is not imported by the production worker or any execution path.
+- Requests adjusted daily OHLCV in bounded batches; normalizes single/multi-ticker responses; sorts and deduplicates dates; uses the shared completed-session cutoff to exclude today's incomplete candle; validates positive, internally consistent OHLC and positive volume; and reports per-symbol status, first/last date, valid session count, rejected rows, provider failures, and retrieval metadata.
+- Provider exceptions are isolated by batch. Ambiguous multi-symbol flat-column responses fail closed instead of assigning one symbol's bars to another.
+- Corrected PR #34 benchmark regime and benchmark-return matching to use trading-date joins, not matching array indexes. Added regression coverage for symbol/benchmark histories with different session indexes.
+- Added five adapter tests plus the benchmark date-alignment test (six tests in this PR's incremental work).
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/35
+- Branch: `research/short-history-data-adapter-20261120`; head `9b625ac24c9687ea60130bfb7204f0a4c34f1519`. Draft/open/unmerged/undeployed; stacked on PR #34. CI workflow was not yet visible at the first check; validation pending.
+- PR #34 Python tests remain green on head `e0bae855c19c1f3ef30070df3f94038c478c9072` (run `44822106190`, SUCCESS). Its separate checks workflow was not confirmed.
+
+### Data quality and research limitations
+- This adds the reproducible acquisition path but no real market history was downloaded or replayed in this batch. Do not report strategy returns until an explicit research run records the symbol universe, provider, adjustment mode, date coverage, rejected rows, and replay output.
+- Yahoo adjusted history is provider-specific; `auto_adjust=true` is recorded in metadata. The adapter does not independently reconstruct dividends/splits, certify survivorship-bias-free universe history, model borrow/fees, or make the study an executable backtest.
+- The replay remains descriptive, shadow-only, and `executable: false`.
+
+### Safety
+- No production worker imports, scanner changes, broker calls, paper/live orders, Supabase writes, account mutations, risk/entry/exit changes, or deployments. Production remains V5.95 / main / Alpaca paper-only. No merge or deployment was attempted.

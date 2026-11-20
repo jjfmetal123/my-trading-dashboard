@@ -3990,7 +3990,7 @@ with intelligence_tab:
             if col in replay_df:
                 replay_df[col] = pd.to_numeric(replay_df[col], errors="coerce")
         closed = replay_df[
-            replay_df["status"].astype(str).str.startswith("CLOSED")
+            replay_df["status"].astype(str).str.upper().str.startswith("CLOSED")
             & replay_df["net_realized_pnl"].notna()
         ].copy()
         open_count = int((~replay_df.index.isin(closed.index)).sum())
@@ -3998,14 +3998,18 @@ with intelligence_tab:
             closed["is_win"] = closed["net_realized_pnl"] > 0
             closed["result_data"] = closed["result"].apply(lambda value: value if isinstance(value, dict) else {})
             closed["sizing_data"] = closed["result_data"].apply(lambda value: value.get("sizing") or {})
-            closed["risk_disciplined"] = closed["sizing_data"].apply(
-                lambda value: (
-                    value.get("status") == "SIZED"
-                    and value.get("projected_position_risk") is not None
-                    and value.get("trade_risk_budget") is not None
-                    and float(value.get("projected_position_risk")) <= float(value.get("trade_risk_budget"))
-                )
-            )
+            def _within_recorded_risk_budget(sizing):
+                """Fail closed on missing, malformed, non-finite, or non-positive risk budgets."""
+                if not isinstance(sizing, dict) or sizing.get("status") != "SIZED":
+                    return False
+                try:
+                    projected = float(sizing.get("projected_position_risk"))
+                    budget = float(sizing.get("trade_risk_budget"))
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                return bool(np.isfinite(projected) and np.isfinite(budget) and budget > 0 and 0 <= projected <= budget)
+
+            closed["risk_disciplined"] = closed["sizing_data"].apply(_within_recorded_risk_budget)
             n_closed = len(closed)
             wins = int(closed["is_win"].sum())
             win_rate = wins / n_closed * 100

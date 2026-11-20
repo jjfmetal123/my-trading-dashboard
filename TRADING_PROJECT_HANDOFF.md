@@ -888,3 +888,5 @@ When the user says **“Resume the trading project”**:
 ### Next research milestone
 - Validate PR #36 on CI, then run the runner against an explicitly selected historical universe and benchmark where the environment permits provider access. Save and inspect the exact coverage manifest and raw replay output before interpreting results.
 - Build a faithful baseline only if the production daily scanner feature calculations and candidate thresholds can be reconstructed exactly from chronological OHLCV; keep quote/execution gates as a separately labeled execution feasibility layer.
+
+- PR #36 CI follow-up: head `5c42439f5680a1e05e583b9460a6f92354ddf082` passed Python tests run `44835034920` (run #941). Module compilation and the full unit-test step succeeded; no separate Python checks workflow is claimed. PR remains draft/open/unmerged/undeployed.

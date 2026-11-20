@@ -1,5 +1,5 @@
 import unittest
-from validation_diagnostics import deoverlap_events, replay_sequence_risk_metrics, score_bucket
+from validation_diagnostics import build_volatility_transition_study, deoverlap_events, replay_sequence_risk_metrics, score_bucket
 
 
 class ValidationDiagnosticsTests(unittest.TestCase):
@@ -104,6 +104,31 @@ class ValidationDiagnosticsTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs):
                 with self.assertRaises(ValueError):
                     build_edge_diagnostics([], **kwargs)
+
+
+    def test_volatility_transition_uses_prior_only_threshold_and_buckets_signal_age(self):
+        import pandas as pd
+        from validation_diagnostics import build_volatility_transition_study
+        index = pd.bdate_range("2023-01-02", periods=180)
+        # Quiet returns followed by a sustained high-volatility shock.
+        returns = [0.001 if i % 2 else -0.001 for i in range(180)]
+        for i in range(100, 180):
+            returns[i] = 0.035 if i % 2 else -0.035
+        prices = [100.0]
+        for value in returns[1:]:
+            prices.append(prices[-1] * (1 + value))
+        close = pd.Series(prices, index=index)
+        transition_date = index[100].date().isoformat()
+        events = [{
+            "signal_date": index[101].date().isoformat(), "setup_type": "PULLBACK",
+            "outcomes": {"1d": {"close_return_pct": 1.0}, "5d": {"close_return_pct": 2.0}},
+        }]
+        result = build_volatility_transition_study(close, events, vol_window=10, lookback=60)
+        self.assertTrue(result["transitions"])
+        self.assertEqual(result["transitions"][0]["transition_date"], transition_date)
+        self.assertEqual(result["transitions"][0]["to_regime"], "HIGH")
+        self.assertEqual(len(result["rows"]), 2)
+        self.assertTrue(all(row["Sessions after transition"] == "1 session" for row in result["rows"]))
 
 
 if __name__ == "__main__":

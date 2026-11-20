@@ -918,3 +918,6 @@ When the user says **“Resume the trading project”**:
 - Verify PR #37 CI on the exact head above. Fix any failures and re-run.
 - Then validate all stacked research PRs (#35–#37) from the top branch, run the runner with a real provider only if external access is available, archive exact JSON/Markdown outputs and coverage, and review the results before making any strategy conclusions.
 - Keep the production bearish-pullback comparator marked NOT_RUN until its daily scanner calculations can be faithfully reconstructed; do not invent a baseline.
+
+
+- PR #37 CI failure/correction audit: first run `44838284967` compiled all modules but failed one new test because its fixture had only four unique signal dates; the validator correctly returned `INSUFFICIENT_DATES`, while the test incorrectly expected a completed result. Expanded the fixture to five unique dates (corrective head `367f2410978e1b4c877afaa0f130dc0ee22631bd`). Fresh CI for the corrective head was not yet visible at handoff update; status remains pending, not green.

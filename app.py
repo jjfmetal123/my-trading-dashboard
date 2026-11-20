@@ -4035,11 +4035,10 @@ with intelligence_tab:
         for col in ("net_realized_pnl", "return_pct", "entry_price", "exit_price", "quantity"):
             if col in replay_df:
                 replay_df[col] = pd.to_numeric(replay_df[col], errors="coerce")
-        closed = replay_df[
-            replay_df["status"].astype(str).str.upper().str.startswith("CLOSED")
-            & replay_df["net_realized_pnl"].notna()
-        ].copy()
-        open_count = int((~replay_df.index.isin(closed.index)).sum())
+        closed_status = replay_df["status"].astype(str).str.upper().str.startswith("CLOSED")
+        closed = replay_df[closed_status & replay_df["net_realized_pnl"].notna()].copy()
+        open_count = int((~closed_status).sum())
+        closed_missing_pnl_count = int((closed_status & replay_df["net_realized_pnl"].isna()).sum())
         if not closed.empty:
             closed["is_win"] = closed["net_realized_pnl"] > 0
             closed["result_data"] = closed["result"].apply(lambda value: value if isinstance(value, dict) else {})
@@ -4070,7 +4069,7 @@ with intelligence_tab:
             grade = "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "Needs work"
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Process score", f"{score}/100", grade)
-            m2.metric("Closed replay outcomes", f"{n_closed}", f"{open_count} open / unresolved")
+            m2.metric("Closed replay outcomes", f"{n_closed}", f"{open_count} open / unresolved · {closed_missing_pnl_count} closed missing P/L")
             m3.metric("Replay win rate", f"{win_rate:.1f}%")
             m4.metric("Net simulated P/L", f"${total_pnl:,.2f}")
             st.progress(max(0.0, min(1.0, score / 100)), text=f"Process score · {grade}")

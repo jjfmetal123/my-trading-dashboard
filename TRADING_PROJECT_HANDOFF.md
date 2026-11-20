@@ -691,3 +691,23 @@ When the user says **“Resume the trading project”**:
 - GitHub currently reports PR #28 open, unmerged, and mergeable. Its description now records the current-head CI results. It remains undeployed; Render auto-deploys only main.
 - Collector fairness query change is covered by a green full suite, although the tests do not yet include a high-volume multi-batch starvation simulation. Add that targeted stress/regression test in a later hardening pass before relying on fairness under sustained backlog.
 - No production or broker state was modified.
+
+
+## 2026-11-20 massive reliability batch — legacy collector inclusion + supervisor lifecycle stress tests
+
+### PR #28 collector query correction
+- A second-order review found that a plain PostgREST `neq(MATURED)` predicate can exclude SQL NULL values. That would risk excluding legacy JSON rows that have no maturity-status key yet — precisely the rows that must be collected.
+- Replaced the filter with an explicit OR predicate: JSON maturity status IS NULL OR status != MATURED. Old/legacy rows are now included while matured rows are excluded; oldest-first ordering remains.
+- Added a worker integration-level query-builder test asserting the OR-null predicate, oldest-first ordering, and 500-row batch limit.
+- Latest PR #28 head: `0f849bef27a0fc476e7ae148f3ffbfff41948a73`. CI: Python tests run `44815394877` SUCCESS (**460 tests passed**); Python checks run `44815395112` SUCCESS.
+- PR #28 remains open/unmerged/undeployed.
+
+### PR #29 supervisor reliability coverage
+- Added deterministic lifecycle tests for idempotent start, refusal to restart after terminal shutdown, shared shutdown deadline / stuck-thread reporting, and DB-client recreation after engine failure.
+- Latest PR #29 head: `b00bd15dfc9777f883fb33699f47aa6e08f337ed`. CI: Python tests run `44815440341` SUCCESS (**456 tests passed**); Python checks run `44815440413` SUCCESS.
+- PR #29 remains draft/open/unmerged/undeployed.
+
+### Research/production boundaries
+- PR #9 remains stacked and draft. Its calendar-ID checks and date fallback are preserved; no merge attempted.
+- Production worker remains V5.95 on main. Render auto-deploys main only. No deployment, no broker writes, no position/order modifications, no risk/policy changes.
+- Next review: test that the JSON-path OR predicate is accepted by the actual Supabase/PostgREST endpoint in a safe read-only diagnostic (not a write); stress-test collector backlog with more than 500 mixed legacy/pending/matured rows; add mixed-calendar holdout-purge regression; then re-run complete CI.

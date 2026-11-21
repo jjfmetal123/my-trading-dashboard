@@ -999,3 +999,41 @@ When the user says **“Resume the trading project”**:
 - Next development improvement: add net-cost sensitivity summaries to the chronological holdout and non-overlap validation report (10/25 bps scenarios), test string-universe normalization and report output, then validate. A previous attempt to write this improvement failed before any file change; do not assume it exists.
 - After a safe manual run, archive and inspect JSON/Markdown artifacts: requested/usable/unavailable symbols, dates/sessions/rejected rows, event counts, holdout cutoff and purge counts, cost sensitivity, overlap samples, and low-sample warnings. No profitability conclusion without adequate independent, out-of-sample evidence.
 
+
+
+## 2026-11-21 MOON research cost-validation batch — Worker PR #40
+
+### Repository and production continuity verification
+- Re-read this canonical handoff from dashboard `main`; pre-update blob SHA `f23dcf2793fb01bb61af1194552f026461ea92dc`.
+- Verified both repositories exist and are accessible: `jjfmetal123/my-trading-dashboard` (default branch `main`) and `jjfmetal123/trading-cloud-worker` (default branch `main`).
+- Dashboard open PRs at verification: #18 documentation checkpoint, #1–#7 research panels. Worker open PRs include #34–#40 and earlier independent diagnostics/research PRs #28/#29/#31/#32/#33, plus the older volatility-research stack. These must be rechecked before any future merge; do not assume all are current or mergeable.
+- Render worker `srv-dbua8frm8hqs73f895h0` remains configured for auto-deploy on commits to worker `main`. Latest deployment remains `dep-dc0adlm7bikc73fnlov0`, LIVE, commit `919f5a8f73869943c3de5772e13f30cda85fca31` (V5.95).
+- No production deployment, worker-main change, broker request, order, account mutation, Supabase write, or trading-policy change was made in this batch.
+
+### Worker PR #39 — borrow-fee stress follow-up
+- PR #39 `Add calendar-day borrow-fee stress to short research`, branch `research/short-borrow-cost-stress-20261120`, head `d17bd42dbb3038f138cd1c5f8349fd4dbe6b6c9b`, base PR #38 branch `research/short-study-manual-run-20261120`.
+- Latest Python tests run `44845733629` completed SUCCESS (run #949). PR #39 remains draft/open/unmerged/undeployed.
+- Adds 0/5/20/50/100% annualized borrow-fee scenario assumptions prorated over elapsed calendar days, combined with 0/10/25 bps round-trip transaction costs. APRs are stress assumptions, not observed borrow rates, locate availability, or realized fills.
+
+### Worker PR #40 — net-cost holdout and independent-event validation
+- Created branch `research/short-net-cost-holdout-20261121` from PR #39 head `d17bd42dbb3038f138cd1c5f8349fd4dbe6b6c9b`.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/40
+- Latest head: `ba6368bbba5253fb7df055786f1ac1ba67da3632`; base is PR #39 branch. Draft/open/unmerged; 5 commits, 4 changed files.
+- Adds explicit combined transaction-cost + borrow-fee sensitivity summaries to chronological training/holdout and per-symbol non-overlap event cohorts. Adds report columns for holdout net average under 25 bps + 5% APR and 25 bps + 100% APR, plus non-overlap net average under 25 bps + 5% APR.
+- Preserves existing horizon-specific purge and non-overlap selection rules; records cost assumptions in the validation methodology and rejects negative/non-finite scenario inputs.
+- Added tests for holdout and non-overlap cost calculations, invalid cost assumptions, and report output.
+- CI status is **PENDING / NOT YET RETURNED**: the PR-head workflow-run lookup returned no runs and combined commit status returned no statuses at the time of this checkpoint. Do not claim the tests passed until a fresh PR-triggered Python test run completes.
+- No empirical Yahoo data fetch or historical replay was performed. This is code and deterministic test infrastructure only.
+
+### Research dependencies and next exact actions
+1. Verify PR #40 CI on exact head `ba6368bbba5253fb7df055786f1ac1ba67da3632`. Fix any failures, rerun, and inspect the final diff/report fixture.
+2. Review the stacked dependency chain #34 → #35 → #36 → #37 → #38 → #39 → #40. PRs #35–#38 were previously squash-merged only into parent research branches under explicit user authorization; they did not reach worker `main`. PRs #39 and #40 have not been merged.
+3. The manual historical-study workflow is still not on worker default branch `main`; do not assume it can be dispatched. Any route that requires a worker-main commit would trigger Render auto-deploy and needs separate explicit approval.
+4. Prefer an isolated, non-production runner for the real 5-year study. After a run, inspect exact provider timestamps, requested/usable/unavailable symbols, rejected rows, date coverage, event counts, horizon purge, independent samples, net cost/borrow sensitivity, and low-sample warnings.
+5. Keep the production bearish-pullback comparator `NOT_RUN` until the actual scanner feature and execution gate inputs can be reproduced faithfully. No profitability conclusion from convenience-universe daily-bar event samples.
+6. Recheck current Alpaca paper account and switch state read-only before any account-sensitive action. The preceding dashboard PR #18 checkpoint reported the paper submission switch ENABLED with `paper_only=true`, latest paper equity $4,996.44, and a protected 2-share ORLY bracket. These are historical observations, not freshly reverified in this batch; do not change settings or orders.
+
+### Safety and validation boundary
+- PR #40 is research-only and non-executable. No production imports or changes to scanner, entry/exit, sizing, stops, risk controls, protective orders, paper switch, account settings, broker calls, Supabase, or Render were made.
+- PR #39 CI is green on run `44845733629`; PR #40 CI remains unverified.
+- Production remains worker `main` / V5.95 / last verified live deployment above. Research branches remain isolated from production.

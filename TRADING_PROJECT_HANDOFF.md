@@ -925,3 +925,23 @@ When the user says **“Resume the trading project”**:
 - Second PR #37 CI audit: run `44838359811` reached unit tests and failed only the non-overlap fixture's expected count (actual 4, expected 3); the implementation retained valid independent events across separate symbols. Corrected the assertion to 4 in head `bac9f20ab64a592baa2fa029c642281e2a419786`. Fresh CI not yet visible; keep PR #37 validation pending.
 
 - Final PR #37 validation: corrective head `bac9f20ab64a592baa2fa029c642281e2a419786` passed Python tests run `44838455237` (run #944). Module compilation and the full unit-test step passed. The two earlier failures and exact fixture corrections remain documented above. No separate Python checks workflow is claimed. PR #37 remains draft/open/unmerged/undeployed.
+
+
+## 2026-11-20 massive research execution-enablement batch — Worker PR #38
+
+### PR #38 — manually triggered real-history study workflow
+- Added `.github/workflows/manual-short-strategy-study.yml` on branch `research/short-study-manual-run-20261120`.
+- Workflow is `workflow_dispatch` only. It has explicit inputs for comma-separated symbol universe, benchmark, provider period, and minimum event count. No schedule, push trigger, or automatic recurring data fetch was added.
+- Installs only research dependencies (pandas, NumPy, yfinance), runs the existing `run_short_strategy_study.py`, and archives the generated JSON and Markdown report for 30 days.
+- Requires no Alpaca credentials, does not commit downloaded data, and does not call broker or Supabase services. The workflow is intended to run on the selected research branch after it is available for manual dispatch.
+- Default universe remains the existing small convenience set (AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA, AMD) against SPY. It is not survivorship-bias-free; results must not be generalized to the whole market.
+- Production bearish-pullback baseline remains NOT_RUN; shadow signals remain non-executable.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/38
+- Branch: `research/short-study-manual-run-20261120`; head `6f556e47988e4c1e0bdda209387f843e4848a6f4`; base is PR #37 branch `research/short-study-validation-20261120` at `bac9f20ab64a592baa2fa029c642281e2a419786`.
+- PR #38 is draft/open/unmerged/undeployed. Its workflow file was read back and verified. No PR-triggered CI run was returned at the time of handoff update; do not claim workflow execution or empirical results.
+- PR #37 parent validation remains Python tests run `44838455237` SUCCESS on head `bac9f20ab64a592baa2fa029c642281e2a419786`.
+
+### Exact next action
+- Review PR #38 workflow checks and, when the branch/workflow is manually dispatchable, run a real 5-year history study with a documented fixed universe and archive the JSON/Markdown artifacts. Inspect symbol coverage, rejected rows, event counts, holdout purge, overlap diagnostics, cost sensitivity, and low-sample warnings before interpreting any returns.
+- Do not merge PR #38 or any stacked research PR without explicit user approval. Do not merge any worker changes to main because Render auto-deploys worker main.
+- Production remains V5.95 / main / Alpaca paper-only. No paper trading, live trading, account, Supabase, risk-policy, or production deployment changes were made in this batch.

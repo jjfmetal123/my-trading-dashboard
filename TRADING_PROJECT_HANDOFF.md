@@ -986,3 +986,21 @@ When the user says **“Resume the trading project”**:
 ### Verification boundary
 - This session performed read-only GitHub, Render service/deploy/log, and CI inspection, plus a documentation-only branch/PR update.
 - No strategy performance result was generated. No historical provider fetch was run. No order was submitted during this verification. No merge or deployment was performed.
+
+
+## 2026-11-20 follow-on short research — Worker PR #39
+
+### PR #39 — calendar-day short-borrow fee sensitivity
+- Added annualized borrow-fee stress assumptions of 0%, 5%, 20%, 50%, and 100% APR to the shadow historical short replay.
+- Borrow costs are prorated over elapsed calendar days between next-session entry and each horizon exit using a 365-day year, so weekends are included. The replay combines the borrow scenario with existing 0/10/25 bps round-trip transaction-cost assumptions.
+- The Markdown report now surfaces average combined net-return sensitivity for the highest configured transaction-cost scenario across each borrow APR.
+- Added regression tests for calendar-day holding periods, weekend accrual, combined transaction/borrow cost arithmetic, monotonicity, invalid fee inputs, and report output.
+- Explicit caveat: APR values are scenario assumptions, not observed historical borrow rates or proof of locate availability. Actual locate fees, recalls, utilization, rebates, dividends, financing, market impact, and broker fills remain unmodeled.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/39
+- Branch: `research/short-borrow-cost-stress-20261120`; latest head `d17bd42dbb3038f138cd1c5f8349fd4dbe6b6c9b`, stacked on PR #38 head `6f556e47988e4c1e0bdda209387f843e4848a6f4`.
+- Latest Python tests run `44845733629` completed SUCCESS; compile step and full unit-test step passed, **474 tests** total.
+- Earlier CI run `44845642522` failed seven tests due to a local variable shadowing the outer summary key. Corrected by renaming the inner key to `scenario_key`; the final head above passed. Preserve the failed run in the audit trail; do not describe the first attempt as green.
+- PR #39 remains draft/open/unmerged/undeployed. No production code, worker main branch, Render deployment, broker call, paper/live order, account, or Supabase state was changed.
+
+### Next exact action
+- Continue research-only methodology review and inspect the ordered dependency chain (#34–#39). Do not merge any stacked worker PR without explicit user approval. Once the stack is approved and the workflow is on default branch, run the manual historical study and inspect archived outputs. Keep paper-only production behavior and current account settings unchanged.

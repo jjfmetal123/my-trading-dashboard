@@ -945,3 +945,44 @@ When the user says **“Resume the trading project”**:
 - Review PR #38 workflow checks and, when the branch/workflow is manually dispatchable, run a real 5-year history study with a documented fixed universe and archive the JSON/Markdown artifacts. Inspect symbol coverage, rejected rows, event counts, holdout purge, overlap diagnostics, cost sensitivity, and low-sample warnings before interpreting any returns.
 - Do not merge PR #38 or any stacked research PR without explicit user approval. Do not merge any worker changes to main because Render auto-deploys worker main.
 - Production remains V5.95 / main / Alpaca paper-only. No paper trading, live trading, account, Supabase, risk-policy, or production deployment changes were made in this batch.
+
+
+## 2026-11-20 MOON resume verification — live state and PR #38 CI
+
+### Verified repository heads
+- Dashboard default branch `main`: `7b9fdfa11bd5484d5eef12acdeec948ddc7195e0` (handoff documentation update for PR #38).
+- Worker default branch `main`: `919f5a8f73869943c3de5772e13f30cda85fca31` (README/worker documentation alignment, V5.95).
+- Both repositories were found and readable. Dashboard repository is public; worker repository is private.
+- No branch was merged and no production deployment was triggered by this verification.
+
+### Worker research stack
+- PR #38: `research/short-study-manual-run-20261120`, head `6f556e47988e4c1e0bdda209387f843e4848a6f4`, base PR #37 at `bac9f20ab64a592baa2fa029c642281e2a419786`. Draft/open/unmerged/undeployed.
+- PR #38 Python tests run `44842813238` completed SUCCESS. The workflow itself has not been dispatched and no real historical-data results are claimed.
+- PR #37 Python tests run `44838455237` completed SUCCESS on head `bac9f20ab64a592baa2fa029c642281e2a419786`.
+- PRs #35–#38 remain stacked and open. The manual workflow file is not on default branch `main`; it cannot yet be dispatched through the normal GitHub Actions UI until the workflow reaches the default branch. Do not merge any part of the stack without explicit user approval.
+- Workflow file `.github/workflows/manual-short-strategy-study.yml` was read back from PR #38. It uses `workflow_dispatch` only, installs research dependencies, runs the shadow-only historical study, and archives JSON/Markdown artifacts for 30 days. No Alpaca credentials, broker requests, Supabase writes, or production imports are involved.
+
+### Render production verification
+- Worker service `srv-dbua8frm8hqs73f895h0` is configured for `main`, auto-deploy enabled, and is not suspended.
+- Latest Render deployment: `dep-dc0adlm7bikc73fnlov0`, status LIVE, deployed commit `919f5a8f73869943c3de5772e13f30cda85fca31`.
+- Runtime startup logs report `WORKER_VERSION=5.95`.
+- Read-only logs around 2026-11-21 00:39 UTC show Alpaca paper account status ACTIVE and reported equity $4,996.44, with one ORLY position of 2 shares.
+- The position-protection audit reported ORLY `PROTECTED`: stop leg active at $91.09, target leg active at $100.23, and both exit quantities match the 2-share position.
+- The paper execution loop logs `submission_switch=ENABLED` and `paper_only=true`. The market-closed guard prevented new entry evaluation at the observed cycle. This is a material discrepancy from older handoff entries that recorded the execution switch OFF; do not change the switch or infer who changed it. Reconcile account identity/settings read-only before any future account-sensitive work.
+- The current guardrail query uses an Alpaca account identity different from the older Nov 18 handoff snapshot. Do not assume the old $100,000 / zero-position account snapshot still describes the current account. No account, order, position, or guardrail data was mutated during this verification.
+- Render deploy configuration confirms pushes to worker `main` auto-deploy. Never merge worker PRs without explicit approval.
+
+### Dashboard and deployment caveat
+- Dashboard main head is `7b9fdfa11bd5484d5eef12acdeec948ddc7195e0`; dashboard PRs #1–#7 are open and concern research panels.
+- Streamlit Community Cloud visual deployment remains unverified. Do not claim dashboard deployment from GitHub commit status alone.
+
+### Exact next actions
+1. Reconcile the current Alpaca paper account identity and the observed enabled paper-submission switch using read-only evidence; do not alter settings, orders, positions, or guardrails.
+2. Review the full dependency chain for worker PRs #34–#38 and prepare an ordered approval plan. Do not merge.
+3. After the user explicitly approves the required merge sequence and the workflow is on default branch, manually dispatch the 5-year historical short study with a documented universe; inspect coverage, rejected rows, event counts, purged holdout, non-overlap diagnostics, and cost sensitivity before interpreting results.
+4. Keep the production bearish-pullback comparator marked `NOT_RUN`; do not invent a daily-OHLCV proxy.
+5. Continue paper-only operation. No live endpoints, live credentials, diagnostic orders, risk/entry/exit policy changes, or production deployments are authorized by a general “keep going” request.
+
+### Verification boundary
+- This session performed read-only GitHub, Render service/deploy/log, and CI inspection, plus a documentation-only branch/PR update.
+- No strategy performance result was generated. No historical provider fetch was run. No order was submitted during this verification. No merge or deployment was performed.

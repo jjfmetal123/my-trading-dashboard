@@ -945,3 +945,57 @@ When the user says **“Resume the trading project”**:
 - Review PR #38 workflow checks and, when the branch/workflow is manually dispatchable, run a real 5-year history study with a documented fixed universe and archive the JSON/Markdown artifacts. Inspect symbol coverage, rejected rows, event counts, holdout purge, overlap diagnostics, cost sensitivity, and low-sample warnings before interpreting any returns.
 - Do not merge PR #38 or any stacked research PR without explicit user approval. Do not merge any worker changes to main because Render auto-deploys worker main.
 - Production remains V5.95 / main / Alpaca paper-only. No paper trading, live trading, account, Supabase, risk-policy, or production deployment changes were made in this batch.
+
+
+## 2026-11-20 MOON massive short-study research merge batch
+
+### User authorization and merge scope
+- User explicitly requested: "Massive update please merge too!!!!"
+- Converted research PRs #35–#38 from draft to ready and squash-merged them in dependency order into their respective parent research branches.
+- IMPORTANT: these merges did NOT target worker `main`. They remain on the stacked research branch chain rooted at PR #34's `research/short-historical-replay-20261120`. This avoids Render's auto-deploy trigger, which is configured for worker `main` on every commit.
+- No production merge, deployment, paper/live broker call, order, account mutation, Supabase write, or trading-rule change was performed.
+
+### Completed merges
+1. PR #35 — https://github.com/jjfmetal123/trading-cloud-worker/pull/35
+   - Squash merge commit: `826b8d0e7eed8a50063579f658310fa2361ad7f0`
+   - Adapter changes now merged into base branch `research/short-historical-replay-20261120`.
+   - Exact head verified before merge: `3a191a0a856a2b75edd0e26db8f88e7294fa3ad0`.
+   - CI tests run `44833996119` SUCCESS.
+2. PR #36 — https://github.com/jjfmetal123/trading-cloud-worker/pull/36
+   - Squash merge commit: `df5fa6916bb8b7434266c11640c51602e4a712b8`
+   - Runner/report merged into base branch `research/short-history-data-adapter-20261120`.
+   - Exact head verified before merge: `5c42439f5680a1e05e583b9460a6f92354ddf082`.
+   - CI tests run `44835034920` SUCCESS.
+3. PR #37 — https://github.com/jjfmetal123/trading-cloud-worker/pull/37
+   - Squash merge commit: `401f1f5978e260ac8696c7c836df1d8689e3b7e1`
+   - Chronological purge and non-overlap validation merged into base branch `research/short-study-runner-20261120`.
+   - Exact head verified before merge: `bac9f20ab64a592baa2fa029c642281e2a419786`.
+   - CI tests run `44838455237` SUCCESS.
+4. PR #38 — https://github.com/jjfmetal123/trading-cloud-worker/pull/38
+   - Squash merge commit: `b786476d7c7af3c6c180f349339913e623d1653a`
+   - Manual `workflow_dispatch` study workflow merged into base branch `research/short-study-validation-20261120`.
+   - Exact head verified before merge: `6f556e47988e4c1e0bdda209387f843e4848a6f4`.
+   - CI tests run `44842813238` SUCCESS. This confirms PR CI, not that the historical study workflow itself was dispatched or provider data downloaded.
+
+### Verified CI
+- PR #35: check run `136625683068`, success.
+- PR #36: check run `136629141374`, success.
+- PR #37: check run `136640633054`, success.
+- PR #38: check run `136655142055`, success.
+- Each PR head had one GitHub Actions `tests` check, completed with conclusion `success`. The CI job's module compilation and full unit-test steps succeeded as recorded in the PR history.
+
+### Production safety and deployment verification
+- Render worker service `srv-dbua8frm8hqs73f895h0` remains configured to auto-deploy worker `main` on commits.
+- Render latest deployment remains commit `919f5a8f73869943c3de5772e13f30cda85fca31`, status `live`.
+- The four merges landed only in research branches, so they did not trigger a worker-main deployment.
+- Production remains V5.95, paper-only. No changes to entry/exit logic, sizing, risk gates, stops, protective-order logic, account settings, or Alpaca execution state.
+
+### Research limitations / next exact actions
+- No actual Yahoo historical-data run has yet been dispatched; no market-history artifact or empirical result exists.
+- The default universe (AAPL, MSFT, NVDA, AMZN, META, GOOGL, TSLA, AMD; benchmark SPY) is a small convenience universe and has survivorship/selection bias.
+- The production BEARISH PULLBACK comparator is deliberately `NOT_RUN` because daily OHLCV does not faithfully reproduce scanner fields and intraday quote/trigger/volatility/risk gates.
+- PR #38 workflow is now merged into its research parent branch, but that parent is not the repository default branch. GitHub manual workflow dispatch availability must still be verified; do not assume it is dispatchable solely because PR #38 merged.
+- Before dispatch, inspect the final research branch chain and workflow. Prefer a safe method that does not merge research code into worker `main` (which would auto-deploy). If GitHub requires a default-branch workflow, seek explicit user approval before adding any workflow to worker `main`.
+- Next development improvement: add net-cost sensitivity summaries to the chronological holdout and non-overlap validation report (10/25 bps scenarios), test string-universe normalization and report output, then validate. A previous attempt to write this improvement failed before any file change; do not assume it exists.
+- After a safe manual run, archive and inspect JSON/Markdown artifacts: requested/usable/unavailable symbols, dates/sessions/rejected rows, event counts, holdout cutoff and purge counts, cost sensitivity, overlap samples, and low-sample warnings. No profitability conclusion without adequate independent, out-of-sample evidence.
+

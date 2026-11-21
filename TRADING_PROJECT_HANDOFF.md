@@ -1004,3 +1004,11 @@ When the user says **“Resume the trading project”**:
 
 ### Next exact action
 - Continue research-only methodology review and inspect the ordered dependency chain (#34–#39). Do not merge any stacked worker PR without explicit user approval. Once the stack is approved and the workflow is on default branch, run the manual historical study and inspect archived outputs. Keep paper-only production behavior and current account settings unchanged.
+
+
+### Follow-up read-only Supabase reconciliation — 2026-11-21 00:44 UTC
+- Queried `alpaca_paper_account_snapshots` and `paper_execution_guardrails` read-only; no rows were changed.
+- Latest Alpaca paper snapshot: ACTIVE, equity $4,996.44, cash $4,811.28, buying power $9,807.72, one position, and one open order. Snapshot timestamp 2026-11-21 00:44:12 UTC.
+- The 2026-11-20 guardrail table contains two account-keyed rows. The most recently updated row is the $5,000-baseline account: current equity $4,996.44, daily P&L -$3.56, daily loss -0.0712%, halted=false, updated 2026-11-21 00:44:24 UTC. The older $100,000-baseline row was last updated 2026-11-20 14:45:08 UTC and showed $100,029.65, +$29.65, +0.0296%, halted=false.
+- This resolves the apparent $100,000 versus $5,000 discrepancy: the $100,000 row is an older account-keyed guardrail record, while the latest broker snapshot and latest guardrail row align on the $5,000 baseline. Do not assume the older row is the active account, and do not reset/delete either row.
+- The paper submission switch remains reported ENABLED by runtime logs, with `paper_only=true`. No configuration changes were made. The latest observed cycle was market-closed and did not evaluate new entries.

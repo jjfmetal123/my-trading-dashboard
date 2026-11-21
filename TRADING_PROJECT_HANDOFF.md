@@ -1045,3 +1045,22 @@ When the user says **“Resume the trading project”**:
 - Retrieved job log confirms **477 tests ran and completed OK**. This is the full worker unit-test suite at the PR #40 head, not a live broker or historical market-data run.
 - PR #40 remains draft/open/unmerged and stacked on PR #39. No production deployment.
 - Canonical handoff update commit before this CI follow-up: `419bdec5b1196b3c5ca1f3d1e7c8ffbd0a68f9d6`; verified handoff blob `18621f2ac46c10d126ce769a6735bd67cbb8db73`. This follow-up is being appended now.
+
+
+## 2026-11-21 research merge checkpoint — short-borrow / net-cost validation
+
+- Worker PR #39, **Add calendar-day borrow-fee stress to short research**, was marked ready and merged into its research base branch (not worker `main`).
+  - PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/39
+  - Head: `d17bd42dbb3038f138cd1c5f8349fd4dbe6b6c9b`
+  - Merge commit: `a07931e3249c86cef1980d21f2be345c1332d705`
+  - CI for exact head: workflow run #949, successful (previously verified).
+- Worker PR #40, **Add net-cost sensitivity to short-study holdout and non-overlap validation**, was marked ready and merged into its research base branch after #39.
+  - PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/40
+  - Head: `ba6368bbba5253fb7df055786f1ac1ba67da3632`
+  - Merge commit: `b3608d6753ef92eb2ec93e5fa62aaf1ce7d376fe`
+  - CI for exact head: workflow run #951, run ID `44857808047`, completed SUCCESS; job logs confirmed **477 tests ran, OK**.
+- Merge order preserved the stacked dependency: #39 first, then #40. Both merges targeted research branches only. Neither targeted worker `main`.
+- These changes remain research-only. Borrow APRs (0%, 5%, 20%, 50%, 100%) and transaction costs (0/10/25 bps scenarios) are sensitivity assumptions, not observed borrow rates, locate availability, actual fills, or realized costs. Holdout and non-overlap reporting now includes net-cost sensitivity; the study remains event-level, not a portfolio simulation.
+- **Production:** no worker `main` commit, no Render deployment, no broker/API order calls, no Supabase writes, no account mutations, and no changes to execution/risk/entry/exit/sizing controls were made in this merge operation. Previously verified production checkpoint remains V5.95 on worker main commit `919f5a8f73869943c3de5772e13f30cda85fca31`; recheck Render before any future production status claim.
+- **Still outstanding:** confirm the merged research-branch heads and their combined CI state; find/use a non-production runner for the first reproducible historical-data study; validate data coverage, event counts, chronological holdout, purging, independent/non-overlapping samples, and net-cost sensitivity. No Yahoo historical data download/replay or profitability conclusion has been verified.
+- **Next exact action:** refresh GitHub refs and Actions for the merged research base/head branches, then run the historical short study only in an isolated research environment. Do not retarget or merge this stack to worker `main` without separate explicit approval.

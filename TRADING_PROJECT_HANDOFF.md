@@ -945,3 +945,70 @@ When the user says **“Resume the trading project”**:
 - Review PR #38 workflow checks and, when the branch/workflow is manually dispatchable, run a real 5-year history study with a documented fixed universe and archive the JSON/Markdown artifacts. Inspect symbol coverage, rejected rows, event counts, holdout purge, overlap diagnostics, cost sensitivity, and low-sample warnings before interpreting any returns.
 - Do not merge PR #38 or any stacked research PR without explicit user approval. Do not merge any worker changes to main because Render auto-deploys worker main.
 - Production remains V5.95 / main / Alpaca paper-only. No paper trading, live trading, account, Supabase, risk-policy, or production deployment changes were made in this batch.
+
+
+## 2026-11-20 MOON resume verification — live state and PR #38 CI
+
+### Verified repository heads
+- Dashboard default branch `main`: `7b9fdfa11bd5484d5eef12acdeec948ddc7195e0` (handoff documentation update for PR #38).
+- Worker default branch `main`: `919f5a8f73869943c3de5772e13f30cda85fca31` (README/worker documentation alignment, V5.95).
+- Both repositories were found and readable. Dashboard repository is public; worker repository is private.
+- No branch was merged and no production deployment was triggered by this verification.
+
+### Worker research stack
+- PR #38: `research/short-study-manual-run-20261120`, head `6f556e47988e4c1e0bdda209387f843e4848a6f4`, base PR #37 at `bac9f20ab64a592baa2fa029c642281e2a419786`. Draft/open/unmerged/undeployed.
+- PR #38 Python tests run `44842813238` completed SUCCESS. The workflow itself has not been dispatched and no real historical-data results are claimed.
+- PR #37 Python tests run `44838455237` completed SUCCESS on head `bac9f20ab64a592baa2fa029c642281e2a419786`.
+- PRs #35–#38 remain stacked and open. The manual workflow file is not on default branch `main`; it cannot yet be dispatched through the normal GitHub Actions UI until the workflow reaches the default branch. Do not merge any part of the stack without explicit user approval.
+- Workflow file `.github/workflows/manual-short-strategy-study.yml` was read back from PR #38. It uses `workflow_dispatch` only, installs research dependencies, runs the shadow-only historical study, and archives JSON/Markdown artifacts for 30 days. No Alpaca credentials, broker requests, Supabase writes, or production imports are involved.
+
+### Render production verification
+- Worker service `srv-dbua8frm8hqs73f895h0` is configured for `main`, auto-deploy enabled, and is not suspended.
+- Latest Render deployment: `dep-dc0adlm7bikc73fnlov0`, status LIVE, deployed commit `919f5a8f73869943c3de5772e13f30cda85fca31`.
+- Runtime startup logs report `WORKER_VERSION=5.95`.
+- Read-only logs around 2026-11-21 00:39 UTC show Alpaca paper account status ACTIVE and reported equity $4,996.44, with one ORLY position of 2 shares.
+- The position-protection audit reported ORLY `PROTECTED`: stop leg active at $91.09, target leg active at $100.23, and both exit quantities match the 2-share position.
+- The paper execution loop logs `submission_switch=ENABLED` and `paper_only=true`. The market-closed guard prevented new entry evaluation at the observed cycle. This is a material discrepancy from older handoff entries that recorded the execution switch OFF; do not change the switch or infer who changed it. Reconcile account identity/settings read-only before any future account-sensitive work.
+- The current guardrail query uses an Alpaca account identity different from the older Nov 18 handoff snapshot. Do not assume the old $100,000 / zero-position account snapshot still describes the current account. No account, order, position, or guardrail data was mutated during this verification.
+- Render deploy configuration confirms pushes to worker `main` auto-deploy. Never merge worker PRs without explicit approval.
+
+### Dashboard and deployment caveat
+- Dashboard main head is `7b9fdfa11bd5484d5eef12acdeec948ddc7195e0`; dashboard PRs #1–#7 are open and concern research panels.
+- Streamlit Community Cloud visual deployment remains unverified. Do not claim dashboard deployment from GitHub commit status alone.
+
+### Exact next actions
+1. Reconcile the current Alpaca paper account identity and the observed enabled paper-submission switch using read-only evidence; do not alter settings, orders, positions, or guardrails.
+2. Review the full dependency chain for worker PRs #34–#38 and prepare an ordered approval plan. Do not merge.
+3. After the user explicitly approves the required merge sequence and the workflow is on default branch, manually dispatch the 5-year historical short study with a documented universe; inspect coverage, rejected rows, event counts, purged holdout, non-overlap diagnostics, and cost sensitivity before interpreting results.
+4. Keep the production bearish-pullback comparator marked `NOT_RUN`; do not invent a daily-OHLCV proxy.
+5. Continue paper-only operation. No live endpoints, live credentials, diagnostic orders, risk/entry/exit policy changes, or production deployments are authorized by a general “keep going” request.
+
+### Verification boundary
+- This session performed read-only GitHub, Render service/deploy/log, and CI inspection, plus a documentation-only branch/PR update.
+- No strategy performance result was generated. No historical provider fetch was run. No order was submitted during this verification. No merge or deployment was performed.
+
+
+## 2026-11-20 follow-on short research — Worker PR #39
+
+### PR #39 — calendar-day short-borrow fee sensitivity
+- Added annualized borrow-fee stress assumptions of 0%, 5%, 20%, 50%, and 100% APR to the shadow historical short replay.
+- Borrow costs are prorated over elapsed calendar days between next-session entry and each horizon exit using a 365-day year, so weekends are included. The replay combines the borrow scenario with existing 0/10/25 bps round-trip transaction-cost assumptions.
+- The Markdown report now surfaces average combined net-return sensitivity for the highest configured transaction-cost scenario across each borrow APR.
+- Added regression tests for calendar-day holding periods, weekend accrual, combined transaction/borrow cost arithmetic, monotonicity, invalid fee inputs, and report output.
+- Explicit caveat: APR values are scenario assumptions, not observed historical borrow rates or proof of locate availability. Actual locate fees, recalls, utilization, rebates, dividends, financing, market impact, and broker fills remain unmodeled.
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/39
+- Branch: `research/short-borrow-cost-stress-20261120`; latest head `d17bd42dbb3038f138cd1c5f8349fd4dbe6b6c9b`, stacked on PR #38 head `6f556e47988e4c1e0bdda209387f843e4848a6f4`.
+- Latest Python tests run `44845733629` completed SUCCESS; compile step and full unit-test step passed, **474 tests** total.
+- Earlier CI run `44845642522` failed seven tests due to a local variable shadowing the outer summary key. Corrected by renaming the inner key to `scenario_key`; the final head above passed. Preserve the failed run in the audit trail; do not describe the first attempt as green.
+- PR #39 remains draft/open/unmerged/undeployed. No production code, worker main branch, Render deployment, broker call, paper/live order, account, or Supabase state was changed.
+
+### Next exact action
+- Continue research-only methodology review and inspect the ordered dependency chain (#34–#39). Do not merge any stacked worker PR without explicit user approval. Once the stack is approved and the workflow is on default branch, run the manual historical study and inspect archived outputs. Keep paper-only production behavior and current account settings unchanged.
+
+
+### Follow-up read-only Supabase reconciliation — 2026-11-21 00:44 UTC
+- Queried `alpaca_paper_account_snapshots` and `paper_execution_guardrails` read-only; no rows were changed.
+- Latest Alpaca paper snapshot: ACTIVE, equity $4,996.44, cash $4,811.28, buying power $9,807.72, one position, and one open order. Snapshot timestamp 2026-11-21 00:44:12 UTC.
+- The 2026-11-20 guardrail table contains two account-keyed rows. The most recently updated row is the $5,000-baseline account: current equity $4,996.44, daily P&L -$3.56, daily loss -0.0712%, halted=false, updated 2026-11-21 00:44:24 UTC. The older $100,000-baseline row was last updated 2026-11-20 14:45:08 UTC and showed $100,029.65, +$29.65, +0.0296%, halted=false.
+- This resolves the apparent $100,000 versus $5,000 discrepancy: the $100,000 row is an older account-keyed guardrail record, while the latest broker snapshot and latest guardrail row align on the $5,000 baseline. Do not assume the older row is the active account, and do not reset/delete either row.
+- The paper submission switch remains reported ENABLED by runtime logs, with `paper_only=true`. No configuration changes were made. The latest observed cycle was market-closed and did not evaluate new entries.

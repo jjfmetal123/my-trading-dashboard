@@ -1037,3 +1037,11 @@ When the user says **“Resume the trading project”**:
 - PR #40 is research-only and non-executable. No production imports or changes to scanner, entry/exit, sizing, stops, risk controls, protective orders, paper switch, account settings, broker calls, Supabase, or Render were made.
 - PR #39 CI is green on run `44845733629`; PR #40 CI remains unverified.
 - Production remains worker `main` / V5.95 / last verified live deployment above. Research branches remain isolated from production.
+
+
+### PR #40 final CI verification — 2026-11-21
+- Exact PR head `ba6368bbba5253fb7df055786f1ac1ba67da3632` passed GitHub Actions Python tests run `44857808047` (run #951).
+- Job `136703990586`: checkout, Python setup, dependency install, module compilation, and unit tests all completed SUCCESS.
+- Retrieved job log confirms **477 tests ran and completed OK**. This is the full worker unit-test suite at the PR #40 head, not a live broker or historical market-data run.
+- PR #40 remains draft/open/unmerged and stacked on PR #39. No production deployment.
+- Canonical handoff update commit before this CI follow-up: `419bdec5b1196b3c5ca1f3d1e7c8ffbd0a68f9d6`; verified handoff blob `18621f2ac46c10d126ce769a6735bd67cbb8db73`. This follow-up is being appended now.

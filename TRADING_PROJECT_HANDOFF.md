@@ -1105,3 +1105,42 @@ When the user says **“Resume the trading project”**:
 1. Verify the full research branch graph and merged refs; locate an isolated runner that can execute the historical short-study workflow without worker `main` or Render deployment.
 2. Run the reproducible study and inspect source timestamps, requested/usable/unavailable symbols, rejected rows, event counts, chronological cutoff/purge, overlap/non-overlap samples, and net-cost/borrow stress outputs.
 3. Keep production PRs #29 and #32 separate for review. Do not merge them to worker `main` without explicit release approval after a production-specific review and fresh CI.
+
+
+## 2026-11-21 MOON batch — historical short-study data-integrity gate (Worker PR #41)
+
+### Repository continuity and branch correction
+- Re-read canonical handoff from dashboard `main`; pre-update blob SHA: `ea829959c13fb99c739577d0335d85253a3d9414`.
+- Corrected research-branch selection: the fully stacked short-study implementation including PRs #38–#40 is on `research/short-borrow-cost-stress-20261120`, not the earlier `research/short-study-validation-20261120` branch. PR #40's base is `research/short-borrow-cost-stress-20261120`; merged commit `b3608d6753ef92eb2ec93e5fa62aaf1ce7d376fe`.
+- PR #41 was created against that research branch only; no worker `main` targeting.
+
+### Worker PR #41 — fail closed on incomplete historical-study data
+- PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/41
+- Branch: `research/short-study-data-integrity-20261121`
+- Base: `research/short-borrow-cost-stress-20261120`
+- Head SHA: `5d1dfbbd1f08874e15293922dc4927a9085edcab`
+- Latest file commits: runner `364f87eafa964758227771d406619538ee50004b`; tests `5d1dfbbd1f08874e15293922dc4927a9085edcab`.
+- Adds distinct run states for provider unavailable, invalid request, no usable history, missing benchmark, partial coverage, and complete requested coverage.
+- Adds machine-readable provider status/errors, requested versus usable symbol counts and fraction, unavailable symbols, rejected OHLCV row count, benchmark availability, and explicit benchmark-relative analysis eligibility.
+- Adds a Markdown data-quality gate that explicitly warns partial/provider-missing history is not complete five-year coverage and forbids benchmark-relative inference when benchmark history is unavailable.
+- Adds deterministic regression tests for provider unavailable, missing benchmark, and partial provider errors.
+- PR was marked ready for review (not merged). Exact head CI run `44876350161`, job `136761783637`, completed SUCCESS. Job log confirms **480 tests ran, OK**; module compilation also succeeded.
+- No historical Yahoo five-year fetch or replay was executed. Passing tests validate deterministic behavior only, not empirical market outcomes.
+
+### Production and safety verification
+- Render worker `srv-dbua8frm8hqs73f895h0` is still configured for worker `main`, auto-deploy on commit.
+- Latest Render deployment rechecked: `dep-dc0adlm7bikc73fnlov0`, LIVE, commit `919f5a8f73869943c3de5772e13f30cda85fca31` (V5.95).
+- No worker `main` change, Render deployment, broker/API call, order, account mutation, Supabase write, paper switch change, or trading-policy change occurred.
+- Existing production PRs #29 and #32 remain separate/open; do not merge without production-specific review and explicit release approval.
+
+### Exact next actions
+1. Review PR #41's status/diff and merge it only after explicit user approval; it is research-only and stacked on the merged short-study branch.
+2. Run the five-year study in an isolated non-production runner. The manual GitHub Actions workflow exists on the research branch but not worker `main`; do not assume it can be dispatched from this branch. Do not add it to worker `main`, since Render auto-deploys that branch, without separate explicit approval.
+3. A separate Render research workflow/resource would require user approval before provisioning. Alternatively obtain a supported isolated runner that does not touch worker `main`.
+4. After a real run, inspect provider timestamp, each requested symbol's first/last session and coverage, provider errors, rejected rows, benchmark availability, event counts, chronological cutoff and per-horizon purge, independent-event counts, 0/10/25 bps transaction costs, 0/5/20/50/100% annual borrow-fee assumptions, and low-sample warnings.
+5. Keep the production bearish-pullback comparator `NOT_RUN` until actual scanner and intraday execution gate inputs can be faithfully reproduced. No profitability conclusion without sufficient independent, out-of-sample evidence.
+
+### Validation boundary
+- PR #41 CI: 480 unit tests passed; no market data download, replay, broker integration, or production runtime was tested.
+- Production remains V5.95 / worker `main` / last verified LIVE deployment above.
+- All changes in PR #41 are isolated research/reporting code; no production execution or risk logic changed.

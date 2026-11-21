@@ -1064,3 +1064,44 @@ When the user says **“Resume the trading project”**:
 - **Production:** no worker `main` commit, no Render deployment, no broker/API order calls, no Supabase writes, no account mutations, and no changes to execution/risk/entry/exit/sizing controls were made in this merge operation. Previously verified production checkpoint remains V5.95 on worker main commit `919f5a8f73869943c3de5772e13f30cda85fca31`; recheck Render before any future production status claim.
 - **Still outstanding:** confirm the merged research-branch heads and their combined CI state; find/use a non-production runner for the first reproducible historical-data study; validate data coverage, event counts, chronological holdout, purging, independent/non-overlapping samples, and net-cost sensitivity. No Yahoo historical data download/replay or profitability conclusion has been verified.
 - **Next exact action:** refresh GitHub refs and Actions for the merged research base/head branches, then run the historical short study only in an isolated research environment. Do not retarget or merge this stack to worker `main` without separate explicit approval.
+
+
+## 2026-11-21 MOON batch — additional research merges
+
+### Completed safe research-branch merges
+- Worker PR #33, **Research short breakdown and retest setups in shadow mode**, merged into its research parent branch `feat/short-side-diagnostics-20261120` (not worker `main`).
+  - PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/33
+  - Head SHA: `b9e307ea2f8c04214d6e14cac49e184b9ba87837`
+  - Merge commit: `c0cf33878c66f830a0cf2c76089570f00cba1937`
+  - Exact-head Python tests run #936 / `44820031670`: SUCCESS; Python checks run #829 / `44820031921`: SUCCESS.
+  - Research-only classifier; labels remain `executable: false`; no production strategy/execution integration.
+- Worker PR #34, **Build historical replay for shadow short setups**, merged into `research/short-breakdown-setups-20261120` after #33.
+  - PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/34
+  - Exact head SHA: `826b8d0e7eed8a50063579f658310fa2361ad7f0`
+  - Merge commit: `5809b6b4b407186308ed8a9b388cd31b42c4f031`
+  - Exact-head Python tests run #950 / `44857199529`: SUCCESS.
+  - Replay is descriptive event research, next-session-open entry, 1/5/10/20-session close returns, MFE/MAE and cost scenarios; it is not a portfolio backtest, does not model executable barrier fills, and every event remains non-executable.
+- Worker PR #31, **Prevent shadow outcome backlog from aging out**, merged into its research parent `feat/near-miss-shadow-diagnostics-20261120` (not worker `main`).
+  - PR: https://github.com/jjfmetal123/trading-cloud-worker/pull/31
+  - Exact head SHA: `6e665e877ba976f4fe1ea563fab54d1dfffb4d86`
+  - Merge commit: `b28f2522eb35b914f9516b0e4188cd0ea8165b2d`
+  - Exact-head Python tests run #934 / `44817977235`: SUCCESS.
+  - Removes the 30-minute age cutoff while retaining near-miss eligibility, not-matured filter, oldest-first order, 500-row cap, and compare-and-set persistence. Stale observations can become explicit `DATA_UNAVAILABLE` rather than aging out silently.
+
+### Research stack state
+- Short-research dependency chain now includes #33 → #34 → previously merged #35 → #36 → #37 → #38 → #39 → #40, with #39/#40 net borrow-cost validation merged in the earlier checkpoint.
+- #33/#34 were merged into research branches only. Their parent branch `feat/short-side-diagnostics-20261120` is itself PR #32 based on worker `main`; #32 has NOT been merged to `main`.
+- PR #31 was merged only into the near-miss feature branch, not worker `main`; parent PR #28 remains open and unmerged.
+- PR #29 (independent paper-execution supervisor) remains open/draft, targets worker `main`, and is NOT merged. It needs a dedicated production-impact review and fresh full-suite CI before any merge/deploy.
+- PR #32 (side-specific execution diagnostics) remains open/draft, targets worker `main`, and is NOT merged.
+- Other open PRs and their bases/checks must be refreshed before future merges. Do not infer they are safe merely because this batch's merges passed.
+
+### Production and safety verification
+- Render worker service `srv-dbua8frm8hqs73f895h0` latest deployment remains `dep-dc0adlm7bikc73fnlov0`, status LIVE, commit `919f5a8f73869943c3de5772e13f30cda85fca31` (V5.95).
+- Worker `main` was not changed by these merges. No Render deployment, broker/API order call, Supabase write, account mutation, paper switch change, or trading-policy change occurred.
+- No Yahoo historical market-data download or historical replay execution has yet been verified; CI proves code tests, not market-data research results.
+
+### Exact next actions
+1. Verify the full research branch graph and merged refs; locate an isolated runner that can execute the historical short-study workflow without worker `main` or Render deployment.
+2. Run the reproducible study and inspect source timestamps, requested/usable/unavailable symbols, rejected rows, event counts, chronological cutoff/purge, overlap/non-overlap samples, and net-cost/borrow stress outputs.
+3. Keep production PRs #29 and #32 separate for review. Do not merge them to worker `main` without explicit release approval after a production-specific review and fresh CI.

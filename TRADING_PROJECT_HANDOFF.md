@@ -1144,3 +1144,52 @@ When the user says **“Resume the trading project”**:
 - PR #41 CI: 480 unit tests passed; no market data download, replay, broker integration, or production runtime was tested.
 - Production remains V5.95 / worker `main` / last verified LIVE deployment above.
 - All changes in PR #41 are isolated research/reporting code; no production execution or risk logic changed.
+
+
+## 2026-11-24 MOON batch — isolated Render historical short-research workflow
+
+### Implementation and Git state
+- Worker research branch: `research/render-short-study-workflow-20261124`.
+- PR #42: https://github.com/jjfmetal123/trading-cloud-worker/pull/42
+- PR #42 base: `research/short-study-data-integrity-20261121` (PR #41 research branch); head: `026369c56a230039f959910ad84f50077751240c`.
+- PR #42 is OPEN, non-draft, mergeable, and NOT merged.
+- Added `requirements-research.txt` (isolated numpy/pandas/yfinance/Render SDK dependencies; production `requirements.txt` untouched).
+- Added `render_research_workflow.py`: Render Python Workflows app, task `run_five_year_short_study`, 7,200-second timeout, `flex` compute, zero automatic retries, returns Markdown report and structured study payload.
+- Added `RENDER_RESEARCH_WORKFLOW.md` with deployment/run parameters and safety/interpretation boundaries.
+- GitHub Actions exact head run #45426199648, job #138558782447: SUCCESS. Job log confirms compile step passed and **480 tests ran, OK** (0.828 seconds). This is code/test validation, not a market-data run.
+
+### Render Workflow resource — created and verified
+- Workspace: `tea-dbu9vo6tlv9c73bqbdh0` (My Workspace).
+- Workflow: `JJF Historical Short Research`.
+- Workflow ID: `wfl-dc2qqvbm8hqs738ais7g`.
+- Region: Oregon.
+- Linked repository: `https://github.com/jjfmetal123/trading-cloud-worker`.
+- Linked branch: `research/render-short-study-workflow-20261124` (NOT worker `main`).
+- Build command: `pip install -r requirements-research.txt`.
+- Registration command: `python render_research_workflow.py`.
+- Auto deploy: commit.
+- Version `wfv-dc2qqvbm8hqs738aisl0`, commit `026369c`, status verified `ready`.
+- Registered task: `run_five_year_short_study`, task ID `tsk-dc2qrgag78t000djr130`.
+- Render logs confirm successful dependency install, build success, and task registration at 2026-11-24T15:31:13Z.
+- The workflow uses a task-run compute plan; no continuously running worker or recurring schedule was created. No API keys/secrets are configured or required for the Yahoo Finance study.
+
+### Run status and next step
+- The five-year task has NOT yet been started. The available Render connector actions can create/inspect workflows and inspect runs but do not expose a start-task action. Do not claim historical data has been fetched or the study executed.
+- To execute, open the Render Dashboard, navigate to Workflows → `JJF Historical Short Research`, then manually start task `run_five_year_short_study` with:
+  ```json
+  {
+    "symbols": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AMD"],
+    "benchmark": "SPY",
+    "period": "5y",
+    "min_events": 30
+  }
+  ```
+- Once a task run exists, retrieve its status and result, then inspect data-quality state, per-symbol coverage, provider errors, benchmark, event counts, chronological holdout/purge, non-overlap sample counts, cost/borrow sensitivity, and low-sample warnings.
+- No recurring run was scheduled; run remains manual and isolated.
+
+### Production safety and deployment
+- Production Render worker remains service `srv-dbua8frm8hqs73f895h0`, linked to `trading-cloud-worker` branch `main`, auto deploy on commit.
+- Latest verified production deploy on 2026-11-24: `dep-dc2jc1i9lscs73aq0qd0`, LIVE, commit `919f5a8f73869943c3de5772e13f30cda85fca31` (V5.95).
+- Worker `main` file `worker.py` SHA checked: `d0a32cfb9ab3b72343227111ff12a99baa5b386b`; no production changes made in this batch.
+- No broker call, Alpaca order, paper-account mutation, Supabase access/write, strategy/risk/entry/exit/sizing/protective-order modification, production deployment, or production PR merge occurred.
+- PR #41 remains research-only and unmerged; PR #42 stacks on #41's branch. Production PRs #29/#32 remain separate and unmerged.
